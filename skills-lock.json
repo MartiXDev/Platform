@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "conventional-commit": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/conventional-commit/SKILL.md",
+      "computedHash": "f29c9486cede6c7b2df0cfb0a2e4aa67446552b991bcf17d1b309e903171f03d"
+    },
+    "martix-markdown": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-markdown/SKILL.md",
+      "computedHash": "5895a1ce1045203cef0c6b08bfc93030fa7ef8f566ef85d5283c1b4631393e7a"
+    }
+  }
+}

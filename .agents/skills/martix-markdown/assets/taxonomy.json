@@ -1,0 +1,198 @@
+{
+  "package": "martix-markdown",
+  "mode": "standalone-first",
+  "root": "skills/martix-markdown",
+  "scaffoldOnly": false,
+  "sourceIndex": "references/doc-source-index.md",
+  "instructionBridge": "references/instruction-bridge.md",
+  "sourceFamilies": {
+    "upstream-readme": "markdownlint README workflow, installation, aliases, tags, configuration, API, CLI, and examples",
+    "upstream-rules-catalog": "markdownlint Rules.md catalog of built-in rules, aliases, tags, and short descriptions",
+    "upstream-per-rule-docs": "Per-rule markdownlint doc/md0xx.md pages with canonical rule semantics and options",
+    "upstream-custom-rules": "markdownlint CustomRules guide for custom rule authoring and helper ecosystems",
+    "upstream-prettier": "markdownlint Prettier coexistence guide for formatter boundary decisions",
+    "repo-local-markdown-instructions": "Repository-local markdown structure and publishing instructions overlay",
+    "repo-local-markdown-accessibility": "Repository-local accessibility review overlay"
+  },
+  "rulePrefixes": {
+    "foundation-configuration": "Install flow, config surfaces, CLI and API usage, rule aliases and tags, validation workflow, and narrow config overrides",
+    "headings-front-matter-structure": "Heading order, first-heading expectations, section spacing, front-matter-adjacent structure notes, and document-shape review",
+    "lists-whitespace-block-spacing": "Bullet and ordered lists, indentation, blank lines, trailing spaces, tabs, blockquote-adjacent spacing, and file hygiene",
+    "code-html-emphasis": "Fenced code blocks, language hints, inline HTML boundaries, emphasis markers, and nearby readability concerns",
+    "links-images-accessibility": "Link syntax, fragments, reference links, image handling, descriptive link text, alt text, and accessibility review edges",
+    "tables-layout-edges": "Table formatting, row consistency, blank-line boundaries, compact versus expanded layout choices, and nearby layout edge cases",
+    "custom-rules-suppressions-toolchain": "Custom rule authoring, helper packages, inline disables, config-based suppressions, formatter coexistence, and other toolchain boundary choices"
+  },
+  "domains": [
+    {
+      "id": "foundation-configuration",
+      "displayName": "Foundation and configuration",
+      "order": 1,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 2,
+      "ruleFile": "rules/foundation-configuration.md",
+      "primarySourceFamilies": [
+        "upstream-readme",
+        "upstream-rules-catalog",
+        "upstream-prettier"
+      ],
+      "tags": [
+        "configuration",
+        "install",
+        "cli",
+        "api",
+        "aliases",
+        "validation"
+      ]
+    },
+    {
+      "id": "headings-front-matter-structure",
+      "displayName": "Headings, front matter, and document structure",
+      "order": 2,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 13,
+      "ruleFile": "rules/headings-front-matter-structure.md",
+      "primarySourceFamilies": [
+        "upstream-rules-catalog",
+        "upstream-per-rule-docs",
+        "repo-local-markdown-instructions"
+      ],
+      "tags": [
+        "headings",
+        "structure",
+        "front matter",
+        "section spacing",
+        "document shape"
+      ]
+    },
+    {
+      "id": "lists-whitespace-block-spacing",
+      "displayName": "Lists, whitespace, and block spacing",
+      "order": 3,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 12,
+      "ruleFile": "rules/lists-whitespace-block-spacing.md",
+      "primarySourceFamilies": [
+        "upstream-rules-catalog",
+        "upstream-per-rule-docs"
+      ],
+      "tags": [
+        "lists",
+        "whitespace",
+        "blank lines",
+        "tabs",
+        "trailing spaces",
+        "block spacing"
+      ]
+    },
+    {
+      "id": "code-html-emphasis",
+      "displayName": "Code, HTML, and emphasis",
+      "order": 4,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 11,
+      "ruleFile": "rules/code-html-emphasis.md",
+      "primarySourceFamilies": [
+        "upstream-rules-catalog",
+        "upstream-per-rule-docs"
+      ],
+      "tags": [
+        "code fences",
+        "language hints",
+        "html",
+        "emphasis",
+        "readability"
+      ]
+    },
+    {
+      "id": "links-images-accessibility",
+      "displayName": "Links, images, and accessibility",
+      "order": 5,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 10,
+      "ruleFile": "rules/links-images-accessibility.md",
+      "primarySourceFamilies": [
+        "upstream-rules-catalog",
+        "upstream-per-rule-docs",
+        "repo-local-markdown-accessibility"
+      ],
+      "tags": [
+        "links",
+        "images",
+        "accessibility",
+        "fragments",
+        "alt text",
+        "descriptive link text"
+      ]
+    },
+    {
+      "id": "tables-layout-edges",
+      "displayName": "Tables and layout edges",
+      "order": 6,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 5,
+      "ruleFile": "rules/tables-layout-edges.md",
+      "primarySourceFamilies": [
+        "upstream-rules-catalog",
+        "upstream-per-rule-docs"
+      ],
+      "tags": [
+        "tables",
+        "layout",
+        "row consistency",
+        "blank lines",
+        "table style"
+      ]
+    },
+    {
+      "id": "custom-rules-suppressions-toolchain",
+      "displayName": "Custom rules, suppressions, and toolchain coexistence",
+      "order": 7,
+      "status": "authored",
+      "ruleCount": 1,
+      "builtInRuleCount": 0,
+      "ruleFile": "rules/custom-rules-suppressions-toolchain.md",
+      "primarySourceFamilies": [
+        "upstream-readme",
+        "upstream-custom-rules",
+        "upstream-prettier"
+      ],
+      "tags": [
+        "custom rules",
+        "suppressions",
+        "Prettier",
+        "toolchain",
+        "formatter coexistence"
+      ]
+    }
+  ],
+  "tags": [
+    "markdownlint",
+    "markdownlint-cli2",
+    "Markdown",
+    "GitHub Flavored Markdown",
+    "documentation",
+    "README",
+    "docs",
+    "MD codes",
+    "markdown authoring",
+    "lint repair",
+    "config vs content",
+    "repo-local overlay",
+    "instruction bridge",
+    "accessibility",
+    "descriptive link text",
+    "alt text",
+    "tables",
+    "headings",
+    "custom rules",
+    "suppressions",
+    "Prettier coexistence"
+  ]
+}

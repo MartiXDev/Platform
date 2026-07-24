@@ -1,0 +1,19 @@
+{
+  "name": "martix-markdown",
+  "description": "Markdownlint guidance for Markdown lint triage, durable fixes, config-versus-content decisions, custom rules, Prettier coexistence, and accessibility-aware review.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MartiXDev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "martix",
+    "markdown",
+    "markdownlint",
+    "markdownlint-cli2",
+    "accessibility",
+    "documentation"
+  ],
+  "repository": "https://github.com/MartiXDev/skills",
+  "skills": "skills/"
+}

@@ -1,0 +1,49 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Upstream default",
+    "Repo-local overlay",
+    "Avoid",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "ruleSectionNotes": {
+    "Upstream default": "State generic markdownlint behavior, rule IDs, aliases, tags, and option surfaces first.",
+    "Repo-local overlay": "Add repository-specific instructions only when they materially change authoring or review in this repository."
+  },
+  "recommendedRuleOrder": [
+    "rules/foundation-configuration.md",
+    "rules/headings-front-matter-structure.md",
+    "rules/lists-whitespace-block-spacing.md",
+    "rules/code-html-emphasis.md",
+    "rules/links-images-accessibility.md",
+    "rules/tables-layout-edges.md",
+    "rules/custom-rules-suppressions-toolchain.md"
+  ],
+  "referenceOrder": [
+    "references/doc-source-index.md",
+    "references/rule-family-map.md",
+    "references/config-and-validation-map.md",
+    "references/instruction-bridge.md",
+    "references/accessibility-review-map.md",
+    "references/default-rule-profile.md",
+    "references/install-and-validation.md",
+    "references/prettier-and-tooling-notes.md"
+  ],
+  "templateOrder": [
+    "templates/markdownlint-cli2-config.template.jsonc",
+    "templates/rule-template.md",
+    "templates/research-pack-template.md",
+    "templates/comparison-matrix-template.md"
+  ],
+  "plannedDomainOrder": [
+    "foundation-configuration",
+    "headings-front-matter-structure",
+    "lists-whitespace-block-spacing",
+    "code-html-emphasis",
+    "links-images-accessibility",
+    "tables-layout-edges",
+    "custom-rules-suppressions-toolchain"
+  ]
+}
