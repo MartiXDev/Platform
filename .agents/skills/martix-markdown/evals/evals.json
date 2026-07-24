@@ -1,0 +1,113 @@
+{
+  "skill": "martix-markdown",
+  "evals": [
+    {
+      "id": "lint-triage-content-vs-config",
+      "prompt": "I ran `npx --yes markdownlint-cli2 \"skills/martix-markdown/**/*.md\"` after editing `skills\\martix-markdown\\README.md`, and the remaining findings are a mix of MD013 around long install commands, MD031 around fenced PowerShell examples, and pressure to suppress the warnings globally. Walk me through whether each issue belongs in the Markdown content, `skills\\martix-markdown\\.markdownlint.json`, or a narrow exception, then show the smallest safe fix path.",
+      "expected_output": "Routes through the foundation and validation guidance, triages content versus config instead of flattening everything into blanket suppression, preserves command examples when they should stay intact, and points to the package-local files that should change.",
+      "files": [
+        "README.md",
+        ".markdownlint.json",
+        "rules\\foundation-configuration.md",
+        "references\\config-and-validation-map.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "repo-policy-vs-markdownlint-defaults",
+      "prompt": "A contributor wants to treat our repo-local documentation rules as if they were built-in markdownlint defaults. Compare upstream markdownlint behavior with MartiX documentation policy, then tell me what belongs in content edits, config, or bridge guidance for `skills\\martix-markdown\\references\\instruction-bridge.md`. Call out front matter fields, plain-language advice, emoji guidance, and accessibility checks that markdownlint does not enforce directly.",
+      "expected_output": "Separates upstream markdownlint rules from repo-local overlays, identifies which requirements are human-review or bridge-only concerns, and references the bridge or map files that should absorb comparison guidance instead of mislabeling repo policy as a markdownlint default.",
+      "files": [
+        "references\\instruction-bridge.md",
+        "references\\doc-source-index.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "accessibility-review-after-clean-lint",
+      "prompt": "The markdownlint pass is already clean for `skills\\martix-markdown\\README.md`, but I still need an accessibility-aware documentation review before release. Use the package guidance to check what markdownlint already covers versus what still needs human review for descriptive links, image alt text, heading hierarchy, tables, and plain-language cleanup, and give me a prioritized review route.",
+      "expected_output": "Explains that a clean markdownlint run is not the end of review, distinguishes MD045 and MD059 style checks from broader accessibility guidance, and routes the user to the links/images rule plus the accessibility review map with a prioritized checklist.",
+      "files": [
+        "README.md",
+        "rules\\links-images-accessibility.md",
+        "references\\accessibility-review-map.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "automatic-markdown-enforcement-routing",
+      "prompt": "I want Markdown files to be automatically checked and fixed whenever any agent creates or updates an .md file in a project. Should this be handled by the martix-markdown skill itself, or by an installable plugin?",
+      "expected_output": "Keeps martix-markdown as the standalone rule and repair guidance source, recommends the martix-markdown-automation plugin for workspace-level instructions and hooks, and explains that auto-fix runs first before reporting remaining issues.",
+      "files": [
+        "README.md",
+        "SKILL.md",
+        "..\\..\\plugins\\martix-markdown-automation\\README.md",
+        "..\\..\\plugins\\martix-markdown-automation\\instructions\\markdown-policy.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "scope-boundary-general-handoff",
+      "prompt": "A user asks for help that is adjacent to martix-markdown but belongs to a different MartiX skill or general Copilot guidance. Assess whether this skill should handle it.",
+      "negative_activation": true,
+      "expected_sections": [
+        "Scope assessment",
+        "Out-of-scope identification",
+        "Recommended handoff or fallback"
+      ],
+      "assertions": [
+        "States whether the request is inside this skill boundary before applying rules.",
+        "Does not load unrelated rule files or claim ownership of another skill domain.",
+        "Recommends a companion skill or generic guidance path when this skill is not the right fit."
+      ],
+      "files": [
+        "SKILL.md",
+        "AGENTS.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "escalation": null
+    },
+    {
+      "id": "generic-writing-coaching-handoff",
+      "prompt": "Please rewrite this README introduction so it sounds warmer and more persuasive for new contributors. I am not asking about markdownlint, lint findings, config, suppressions, or accessibility review.",
+      "negative_activation": true,
+      "expected_sections": [
+        "Scope assessment",
+        "Out-of-scope identification",
+        "Recommended handoff or fallback"
+      ],
+      "assertions": [
+        "Recognizes that generic prose coaching without a markdownlint or Markdown-review angle is out of scope.",
+        "Does not invent markdownlint issues just to keep the request inside this skill.",
+        "Routes to general Copilot guidance or a more appropriate writing-oriented skill instead of loading grouped markdownlint rules."
+      ],
+      "files": [
+        "SKILL.md",
+        "README.md",
+        "AGENTS.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "escalation": null
+    }
+  ]
+}

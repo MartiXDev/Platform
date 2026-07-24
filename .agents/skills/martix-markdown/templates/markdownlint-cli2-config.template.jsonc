@@ -1,0 +1,18 @@
+{
+  // Start narrow. Only encode repo conventions that reviewers can understand.
+  "globs": [
+    "**/*.md",
+    "#node_modules",
+    "#dist",
+    "#coverage"
+  ],
+  "config": {
+    "MD013": {
+      "line_length": 120,
+      "code_blocks": false,
+      "tables": false
+    }
+    // "MD041": false,
+    // "MD033": false
+  }
+}
