@@ -13,6 +13,12 @@ const CADENCES = [
 const GENERATED_SOLUTION_NAME = "RepositoryBootstrapGeneratedSolution";
 const GENERATED_SOLUTION_ROOT = `tests/fixtures/${GENERATED_SOLUTION_NAME}`;
 const MANIFEST_PRESETS = new Set(["api", "modular-monolith", "full-stack"]);
+const BOOTSTRAP_GATE_IDS = [
+  "bootstrap.manifest",
+  "bootstrap.governance",
+  "bootstrap.generated-solution",
+  "bootstrap.secret-free",
+];
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
   "kind",
@@ -30,7 +36,7 @@ const MANIFEST_REQUIRED_PROPERTIES = [
   "verification",
 ];
 
-const REQUIRED_INPUTS = [
+export const REQUIRED_BOOTSTRAP_INPUTS = [
   "martix.platform.json",
   "schemas/martix.platform.schema.json",
   "schemas/quality-gates.schema.json",
@@ -53,12 +59,14 @@ const ALLOWED_SECRET_METADATA_KEYS = new Set([
   "containsSecrets",
 ]);
 
+class BootstrapVerificationError extends Error {}
+
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function fail(message) {
-  throw new Error(message);
+  throw new BootstrapVerificationError(message);
 }
 
 async function readRequiredFile(rootDir, relativePath) {
@@ -322,6 +330,9 @@ function validateQualityGatePolicy(policy) {
   for (const gate of policy.gates) {
     requireRecord(gate, "eng/quality-gates.json.gates[]");
     requireString(gate.id, "eng/quality-gates.json.gates[].id");
+    if (!BOOTSTRAP_GATE_IDS.includes(gate.id)) {
+      fail(`Unsupported bootstrap quality gate: ${gate.id}`);
+    }
     requireString(gate.family, `gate ${gate.id}.family`);
     requireString(gate.owner, `gate ${gate.id}.owner`);
     if (gate.required !== true) {
@@ -336,26 +347,19 @@ function validateQualityGatePolicy(policy) {
     gateIds.add(gate.id);
   }
 
-  for (const requiredGate of [
-    "bootstrap.manifest",
-    "bootstrap.governance",
-    "bootstrap.generated-solution",
-    "bootstrap.secret-free",
-  ]) {
+  for (const requiredGate of BOOTSTRAP_GATE_IDS) {
     if (!gateIds.has(requiredGate)) {
       fail(`Missing required bootstrap quality gate: ${requiredGate}`);
     }
   }
 
   for (const cadence of CADENCES) {
-    for (const gate of policy.gates.filter((item) => item.required !== false)) {
+    for (const gate of policy.gates) {
       if (!gate.cadences.includes(cadence)) {
         fail(`Required gate ${gate.id} is not declared for cadence ${cadence}.`);
       }
     }
   }
-
-  return policy.gates;
 }
 
 function validateGovernanceDocuments(documents) {
@@ -386,7 +390,7 @@ export async function verifyBootstrap({
 
   const root = resolve(rootDir);
   const documents = new Map();
-  for (const relativePath of REQUIRED_INPUTS) {
+  for (const relativePath of REQUIRED_BOOTSTRAP_INPUTS) {
     documents.set(relativePath, await readRequiredFile(root, relativePath));
   }
 
@@ -478,7 +482,11 @@ const invokedFile = process.argv[1]
 
 if (invokedFile === import.meta.url) {
   runCli().catch((error) => {
-    console.error(`Verification failed: ${error.message}`);
+    if (error instanceof BootstrapVerificationError) {
+      console.error(`Verification failed: ${error.message}`);
+    } else {
+      console.error("Verification failed due to an unexpected internal error.");
+    }
     process.exitCode = 1;
   });
 }
