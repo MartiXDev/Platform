@@ -1,4 +1,4 @@
-FROM node:26-bookworm
+FROM node:26-trixie
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -8,21 +8,21 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Install the .NET 10 SDK for Platform implementation and verification.
-RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
-  -o /tmp/packages-microsoft-prod.deb \
-  && dpkg -i /tmp/packages-microsoft-prod.deb \
-  && rm /tmp/packages-microsoft-prod.deb \
-  && apt-get update \
-  && apt-get install -y dotnet-sdk-10.0 \
-  && rm -rf /var/lib/apt/lists/*
+# RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+#   -o /tmp/packages-microsoft-prod.deb \
+#   && dpkg -i /tmp/packages-microsoft-prod.deb \
+#   && rm /tmp/packages-microsoft-prod.deb \
+#   && apt-get update \
+#   && apt-get install -y dotnet-sdk-10.0 \
+#   && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
-# RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-#   | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-#   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-#   | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-#   && apt-get update && apt-get install -y gh \
-#   && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && apt-get update && apt-get install -y gh \
+  && rm -rf /var/lib/apt/lists/*
 
 # Build-args for UID/GID alignment: sandcastle docker build-image
 # defaults these to the host user's UID/GID so image-built files
