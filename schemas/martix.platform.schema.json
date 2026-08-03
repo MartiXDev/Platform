@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/martix.platform.schema.json",
+  "title": "MartiX Platform composition manifest",
+  "description": "The exact, secret-free identity and composition record for the Platform repository or a Generated Solution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "kind",
+    "manifestSchemaVersion",
+    "platformVersion",
+    "platformContractVersion",
+    "repository",
+    "origin",
+    "preset",
+    "capabilities",
+    "providers",
+    "appliedMigrations",
+    "supportClaims",
+    "security",
+    "verification"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "platform-repository",
+        "generated-solution"
+      ]
+    },
+    "manifestSchemaVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platformVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platformContractVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repository": {
+      "$ref": "#/$defs/repository"
+    },
+    "origin": {
+      "$ref": "#/$defs/origin"
+    },
+    "preset": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "api",
+            "modular-monolith",
+            "full-stack"
+          ]
+        }
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider"
+      }
+    },
+    "appliedMigrations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/migration"
+      }
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0,
+      "description": "Bootstrap makes no Supported Capability claim. A later manifest schema must deliberately admit claims with evidence."
+    },
+    "security": {
+      "$ref": "#/$defs/security"
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organization",
+        "name",
+        "product",
+        "role"
+      ],
+      "properties": {
+        "organization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "canonical-source",
+            "generated-solution"
+          ]
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalRepository"
+      ],
+      "properties": {
+        "canonicalRepository": {
+          "type": "string",
+          "format": "uri-reference",
+          "minLength": 1
+        },
+        "historicalSnapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "importCommit",
+            "sourceRevision"
+          ],
+          "properties": {
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "importCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "sourceRevision": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+        },
+        "state": {
+          "enum": [
+            "selected",
+            "deferred",
+            "experimental",
+            "invalid"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "capability",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+        },
+        "capability": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+        },
+        "state": {
+          "enum": [
+            "selected",
+            "deferred",
+            "experimental",
+            "invalid"
+          ]
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "applied",
+            "rehearsed"
+          ]
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secretPolicy",
+        "containsSecrets"
+      ],
+      "properties": {
+        "secretPolicy": {
+          "const": "external-only"
+        },
+        "containsSecrets": {
+          "const": false
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entrypoint",
+        "policy",
+        "cadences"
+      ],
+      "properties": {
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cadences": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "fast",
+              "pull-request",
+              "main-nightly",
+              "release-candidate"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

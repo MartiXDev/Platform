@@ -6,6 +6,14 @@
     "zod": "^4.4.3"
   },
   "scripts": {
-    "sandcastle": "npx tsx .sandcastle/main.mts"
+    "build": "npm run typecheck",
+    "sandcastle": "npx tsx .sandcastle/main.mts",
+    "test": "node --test",
+    "typecheck": "node --check eng/verify.mjs && node --check tests/bootstrap.test.mjs",
+    "verify": "node eng/verify.mjs fast",
+    "verify:fast": "node eng/verify.mjs fast",
+    "verify:pr": "node eng/verify.mjs pull-request",
+    "verify:main-nightly": "node eng/verify.mjs main-nightly",
+    "verify:release-candidate": "node eng/verify.mjs release-candidate"
   }
 }

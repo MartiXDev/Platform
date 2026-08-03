@@ -1,0 +1,88 @@
+{
+  "$schema": "../schemas/quality-gates.schema.json",
+  "policyVersion": "0.0.0-bootstrap",
+  "stage": "bootstrap",
+  "supportClaims": [],
+  "cadences": [
+    {
+      "id": "fast",
+      "scope": "local",
+      "extends": []
+    },
+    {
+      "id": "pull-request",
+      "scope": "pull-request",
+      "extends": [
+        "fast"
+      ]
+    },
+    {
+      "id": "main-nightly",
+      "scope": "main",
+      "extends": [
+        "pull-request"
+      ]
+    },
+    {
+      "id": "release-candidate",
+      "scope": "release",
+      "extends": [
+        "main-nightly"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "bootstrap.manifest",
+      "family": "repository-integrity",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The repository manifest and versioned schema are present, coherent, and secret-free."
+    },
+    {
+      "id": "bootstrap.governance",
+      "family": "repository-integrity",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "Ownership, licensing, contribution, security, and provenance authorities are present."
+    },
+    {
+      "id": "bootstrap.generated-solution",
+      "family": "template-generation",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The explicitly named temporary Generated Solution fixture has the minimum routed and manifest surfaces."
+    },
+    {
+      "id": "bootstrap.secret-free",
+      "family": "security-supply-chain",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "Bootstrap metadata declares external-only secret delivery and contains no secret values."
+    }
+  ]
+}

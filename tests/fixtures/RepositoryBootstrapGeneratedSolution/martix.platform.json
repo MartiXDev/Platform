@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.0.0-bootstrap",
+  "platformContractVersion": "0.0.0-bootstrap",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "RepositoryBootstrapGeneratedSolution",
+    "product": "MartiX Platform bootstrap fixture",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform"
+  },
+  "preset": "api",
+  "capabilities": [],
+  "providers": [],
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  }
+}
