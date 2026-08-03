@@ -123,3 +123,18 @@ test("manifest validation rejects API-key-shaped fields", async () => {
     /Bootstrap manifest contains a secret-shaped field: martix\.platform\.json\.apiKey/,
   );
 });
+
+test("manifest validation rejects undeclared root properties", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
+  await copyBootstrapInputs(temporaryRoot);
+
+  const manifestPath = join(temporaryRoot, "martix.platform.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.unexpected = true;
+  await writeFile(manifestPath, JSON.stringify(manifest));
+
+  await assert.rejects(
+    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+    /Invalid bootstrap property at martix\.platform\.json\.unexpected/,
+  );
+});

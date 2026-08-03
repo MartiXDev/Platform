@@ -98,6 +98,14 @@ function requireProperty(value, property, path) {
   }
 }
 
+function rejectUnknownProperties(value, allowedProperties, path) {
+  for (const property of Object.keys(value)) {
+    if (!allowedProperties.includes(property)) {
+      fail(`Invalid bootstrap property at ${path}.${property}.`);
+    }
+  }
+}
+
 function assertSecretFree(value, path = "manifest") {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertSecretFree(item, `${path}[${index}]`));
@@ -152,6 +160,8 @@ function validateManifestSchema(schema) {
 
 function validateManifest(manifest, expectedKind, path) {
   requireRecord(manifest, path);
+  assertSecretFree(manifest, path);
+  rejectUnknownProperties(manifest, MANIFEST_REQUIRED_PROPERTIES, path);
 
   for (const property of MANIFEST_REQUIRED_PROPERTIES) {
     requireProperty(manifest, property, path);
@@ -222,8 +232,6 @@ function validateManifest(manifest, expectedKind, path) {
       `Bootstrap manifest verification cadences must be ${CADENCES.join(", ")}.`,
     );
   }
-
-  assertSecretFree(manifest, path);
 }
 
 function validateQualityGatePolicy(policy) {
