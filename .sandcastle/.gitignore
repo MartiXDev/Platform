@@ -1,3 +1,6 @@
 .env
+open-issues.json
+review-diff.patch
+review-commits.txt
 logs/
 worktrees/

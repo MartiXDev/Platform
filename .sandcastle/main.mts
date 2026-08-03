@@ -48,16 +48,13 @@ const defaultAgent = sandcastle.copilot(
   { effort: "max" },
 );
 
-// Hooks run inside the sandbox before the agent starts each iteration.
-// npm install ensures the sandbox always has fresh dependencies.
-const hooks = {
-  sandbox: { onSandboxReady: [{ command: "npm install" }] },
+// Hooks run inside isolated issue sandboxes before the agent starts.
+// npm ci installs dependencies in the container's Linux environment.
+const sandboxHooks = {
+  sandbox: {
+    onSandboxReady: [{ command: "npm ci", timeoutMs: 300_000 }],
+  },
 };
-
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["node_modules"];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -76,7 +73,6 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // It outputs a <plan> JSON block — Output.object parses and validates it.
   // -------------------------------------------------------------------------
   const plan = await sandcastle.run({
-    hooks,
     sandbox: docker(),
     name: "planner",
     // One iteration is enough: the planner just needs to read and reason,
@@ -121,8 +117,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       const sandbox = await sandcastle.createSandbox({
         branch: issue.branch,
         sandbox: docker(),
-        hooks,
-        copyToWorktree,
+        hooks: sandboxHooks,
       });
 
       try {
@@ -211,7 +206,6 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
   await sandcastle.run({
-    hooks,
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,

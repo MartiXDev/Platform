@@ -1,10 +1,11 @@
 # ISSUES
 
-Here are the open issues in the repo:
+The open issues are written to `.sandcastle/open-issues.json` by the sandbox
+setup command below. Read that file before building the dependency graph.
 
 <issues-json>
 
-!`gh issue list --state open --label sandcastle --limit 100 --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`
+!`gh issue list --state open --label sandcastle --limit 100 --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' > .sandcastle/open-issues.json`
 
 </issues-json>
 
