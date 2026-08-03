@@ -109,6 +109,59 @@ test("the manifest schema declares every required bootstrap field", async () => 
   );
 });
 
+test("manifest schema closes every object definition", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
+  await copyBootstrapInputs(temporaryRoot);
+
+  const schemaPath = join(
+    temporaryRoot,
+    "schemas",
+    "martix.platform.schema.json",
+  );
+  const schema = JSON.parse(await readFile(schemaPath, "utf8"));
+  schema.$defs.repository.additionalProperties = true;
+  await writeFile(schemaPath, JSON.stringify(schema));
+
+  await assert.rejects(
+    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+    /schemas\/martix\.platform\.schema\.json\.\$defs\.repository\.additionalProperties must be false/,
+  );
+});
+
+test("bootstrap schemas reject secret-shaped metadata", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
+  await copyBootstrapInputs(temporaryRoot);
+
+  const schemaPath = join(
+    temporaryRoot,
+    "schemas",
+    "martix.platform.schema.json",
+  );
+  const schema = JSON.parse(await readFile(schemaPath, "utf8"));
+  schema.properties.apiKey = { type: "string" };
+  await writeFile(schemaPath, JSON.stringify(schema));
+
+  await assert.rejects(
+    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+    /Bootstrap schema contains a secret-shaped field: schemas\/martix\.platform\.schema\.json\.properties\.apiKey/,
+  );
+});
+
+test("quality policy validation rejects undeclared properties", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
+  await copyBootstrapInputs(temporaryRoot);
+
+  const policyPath = join(temporaryRoot, "eng", "quality-gates.json");
+  const policy = JSON.parse(await readFile(policyPath, "utf8"));
+  policy.unexpected = true;
+  await writeFile(policyPath, JSON.stringify(policy));
+
+  await assert.rejects(
+    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+    /Invalid bootstrap property at eng\/quality-gates\.json\.unexpected/,
+  );
+});
+
 test("manifest validation rejects API-key-shaped fields", async () => {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
   await copyBootstrapInputs(temporaryRoot);
@@ -136,5 +189,20 @@ test("manifest validation rejects undeclared root properties", async () => {
   await assert.rejects(
     () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
     /Invalid bootstrap property at martix\.platform\.json\.unexpected/,
+  );
+});
+
+test("manifest validation rejects undeclared nested properties", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
+  await copyBootstrapInputs(temporaryRoot);
+
+  const manifestPath = join(temporaryRoot, "martix.platform.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.repository.internal = true;
+  await writeFile(manifestPath, JSON.stringify(manifest));
+
+  await assert.rejects(
+    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+    /Invalid bootstrap property at martix\.platform\.json\.repository\.internal/,
   );
 });

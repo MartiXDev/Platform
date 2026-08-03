@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { z } from "zod";
 
 const CADENCES = [
   "fast",
@@ -106,9 +107,15 @@ function rejectUnknownProperties(value, allowedProperties, path) {
   }
 }
 
-function assertSecretFree(value, path = "manifest") {
+function assertSecretFree(
+  value,
+  path = "manifest",
+  subject = "Bootstrap manifest",
+) {
   if (Array.isArray(value)) {
-    value.forEach((item, index) => assertSecretFree(item, `${path}[${index}]`));
+    value.forEach((item, index) =>
+      assertSecretFree(item, `${path}[${index}]`, subject),
+    );
     return;
   }
 
@@ -121,16 +128,17 @@ function assertSecretFree(value, path = "manifest") {
       FORBIDDEN_SECRET_KEY.test(key) &&
       !ALLOWED_SECRET_METADATA_KEYS.has(key)
     ) {
-      fail(`Bootstrap manifest contains a secret-shaped field: ${path}.${key}`);
+      fail(`${subject} contains a secret-shaped field: ${path}.${key}`);
     }
 
-    assertSecretFree(child, `${path}.${key}`);
+    assertSecretFree(child, `${path}.${key}`, subject);
   }
 }
 
 function validateManifestSchema(schema) {
   const path = "schemas/martix.platform.schema.json";
   requireRecord(schema, path);
+  assertSecretFree(schema, path, "Bootstrap schema");
 
   if (schema.type !== "object") {
     fail(`${path}.type must be object.`);
@@ -156,6 +164,57 @@ function validateManifestSchema(schema) {
   if (supportClaims.maxItems !== 0) {
     fail("Manifest schema must keep supportClaims empty during bootstrap.");
   }
+
+  validateClosedObjectSchemas(schema, path);
+}
+
+function validateClosedObjectSchemas(value, path) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      validateClosedObjectSchemas(item, `${path}[${index}]`),
+    );
+    return;
+  }
+
+  if (!isRecord(value)) {
+    return;
+  }
+
+  if (value.type === "object" && value.additionalProperties !== false) {
+    fail(`${path}.additionalProperties must be false.`);
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    validateClosedObjectSchemas(child, `${path}.${key}`);
+  }
+}
+
+function formatSchemaPath(path, issuePath) {
+  return issuePath.reduce(
+    (currentPath, segment) =>
+      typeof segment === "number"
+        ? `${currentPath}[${segment}]`
+        : `${currentPath}.${segment}`,
+    path,
+  );
+}
+
+function validateAgainstSchema(value, schema, path) {
+  const validator = z.fromJSONSchema(schema);
+  const result = validator.safeParse(value);
+  if (result.success) {
+    return;
+  }
+
+  const issue = result.error.issues[0];
+  const issuePath = formatSchemaPath(path, issue.path);
+  if (issue.code === "unrecognized_keys") {
+    for (const property of issue.keys) {
+      fail(`Invalid bootstrap property at ${issuePath}.${property}.`);
+    }
+  }
+
+  fail(`Invalid bootstrap value at ${issuePath}: ${issue.message}.`);
 }
 
 function validateManifest(manifest, expectedKind, path) {
@@ -356,12 +415,37 @@ export async function verifyBootstrap({
   if (qualityGateSchema.type !== "object") {
     fail("schemas/quality-gates.schema.json.type must be object.");
   }
+  validateClosedObjectSchemas(
+    qualityGateSchema,
+    "schemas/quality-gates.schema.json",
+  );
+  assertSecretFree(
+    qualityGateSchema,
+    "schemas/quality-gates.schema.json",
+    "Bootstrap quality schema",
+  );
+  assertSecretFree(
+    qualityPolicy,
+    "eng/quality-gates.json",
+    "Bootstrap quality policy",
+  );
 
   validateManifest(manifest, "platform-repository", "martix.platform.json");
+  validateAgainstSchema(manifest, manifestSchema, "martix.platform.json");
   validateManifest(
     generatedManifest,
     "generated-solution",
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    generatedManifest,
+    manifestSchema,
+    `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    qualityPolicy,
+    qualityGateSchema,
+    "eng/quality-gates.json",
   );
   validateQualityGatePolicy(qualityPolicy);
   validateGovernanceDocuments(documents);
