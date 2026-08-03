@@ -6,11 +6,17 @@ Review the code changes on branch `{{BRANCH}}` and improve code clarity, consist
 
 ## Branch diff
 
-!`git diff {{TARGET_BRANCH}}...{{BRANCH}}`
+The branch diff is written to `.sandcastle/review-diff.patch` by the setup
+command below. Read that file before reviewing the changes.
+
+!`git diff {{TARGET_BRANCH}}...{{BRANCH}} > .sandcastle/review-diff.patch`
 
 ## Commits on this branch
 
-!`git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`
+The branch commit list is written to `.sandcastle/review-commits.txt` by the
+setup command below. Read that file for commit context.
+
+!`git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline > .sandcastle/review-commits.txt`
 
 # REVIEW PROCESS
 
