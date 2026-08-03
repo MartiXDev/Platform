@@ -9,7 +9,7 @@ namespace MartiX.Platform.Results;
 /// </summary>
 public sealed class Result
 {
-    private static readonly IReadOnlyList<Error> EmptyErrors =
+    internal static IReadOnlyList<Error> EmptyErrors { get; } =
         new ReadOnlyCollection<Error>(Array.Empty<Error>());
 
     private Result(bool isSuccess, IReadOnlyList<Error> errors)
@@ -30,7 +30,7 @@ public sealed class Result
     /// <summary>Creates a successful outcome without a value or errors.</summary>
     public static Result Success()
     {
-        return new Result(true, EmptyErrors);
+        return new Result(isSuccess: true, errors: EmptyErrors);
     }
 
     /// <summary>
@@ -40,7 +40,9 @@ public sealed class Result
     /// <param name="additionalErrors">Any additional errors in stable order.</param>
     public static Result Failure(Error firstError, params Error[] additionalErrors)
     {
-        return new Result(false, CopyErrors(firstError, additionalErrors));
+        return new Result(
+            isSuccess: false,
+            errors: CopyErrors(firstError, additionalErrors));
     }
 
     internal static IReadOnlyList<Error> CopyErrors(

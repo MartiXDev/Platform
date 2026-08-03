@@ -46,17 +46,7 @@ public sealed class Error
         string description,
         string? target = null)
     {
-        Validate(code, kind, description, target, allowPlatformPrefix: false);
-        return new Error(code, kind, description, target);
-    }
-
-    internal static Error CreatePlatform(
-        string code,
-        ErrorKind kind,
-        string description,
-        string? target = null)
-    {
-        Validate(code, kind, description, target, allowPlatformPrefix: true);
+        Validate(code, kind, description, target);
         return new Error(code, kind, description, target);
     }
 
@@ -64,8 +54,7 @@ public sealed class Error
         string code,
         ErrorKind kind,
         string description,
-        string? target,
-        bool allowPlatformPrefix)
+        string? target)
     {
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(description);
@@ -77,8 +66,7 @@ public sealed class Error
                 nameof(code));
         }
 
-        if (!allowPlatformPrefix
-            && code.StartsWith(ReservedPlatformPrefix, StringComparison.Ordinal))
+        if (code.StartsWith(ReservedPlatformPrefix, StringComparison.Ordinal))
         {
             throw new ArgumentException(
                 "The platform.* error-code prefix is reserved by the Platform.",

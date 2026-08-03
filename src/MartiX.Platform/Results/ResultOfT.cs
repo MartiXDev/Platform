@@ -9,9 +9,6 @@ namespace MartiX.Platform.Results;
 /// <typeparam name="T">The success value type.</typeparam>
 public sealed class Result<T>
 {
-    private static readonly IReadOnlyList<Error> EmptyErrors =
-        Array.Empty<Error>();
-
     private readonly T _value = default!;
 
     private Result(T value, IReadOnlyList<Error> errors, bool isSuccess)
@@ -52,7 +49,7 @@ public sealed class Result<T>
     public static Result<T> Success(T value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return new Result<T>(value, EmptyErrors, isSuccess: true);
+        return new Result<T>(value, Result.EmptyErrors, isSuccess: true);
     }
 
     /// <summary>

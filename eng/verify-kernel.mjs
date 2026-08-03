@@ -108,16 +108,15 @@ async function verifyPackageContent(packagePath, rootDir) {
 
 export async function verifyKernel({ rootDir = process.cwd() } = {}) {
   const repositoryRoot = resolve(rootDir);
+  const dotnet = process.env.DOTNET ?? "dotnet";
+  const packageName = `${PACKAGE_ID}.${PACKAGE_VERSION}`;
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-kernel-"));
   const packageFeed = join(temporaryRoot, "feed");
-  const packagePath = join(
-    packageFeed,
-    `${PACKAGE_ID}.${PACKAGE_VERSION}.nupkg`,
-  );
+  const packagePath = join(packageFeed, `${packageName}.nupkg`);
 
   try {
     await runDotnet(
-      process.env.DOTNET ?? "dotnet",
+      dotnet,
       [
         "pack",
         PACKAGE_PROJECT,
@@ -130,7 +129,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
       repositoryRoot,
     );
     await runDotnet(
-      process.env.DOTNET ?? "dotnet",
+      dotnet,
       [
         "restore",
         CONSUMER_PROJECT,
@@ -142,7 +141,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
       repositoryRoot,
     );
     await runDotnet(
-      process.env.DOTNET ?? "dotnet",
+      dotnet,
       [
         "run",
         "--project",
@@ -158,7 +157,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
     const packageEntries = await verifyPackageContent(packagePath, repositoryRoot);
     return {
       status: "passed",
-      package: `${PACKAGE_ID}.${PACKAGE_VERSION}`,
+      package: packageName,
       consumer: "KernelResultErrorGeneratedSolution",
       packageEntries,
     };
