@@ -1,0 +1,29 @@
+MartiX.Platform.Results.ErrorKind
+  Validation = 1
+  RuleViolation = 2
+  NotFound = 3
+  Conflict = 4
+  AuthenticationRequired = 5
+  Forbidden = 6
+  RateLimited = 7
+  Unavailable = 8
+  Unexpected = 9
+MartiX.Platform.Results.Error
+  static Error Create(string code, ErrorKind kind, string description, string? target = null)
+  string Code { get; }
+  ErrorKind Kind { get; }
+  string Description { get; }
+  string? Target { get; }
+MartiX.Platform.Results.Result
+  static Result Success()
+  static Result Failure(Error firstError, params Error[] additionalErrors)
+  bool IsSuccess { get; }
+  bool IsFailure { get; }
+  IReadOnlyList<Error> Errors { get; }
+MartiX.Platform.Results.Result<T>
+  static Result<T> Success(T value)
+  static Result<T> Failure(Error firstError, params Error[] additionalErrors)
+  bool IsSuccess { get; }
+  bool IsFailure { get; }
+  T Value { get; }
+  IReadOnlyList<Error> Errors { get; }
