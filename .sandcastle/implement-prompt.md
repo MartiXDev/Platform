@@ -35,7 +35,7 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
+Before committing, run the repo's existing validation commands (for example, `npm run typecheck` / `npm run test` if those scripts exist, or the equivalent commands for the stack you changed) to ensure nothing is broken.
 
 # COMMIT
 
