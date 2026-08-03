@@ -1,0 +1,40 @@
+{
+  "$schema": "./schemas/martix.platform.schema.json",
+  "kind": "platform-repository",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.0.0-bootstrap",
+  "platformContractVersion": "0.0.0-bootstrap",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "Platform",
+    "product": "MartiX Platform",
+    "role": "canonical-source"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "historicalSnapshot": {
+      "source": "MartiX.WebApi",
+      "importCommit": "1f4d2c89ba9e00b784215c0e4a6d34244b1fb092",
+      "sourceRevision": "not-recorded"
+    }
+  },
+  "preset": null,
+  "capabilities": [],
+  "providers": [],
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  }
+}
