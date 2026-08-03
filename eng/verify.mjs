@@ -11,6 +11,23 @@ const CADENCES = [
 
 const GENERATED_SOLUTION_NAME = "RepositoryBootstrapGeneratedSolution";
 const GENERATED_SOLUTION_ROOT = `tests/fixtures/${GENERATED_SOLUTION_NAME}`;
+const MANIFEST_PRESETS = new Set(["api", "modular-monolith", "full-stack"]);
+const MANIFEST_REQUIRED_PROPERTIES = [
+  "$schema",
+  "kind",
+  "manifestSchemaVersion",
+  "platformVersion",
+  "platformContractVersion",
+  "repository",
+  "origin",
+  "preset",
+  "capabilities",
+  "providers",
+  "appliedMigrations",
+  "supportClaims",
+  "security",
+  "verification",
+];
 
 const REQUIRED_INPUTS = [
   "martix.platform.json",
@@ -28,7 +45,8 @@ const REQUIRED_INPUTS = [
   `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
 ];
 
-const FORBIDDEN_SECRET_KEY = /(?:secret|password|token|private.?key|access.?key)/i;
+const FORBIDDEN_SECRET_KEY =
+  /(?:secret|password|token|private.?key|access.?key|api.?key|credential)/i;
 const ALLOWED_SECRET_METADATA_KEYS = new Set([
   "secretPolicy",
   "containsSecrets",
@@ -72,6 +90,14 @@ function requireArray(value, path) {
   }
 }
 
+function requireProperty(value, property, path) {
+  if (!Object.hasOwn(value, property)) {
+    fail(
+      `Invalid bootstrap value at ${path}.${property}: required property is missing.`,
+    );
+  }
+}
+
 function assertSecretFree(value, path = "manifest") {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertSecretFree(item, `${path}[${index}]`));
@@ -94,8 +120,42 @@ function assertSecretFree(value, path = "manifest") {
   }
 }
 
+function validateManifestSchema(schema) {
+  const path = "schemas/martix.platform.schema.json";
+  requireRecord(schema, path);
+
+  if (schema.type !== "object") {
+    fail(`${path}.type must be object.`);
+  }
+
+  requireArray(schema.required, `${path}.required`);
+  const requiredProperties = new Set(schema.required);
+  for (const property of MANIFEST_REQUIRED_PROPERTIES) {
+    if (!requiredProperties.has(property)) {
+      fail(`Manifest schema is missing required property: ${property}`);
+    }
+  }
+
+  requireRecord(schema.properties, `${path}.properties`);
+  for (const property of MANIFEST_REQUIRED_PROPERTIES) {
+    if (!Object.hasOwn(schema.properties, property)) {
+      fail(`Manifest schema is missing property definition: ${property}`);
+    }
+  }
+
+  const supportClaims = schema.properties.supportClaims;
+  requireRecord(supportClaims, `${path}.properties.supportClaims`);
+  if (supportClaims.maxItems !== 0) {
+    fail("Manifest schema must keep supportClaims empty during bootstrap.");
+  }
+}
+
 function validateManifest(manifest, expectedKind, path) {
   requireRecord(manifest, path);
+
+  for (const property of MANIFEST_REQUIRED_PROPERTIES) {
+    requireProperty(manifest, property, path);
+  }
 
   for (const property of [
     "$schema",
@@ -110,6 +170,18 @@ function validateManifest(manifest, expectedKind, path) {
   if (manifest.kind !== expectedKind) {
     fail(
       `Invalid bootstrap value at ${path}.kind: expected ${expectedKind}, received ${manifest.kind}.`,
+    );
+  }
+
+  if (
+    manifest.preset !== null &&
+    (typeof manifest.preset !== "string" ||
+      !MANIFEST_PRESETS.has(manifest.preset))
+  ) {
+    fail(
+      `Invalid bootstrap value at ${path}.preset: expected null or one of ${[
+        ...MANIFEST_PRESETS,
+      ].join(", ")}.`,
     );
   }
 
@@ -271,10 +343,10 @@ export async function verifyBootstrap({
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
   );
 
-  requireRecord(manifestSchema, "schemas/martix.platform.schema.json");
+  validateManifestSchema(manifestSchema);
   requireRecord(qualityGateSchema, "schemas/quality-gates.schema.json");
-  if (manifestSchema.type !== "object" || qualityGateSchema.type !== "object") {
-    fail("Bootstrap schemas must describe JSON objects.");
+  if (qualityGateSchema.type !== "object") {
+    fail("schemas/quality-gates.schema.json.type must be object.");
   }
 
   validateManifest(manifest, "platform-repository", "martix.platform.json");
