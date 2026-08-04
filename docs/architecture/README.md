@@ -22,6 +22,8 @@ approved target is not a Supported Capability claim.
   verification, compatibility evidence, security gates, and release policy.
 - [Platform Kernel Result/Error contract](kernel-result-error.md) records the
   implemented BCL-only Result and Error contract.
+- [ASP.NET Core Failure Adapter](aspnetcore-failure-adapter.md) records the
+  implemented RFC 9457 translation seam.
 
 ## Implemented bootstrap slice
 
@@ -33,6 +35,8 @@ Repository Bootstrap establishes this minimum structure:
 - `tests/fixtures/RepositoryBootstrapGeneratedSolution/` is the temporary named
   Generated Solution acceptance seam.
 - `MartiX.Platform` contains the implemented BCL-only Result/Error Kernel.
+- `MartiX.Platform.AspNetCore` contains the implemented safe HTTP failure
+  adapter and OpenAPI contract seam.
 
 The manifest has no Preset, Capability, provider, migration, or Supported
 Capability claim. The empty arrays are intentional and remain authoritative

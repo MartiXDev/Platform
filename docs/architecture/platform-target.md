@@ -36,7 +36,7 @@ runtime package aligned with one runtime assembly.
 | Artifact | Target responsibility | Target admission |
 | --- | --- | --- |
 | `MartiX.Platform` | BCL-only Kernel, including Application Result/Error and baseline Security Audit Event semantics | Platform Baseline; Result/Error is Implemented |
-| `MartiX.Platform.AspNetCore` | ASP.NET Core adaptation, safe Problem Details, and exception translation | Platform Baseline; Approved target |
+| `MartiX.Platform.AspNetCore` | ASP.NET Core adaptation, safe Problem Details, and exception translation | Platform Baseline; failure adapter implemented |
 | `MartiX.Platform.Analyzers` | Compile-time architecture and contract enforcement | Platform Baseline build asset; Approved target |
 | `MartiX.Platform.EntityFrameworkCore` | Deep EF Core Specifications, Entity Capabilities, naming, and reliable persistence policy | Relational Persistence capability; Approved target |
 | `MartiX.Platform.AspNetCore.FastEndpoints` | Alternative endpoint-framework Adapter with behavioral parity | Optional provider; Approved target, not the canonical endpoint model |

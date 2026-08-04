@@ -1,0 +1,8 @@
+MartiX.Platform.AspNetCore.MartiXProblemDetailsExtensions
+  static IServiceCollection AddMartiXProblemDetails(IServiceCollection)
+  static OpenApiOptions AddMartiXProblemDetailsContract(OpenApiOptions)
+  static RouteHandlerBuilder ProducesMartiXProblemDetails(RouteHandlerBuilder, params ErrorKind[])
+MartiX.Platform.AspNetCore.MartiXResultExtensions
+  static ProblemHttpResult ToProblemDetails(Result, HttpContext)
+  static ProblemHttpResult ToProblemDetails<T>(Result<T>, HttpContext)
+  static ProblemHttpResult ToProblemDetails(Error, HttpContext)
