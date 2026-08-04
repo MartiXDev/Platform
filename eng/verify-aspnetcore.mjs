@@ -1,12 +1,14 @@
-import { execFile } from "node:child_process";
-import { inflateRawSync } from "node:zlib";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  fail,
+  listZipEntries,
+  readZipEntry,
+  runDotnet,
+} from "./package-verification.mjs";
 
-const execFileAsync = promisify(execFile);
 const KERNEL_PACKAGE_ID = "MartiX.Platform";
 const KERNEL_PACKAGE_VERSION = "0.1.0-preview.1";
 const ADAPTER_PACKAGE_ID = "MartiX.Platform.AspNetCore";
@@ -18,101 +20,6 @@ const CONSUMER_PROJECT =
 const PACKAGE_EVIDENCE =
   "tests/Compatibility/MartiX.Platform.AspNetCore.package-content.json";
 const NUGET_SOURCE = "https://api.nuget.org/v3/index.json";
-
-function fail(message) {
-  throw new Error(message);
-}
-
-async function runDotnet(dotnet, argumentsList, rootDir) {
-  try {
-    return await execFileAsync(dotnet, argumentsList, {
-      cwd: rootDir,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-  } catch (error) {
-    const detail = error?.stderr?.trim() || error?.message || "unknown error";
-    fail(
-      `ASP.NET Core verification command failed: ${dotnet} ${argumentsList.join(
-        " ",
-      )}: ${detail}`,
-    );
-  }
-}
-
-function listZipEntries(archive) {
-  const endOfCentralDirectory = 0x06054b50;
-  const centralDirectoryEntry = 0x02014b50;
-  const minimumEndRecordSize = 22;
-  const endOffset = archive.lastIndexOf(
-    Buffer.from([
-      endOfCentralDirectory & 0xff,
-      (endOfCentralDirectory >> 8) & 0xff,
-      (endOfCentralDirectory >> 16) & 0xff,
-      (endOfCentralDirectory >> 24) & 0xff,
-    ]),
-  );
-
-  if (endOffset < 0 || archive.length - endOffset < minimumEndRecordSize) {
-    fail("ASP.NET Core package is not a valid ZIP archive.");
-  }
-
-  const entryCount = archive.readUInt16LE(endOffset + 10);
-  const centralDirectoryOffset = archive.readUInt32LE(endOffset + 16);
-  const entries = [];
-  let offset = centralDirectoryOffset;
-
-  for (let index = 0; index < entryCount; index++) {
-    if (
-      offset + 46 > archive.length ||
-      archive.readUInt32LE(offset) !== centralDirectoryEntry
-    ) {
-      fail("ASP.NET Core package has an invalid central directory.");
-    }
-
-    const compressionMethod = archive.readUInt16LE(offset + 10);
-    const compressedSize = archive.readUInt32LE(offset + 20);
-    const nameLength = archive.readUInt16LE(offset + 28);
-    const extraLength = archive.readUInt16LE(offset + 30);
-    const commentLength = archive.readUInt16LE(offset + 32);
-    const localHeaderOffset = archive.readUInt32LE(offset + 42);
-    const nameStart = offset + 46;
-    const nameEnd = nameStart + nameLength;
-    entries.push({
-      name: archive.toString("utf8", nameStart, nameEnd),
-      compressionMethod,
-      compressedSize,
-      localHeaderOffset,
-    });
-    offset = nameEnd + extraLength + commentLength;
-  }
-
-  return entries;
-}
-
-function readZipEntry(archive, entry) {
-  const localHeaderOffset = entry.localHeaderOffset;
-  if (
-    localHeaderOffset + 30 > archive.length ||
-    archive.readUInt32LE(localHeaderOffset) !== 0x04034b50
-  ) {
-    fail(`ASP.NET Core package has an invalid local entry: ${entry.name}`);
-  }
-
-  const nameLength = archive.readUInt16LE(localHeaderOffset + 26);
-  const extraLength = archive.readUInt16LE(localHeaderOffset + 28);
-  const dataStart = localHeaderOffset + 30 + nameLength + extraLength;
-  const dataEnd = dataStart + entry.compressedSize;
-  const compressedData = archive.subarray(dataStart, dataEnd);
-
-  if (entry.compressionMethod === 0) {
-    return compressedData;
-  }
-  if (entry.compressionMethod === 8) {
-    return inflateRawSync(compressedData);
-  }
-
-  fail(`Unsupported ZIP compression method for ${entry.name}.`);
-}
 
 async function verifyPackageContent(packagePath, rootDir) {
   const evidence = JSON.parse(
@@ -127,7 +34,7 @@ async function verifyPackageContent(packagePath, rootDir) {
   }
 
   const archive = await readFile(packagePath);
-  const entries = listZipEntries(archive);
+  const entries = listZipEntries(archive, "ASP.NET Core");
   const entryNames = entries.map((entry) => entry.name);
   for (const requiredEntry of evidence.requiredEntries) {
     if (!entryNames.includes(requiredEntry)) {
@@ -153,7 +60,11 @@ async function verifyPackageContent(packagePath, rootDir) {
   if (!nuspecEntry) {
     fail("ASP.NET Core package is missing its nuspec.");
   }
-  const nuspec = readZipEntry(archive, nuspecEntry).toString("utf8");
+  const nuspec = readZipEntry(
+    archive,
+    nuspecEntry,
+    "ASP.NET Core",
+  ).toString("utf8");
   const dependencyIds = [
     ...nuspec.matchAll(/<dependency\s+id="([^"]+)"/g),
   ].map((match) => match[1]);
@@ -184,10 +95,11 @@ export async function verifyAspNetCore({ rootDir = process.cwd() } = {}) {
     packageFeed,
     `${ADAPTER_PACKAGE_ID}.${ADAPTER_PACKAGE_VERSION}.nupkg`,
   );
+  const runCommand = (argumentsList) =>
+    runDotnet(dotnet, argumentsList, repositoryRoot, "ASP.NET Core");
 
   try {
-    await runDotnet(
-      dotnet,
+    await runCommand(
       [
         "pack",
         KERNEL_PROJECT,
@@ -197,10 +109,8 @@ export async function verifyAspNetCore({ rootDir = process.cwd() } = {}) {
         packageFeed,
         "--nologo",
       ],
-      repositoryRoot,
     );
-    await runDotnet(
-      dotnet,
+    await runCommand(
       [
         "restore",
         ADAPTER_PROJECT,
@@ -211,10 +121,8 @@ export async function verifyAspNetCore({ rootDir = process.cwd() } = {}) {
         "--ignore-failed-sources",
         "--nologo",
       ],
-      repositoryRoot,
     );
-    await runDotnet(
-      dotnet,
+    await runCommand(
       [
         "pack",
         ADAPTER_PROJECT,
@@ -225,10 +133,8 @@ export async function verifyAspNetCore({ rootDir = process.cwd() } = {}) {
         "--no-restore",
         "--nologo",
       ],
-      repositoryRoot,
     );
-    await runDotnet(
-      dotnet,
+    await runCommand(
       [
         "restore",
         CONSUMER_PROJECT,
@@ -239,10 +145,8 @@ export async function verifyAspNetCore({ rootDir = process.cwd() } = {}) {
         "--ignore-failed-sources",
         "--nologo",
       ],
-      repositoryRoot,
     );
-    await runDotnet(
-      dotnet,
+    await runCommand(
       [
         "run",
         "--project",
@@ -253,7 +157,6 @@ export async function verifyAspNetCore({ rootDir = process.cwd() } = {}) {
         "--",
         "--disable-logo",
       ],
-      repositoryRoot,
     );
 
     const packageEntries = await verifyPackageContent(

@@ -30,7 +30,7 @@ internal static class MartiXProblemDetailsFactory
             descriptor,
             errors[0].Code,
             errors[0].Description,
-            errors,
+            errors.Select(CreateErrorExtension).ToArray(),
             httpContext);
 
         return TypedResults.Problem(problemDetails);
@@ -43,7 +43,14 @@ internal static class MartiXProblemDetailsFactory
             descriptor,
             UnexpectedCode,
             UnexpectedDetail,
-            errors: null,
+            new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["code"] = UnexpectedCode,
+                    ["message"] = UnexpectedDetail,
+                },
+            },
             httpContext);
 
         return TypedResults.Problem(problemDetails);
@@ -53,7 +60,7 @@ internal static class MartiXProblemDetailsFactory
         ProblemDescriptor descriptor,
         string code,
         string detail,
-        IReadOnlyList<Error>? errors,
+        IReadOnlyList<Dictionary<string, object?>> errorExtensions,
         HttpContext httpContext)
     {
         var problemDetails = new ProblemDetails
@@ -69,16 +76,7 @@ internal static class MartiXProblemDetailsFactory
 
         problemDetails.Extensions["code"] = code;
         problemDetails.Extensions["traceId"] = GetTraceId(httpContext);
-        problemDetails.Extensions["errors"] = errors is null
-            ? new[]
-            {
-                new Dictionary<string, object?>
-                {
-                    ["code"] = UnexpectedCode,
-                    ["message"] = UnexpectedDetail,
-                },
-            }
-            : errors.Select(CreateErrorExtension).ToArray();
+        problemDetails.Extensions["errors"] = errorExtensions;
 
         return problemDetails;
     }

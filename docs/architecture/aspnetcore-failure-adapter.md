@@ -54,10 +54,9 @@ code:
 | Unavailable | 503 | `/problems/unavailable` |
 | Unexpected | 500 | `/problems/unexpected` |
 
-The exception handler logs the exception server-side with the request trace
-identifier and returns only the generic `platform.unexpected` contract. It
-never serializes exception messages, stack traces, provider names, SQL, or
-secrets.
+The exception handler records a stable server-side error event and returns only
+the generic `platform.unexpected` contract. It never serializes or logs
+exception messages, stack traces, provider names, SQL, or secrets.
 
 ## Acceptance seam
 

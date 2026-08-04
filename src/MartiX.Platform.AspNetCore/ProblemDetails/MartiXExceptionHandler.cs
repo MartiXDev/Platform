@@ -10,10 +10,14 @@ namespace MartiX.Platform.AspNetCore;
 internal sealed class MartiXExceptionHandler(
     ILogger<MartiXExceptionHandler> logger) : IExceptionHandler
 {
+    private static readonly EventId UnhandledRequestExceptionEvent = new(
+        1,
+        "UnhandledHttpRequestException");
+
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
-        CancellationToken cancellationToken)
+        CancellationToken _)
     {
         if (exception is OperationCanceledException
             && httpContext.RequestAborted.IsCancellationRequested)
@@ -22,9 +26,8 @@ internal sealed class MartiXExceptionHandler(
         }
 
         logger.LogError(
-            exception,
-            "Unhandled HTTP request exception. TraceId: {TraceId}",
-            httpContext.TraceIdentifier);
+            UnhandledRequestExceptionEvent,
+            "Unhandled HTTP request exception.");
 
         var problem = MartiXProblemDetailsFactory.CreateUnexpected(httpContext);
         await problem.ExecuteAsync(httpContext);

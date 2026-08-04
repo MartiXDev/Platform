@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -10,6 +11,9 @@ namespace MartiX.Platform.AspNetCore;
 /// </summary>
 public static class MartiXResultExtensions
 {
+    private const string SuccessfulResultMessage =
+        "A successful result cannot be mapped to Problem Details.";
+
     /// <summary>
     /// Converts an expected failure to an RFC 9457 Problem Details result.
     /// </summary>
@@ -26,13 +30,7 @@ public static class MartiXResultExtensions
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        if (result.IsSuccess)
-        {
-            throw new InvalidOperationException(
-                "A successful result cannot be mapped to Problem Details.");
-        }
-
-        return MartiXProblemDetailsFactory.CreateFailure(result.Errors, httpContext);
+        return MapFailure(result.IsSuccess, result.Errors, httpContext);
     }
 
     /// <summary>
@@ -52,13 +50,7 @@ public static class MartiXResultExtensions
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        if (result.IsSuccess)
-        {
-            throw new InvalidOperationException(
-                "A successful result cannot be mapped to Problem Details.");
-        }
-
-        return MartiXProblemDetailsFactory.CreateFailure(result.Errors, httpContext);
+        return MapFailure(result.IsSuccess, result.Errors, httpContext);
     }
 
     /// <summary>
@@ -77,5 +69,18 @@ public static class MartiXResultExtensions
         return MartiXProblemDetailsFactory.CreateFailure(
             new[] { error },
             httpContext);
+    }
+
+    private static ProblemHttpResult MapFailure(
+        bool isSuccess,
+        IReadOnlyList<Error> errors,
+        HttpContext httpContext)
+    {
+        if (isSuccess)
+        {
+            throw new InvalidOperationException(SuccessfulResultMessage);
+        }
+
+        return MartiXProblemDetailsFactory.CreateFailure(errors, httpContext);
     }
 }

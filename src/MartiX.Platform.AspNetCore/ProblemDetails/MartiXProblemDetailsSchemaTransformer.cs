@@ -14,7 +14,7 @@ internal sealed class MartiXProblemDetailsSchemaTransformer
     public Task TransformAsync(
         OpenApiSchema schema,
         OpenApiSchemaTransformerContext context,
-        CancellationToken cancellationToken)
+        CancellationToken _)
     {
         if (context.JsonTypeInfo.Type != typeof(ProblemDetails))
         {
