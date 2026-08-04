@@ -69,6 +69,10 @@ test("the API plan is explicit and deterministic", () => {
     createApiPresetPlan({ applicationName: "Contoso.Api" }).applicationName,
     "Contoso.Api",
   );
+  assert.equal(
+    createApiPresetPlan({ applicationName: " Contoso.Api " }).applicationName,
+    "Contoso.Api",
+  );
 });
 
 test("the CLI prints the resolved plan without writing in dry-run mode", async () => {
@@ -106,8 +110,11 @@ test("identity and unsupported selections fail before generation writes", async 
     for (const [index, applicationName] of [
       "Sample.Api",
       "Api",
+      "Api.Api",
       "Default.Api",
+      "Default.Api.V2",
       "TestProject",
+      "TestProject.Api",
     ].entries()) {
       await assert.rejects(
         () => generateApiPreset({
