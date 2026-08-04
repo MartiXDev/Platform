@@ -4,7 +4,6 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 export const API_PRESET = "api";
 export const API_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -66,10 +65,53 @@ const API_PACKAGE_REFERENCES = Object.freeze([
     version: API_PLATFORM_VERSION,
   }),
 ]);
+const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
+  Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
+  Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
+]);
+const API_TEST_PACKAGE_REFERENCES = Object.freeze([
+  ...API_APPLICATION_PACKAGE_REFERENCES,
+  Object.freeze({ id: "Microsoft.AspNetCore.TestHost", version: "10.0.10" }),
+  Object.freeze({ id: "TUnit", version: "1.63.0" }),
+]);
+const ANALYZER_PACKAGE_ID = "MartiX.Platform.Analyzers";
 const APPLICATION_NAME_PATTERN =
   /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
-const PLACEHOLDER_NAME_PATTERN =
-  /(?:^|\.)(?:app|application|appname|defaultapi|defaultapp|demo|demoapi|demoapp|example|exampleapi|exampleapp|generated|generatedsolution|my|myapi|myapp|myproject|placeholder|placeholderapp|repositorybootstrapgeneratedsolution|sample|sampleapi|sampleapp|test|weatherforecast|yourapi|yourapp)(?:\.|$)/i;
+const PLACEHOLDER_NAME_SEGMENTS = new Set([
+  "app",
+  "application",
+  "appname",
+  "defaultapi",
+  "defaultapp",
+  "demo",
+  "demoapi",
+  "demoapp",
+  "example",
+  "exampleapi",
+  "exampleapp",
+  "generated",
+  "generatedsolution",
+  "my",
+  "myapi",
+  "myapp",
+  "myproject",
+  "placeholder",
+  "placeholderapp",
+  "repositorybootstrapgeneratedsolution",
+  "sample",
+  "sampleapi",
+  "sampleapp",
+  "test",
+  "weatherforecast",
+  "yourapi",
+  "yourapp",
+]);
+const PLACEHOLDER_APPLICATION_NAMES = new Set([
+  "api",
+  "default",
+  "default.api",
+  "testproject",
+]);
 const KNOWN_UNAVAILABLE_CAPABILITIES = new Set([
   "application-ui",
   "aspnetcore.fastendpoints",
@@ -128,13 +170,25 @@ function normalizeApplicationName(value) {
     );
   }
 
-  if (PLACEHOLDER_NAME_PATTERN.test(applicationName)) {
+  if (isPlaceholderApplicationName(applicationName)) {
     fail(
       `The application name "${applicationName}" is a placeholder and cannot be generated.`,
     );
   }
 
   return applicationName;
+}
+
+function isPlaceholderApplicationName(applicationName) {
+  const normalizedName = applicationName.toLowerCase();
+  return (
+    PLACEHOLDER_APPLICATION_NAMES.has(normalizedName) ||
+    applicationName
+      .split(".")
+      .some((segment) =>
+        PLACEHOLDER_NAME_SEGMENTS.has(segment.toLowerCase()),
+      )
+  );
 }
 
 function normalizeSelectionList(value, label) {
@@ -244,8 +298,7 @@ function validateApiSelections({
 }
 
 function createPlan(applicationName) {
-  const projectName = `${applicationName}.Api`;
-  const testProjectName = `${applicationName}.Tests`;
+  const projectNames = getProjectNames(applicationName);
   const baselineCapabilities = [...API_BASELINE_CAPABILITIES];
 
   return {
@@ -266,8 +319,8 @@ function createPlan(applicationName) {
       ...reference,
     })),
     projects: [
-      `src/${projectName}/${projectName}.csproj`,
-      `tests/${testProjectName}/${testProjectName}.csproj`,
+      `src/${projectNames.api}/${projectNames.api}.csproj`,
+      `tests/${projectNames.tests}/${projectNames.tests}.csproj`,
     ],
     selected: {
       applicationUi: false,
@@ -275,6 +328,30 @@ function createPlan(applicationName) {
       relationalPersistence: false,
     },
   };
+}
+
+function getProjectNames(applicationName) {
+  return {
+    api: `${applicationName}.Api`,
+    tests: `${applicationName}.Tests`,
+  };
+}
+
+function renderPackageReferences(references, platformReferences) {
+  const platformPackageIds = new Set(
+    platformReferences.map(({ id }) => id),
+  );
+
+  return references
+    .map(({ id, version }) => {
+      const privateAssets =
+        id === ANALYZER_PACKAGE_ID ? ' PrivateAssets="all"' : "";
+      const renderedVersion = platformPackageIds.has(id)
+        ? "$(MartiXPlatformVersion)"
+        : version;
+      return `    <PackageReference Include="${id}" Version="${renderedVersion}"${privateAssets} />`;
+    })
+    .join("\n");
 }
 
 export function createApiPresetPlan(options = {}) {
@@ -325,6 +402,11 @@ function createManifest(plan) {
 }
 
 function apiProjectFile(plan) {
+  const packageReferences = [
+    ...plan.packageReferences,
+    ...API_APPLICATION_PACKAGE_REFERENCES,
+  ];
+
   return `<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -336,11 +418,7 @@ function apiProjectFile(plan) {
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MartiX.Platform" Version="$(MartiXPlatformVersion)" />
-    <PackageReference Include="MartiX.Platform.AspNetCore" Version="$(MartiXPlatformVersion)" />
-    <PackageReference Include="MartiX.Platform.Analyzers" Version="$(MartiXPlatformVersion)" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+${renderPackageReferences(packageReferences, plan.packageReferences)}
   </ItemGroup>
 </Project>
 `;
@@ -386,8 +464,11 @@ public sealed record HealthResponse(string Status);
 }
 
 function testProjectFile(plan) {
-  const projectName = `${plan.applicationName}.Api`;
-  const testProjectName = `${plan.applicationName}.Tests`;
+  const projectNames = getProjectNames(plan.applicationName);
+  const packageReferences = [
+    ...plan.packageReferences,
+    ...API_TEST_PACKAGE_REFERENCES,
+  ];
 
   return `<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
@@ -400,14 +481,8 @@ function testProjectFile(plan) {
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/${projectName}/${projectName}.csproj" />
-    <PackageReference Include="MartiX.Platform" Version="$(MartiXPlatformVersion)" />
-    <PackageReference Include="MartiX.Platform.AspNetCore" Version="$(MartiXPlatformVersion)" />
-    <PackageReference Include="MartiX.Platform.Analyzers" Version="$(MartiXPlatformVersion)" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.10" />
-    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
-    <PackageReference Include="TUnit" Version="1.63.0" />
+    <ProjectReference Include="../../src/${projectNames.api}/${projectNames.api}.csproj" />
+${renderPackageReferences(packageReferences, plan.packageReferences)}
   </ItemGroup>
 </Project>
 `;
@@ -661,12 +736,11 @@ public sealed class ApiContractTests
 }
 
 function solutionFile(plan) {
-  const projectName = `${plan.applicationName}.Api`;
-  const testProjectName = `${plan.applicationName}.Tests`;
+  const projectNames = getProjectNames(plan.applicationName);
 
   return `<Solution>
-  <Project Path="src/${projectName}/${projectName}.csproj" />
-  <Project Path="tests/${testProjectName}/${testProjectName}.csproj" />
+  <Project Path="src/${projectNames.api}/${projectNames.api}.csproj" />
+  <Project Path="tests/${projectNames.tests}/${projectNames.tests}.csproj" />
 </Solution>
 `;
 }
@@ -713,27 +787,26 @@ independent; the ASP.NET Core adapter owns safe Problem Details translation.
 `;
 }
 
-function createFiles(plan) {
-  const projectName = `${plan.applicationName}.Api`;
-  const testProjectName = `${plan.applicationName}.Tests`;
+function createFiles(plan, manifest) {
+  const projectNames = getProjectNames(plan.applicationName);
 
   return new Map([
     ["AGENTS.md", agentsFile(plan)],
     ["CONTEXT.md", contextFile(plan)],
     [`${plan.applicationName}.slnx`, solutionFile(plan)],
     ["README.md", readmeFile(plan)],
-    ["martix.platform.json", `${JSON.stringify(createManifest(plan), null, 2)}\n`],
+    ["martix.platform.json", `${JSON.stringify(manifest, null, 2)}\n`],
     [
-      `src/${projectName}/${projectName}.csproj`,
+      `src/${projectNames.api}/${projectNames.api}.csproj`,
       apiProjectFile(plan),
     ],
-    [`src/${projectName}/Program.cs`, apiProgramFile()],
+    [`src/${projectNames.api}/Program.cs`, apiProgramFile()],
     [
-      `tests/${testProjectName}/ApiContractTests.cs`,
+      `tests/${projectNames.tests}/ApiContractTests.cs`,
       testSourceFile(),
     ],
     [
-      `tests/${testProjectName}/${testProjectName}.csproj`,
+      `tests/${projectNames.tests}/${projectNames.tests}.csproj`,
       testProjectFile(plan),
     ],
   ]);
@@ -778,106 +851,14 @@ async function writeFiles(outputDirectory, files) {
 export async function generateApiPreset(options = {}) {
   const plan = createApiPresetPlan(options);
   const outputDirectory = await prepareOutputDirectory(options.outputDirectory);
-  const files = createFiles(plan);
+  const manifest = createManifest(plan);
+  const files = createFiles(plan, manifest);
   const writtenFiles = await writeFiles(outputDirectory, files);
 
   return {
     outputDirectory,
     plan,
-    manifest: createManifest(plan),
+    manifest,
     files: writtenFiles,
   };
-}
-
-function parseCliArguments(argumentsList) {
-  const options = {
-    capabilities: [],
-    providers: [],
-  };
-  let dryRun = false;
-
-  for (let index = 0; index < argumentsList.length; index++) {
-    const argument = argumentsList[index];
-    if (argument === "--dry-run") {
-      dryRun = true;
-      continue;
-    }
-    if (argument === "--help" || argument === "-h") {
-      return { help: true };
-    }
-
-    const separator = argument.indexOf("=");
-    const name = separator === -1 ? argument : argument.slice(0, separator);
-    const inlineValue = separator === -1 ? undefined : argument.slice(separator + 1);
-    const value = inlineValue ?? argumentsList[++index];
-    if (value === undefined || value.startsWith("--")) {
-      fail(`Option ${name} requires a value.`);
-    }
-
-    switch (name) {
-      case "--name":
-        options.applicationName = value;
-        break;
-      case "--output":
-        options.outputDirectory = value;
-        break;
-      case "--preset":
-        options.preset = value;
-        break;
-      case "--capability":
-        options.capabilities.push(value);
-        break;
-      case "--provider":
-        options.providers.push(value);
-        break;
-      case "--persistence":
-        options.persistence = value;
-        break;
-      case "--ui":
-        options.ui = value;
-        break;
-      default:
-        fail(`Unknown option: ${name}.`);
-    }
-  }
-
-  return { options, dryRun };
-}
-
-export async function runApiPresetCli(
-  argumentsList = process.argv.slice(2),
-) {
-  const parsed = parseCliArguments(argumentsList);
-  if (parsed.help) {
-    console.log(
-      [
-        "Usage: node eng/generate-api.mjs --name <Application.Name> --output <directory> [--dry-run]",
-        "       [--capability <id>] [--provider <id>] [--persistence none] [--ui none]",
-      ].join("\n"),
-    );
-    return;
-  }
-
-  const plan = createApiPresetPlan(parsed.options);
-  console.log(JSON.stringify(plan, null, 2));
-  if (parsed.dryRun) {
-    return;
-  }
-
-  await generateApiPreset(parsed.options);
-}
-
-const invokedFile = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-
-if (invokedFile === import.meta.url) {
-  runApiPresetCli().catch((error) => {
-    if (error instanceof ApiPresetGenerationError) {
-      console.error(`API preset generation failed: ${error.message}`);
-    } else {
-      console.error("API preset generation failed due to an unexpected error.");
-    }
-    process.exitCode = 1;
-  });
 }

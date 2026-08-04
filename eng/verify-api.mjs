@@ -146,7 +146,6 @@ export async function verifyApiPreset({
       packageFeed,
       "--source",
       NUGET_SOURCE,
-      "--ignore-failed-sources",
       "--nologo",
     ]);
     await run([
@@ -167,7 +166,6 @@ export async function verifyApiPreset({
         packageFeed,
         "--source",
         NUGET_SOURCE,
-        "--ignore-failed-sources",
         "--nologo",
       ],
       generatedRoot,

@@ -14,8 +14,8 @@ import {
   API_PLATFORM_VERSION,
   createApiPresetPlan,
   generateApiPreset,
-  runApiPresetCli,
 } from "../eng/api-preset.mjs";
+import { runApiPresetCli } from "../eng/generate-api.mjs";
 
 async function createTemporaryDirectory(prefix = "martix-api-preset-") {
   return mkdtemp(join(tmpdir(), prefix));
@@ -65,6 +65,10 @@ test("the API plan is explicit and deterministic", () => {
     { id: "MartiX.Platform.AspNetCore", version: API_PLATFORM_VERSION },
     { id: "MartiX.Platform.Analyzers", version: API_PLATFORM_VERSION },
   ]);
+  assert.equal(
+    createApiPresetPlan({ applicationName: "Contoso.Api" }).applicationName,
+    "Contoso.Api",
+  );
 });
 
 test("the CLI prints the resolved plan without writing in dry-run mode", async () => {
@@ -99,13 +103,20 @@ test("identity and unsupported selections fail before generation writes", async 
       () => generateApiPreset({ outputDirectory: join(output, "sample") }),
       /application name is required/i,
     );
-    await assert.rejects(
-      () => generateApiPreset({
-        applicationName: "Sample.Api",
-        outputDirectory: join(output, "sample"),
-      }),
-      /placeholder/i,
-    );
+    for (const [index, applicationName] of [
+      "Sample.Api",
+      "Api",
+      "Default.Api",
+      "TestProject",
+    ].entries()) {
+      await assert.rejects(
+        () => generateApiPreset({
+          applicationName,
+          outputDirectory: join(output, `placeholder-${index}`),
+        }),
+        /placeholder/i,
+      );
+    }
     await assert.rejects(
       () => generateApiPreset({
         applicationName: "Contoso.Inventory",
