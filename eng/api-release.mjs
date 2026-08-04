@@ -74,9 +74,7 @@ const FIRST_PARTY_PACKAGE_IDS = new Set(
   PACKAGE_DEFINITIONS.map((definition) => definition.id),
 );
 const FORBIDDEN_GENERATED_RESIDUE =
-  /WeatherForecast|DbContext|EntityFramework|Npgsql|SqlServer|Migrations|Sample|Demo/i;
-const FORBIDDEN_PROJECT_NAME =
-  /(?:Migrator|Module|Web|Persistence|DbContext|Migrations)/i;
+  /\b(?:WeatherForecast|DbContext|EntityFramework|Npgsql|SqlServer|Migrations)\b/i;
 const SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const NATIVE_AOT_RID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -404,11 +402,32 @@ async function verifyManifest(rootDir, generatedRoot, plan) {
   };
 }
 
-async function verifyGeneratedOutput(generatedRoot, files) {
+function expectedGeneratedFiles(applicationName) {
+  return [
+    "AGENTS.md",
+    "CONTEXT.md",
+    `${applicationName}.slnx`,
+    "README.md",
+    "martix.platform.json",
+    `src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    `src/${applicationName}.Api/Program.cs`,
+    `tests/${applicationName}.Tests/ApiContractTests.cs`,
+    `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
+  ].sort();
+}
+
+async function verifyGeneratedOutput(generatedRoot, files, applicationName) {
+  const expectedFiles = expectedGeneratedFiles(applicationName);
+  const generatedFiles = [...files].sort();
+  const actualFiles = await listFiles(generatedRoot);
+  if (
+    JSON.stringify(generatedFiles) !== JSON.stringify(expectedFiles) ||
+    JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)
+  ) {
+    fail("Generated API output is not the expected clean composition.");
+  }
+
   for (const relativePath of files) {
-    if (FORBIDDEN_PROJECT_NAME.test(relativePath)) {
-      fail(`Generated API output contains an unselected project: ${relativePath}`);
-    }
     if (relativePath === "martix.platform.json") {
       continue;
     }
@@ -417,10 +436,6 @@ async function verifyGeneratedOutput(generatedRoot, files) {
     if (FORBIDDEN_GENERATED_RESIDUE.test(contents)) {
       fail(`Generated API output contains forbidden residue: ${relativePath}`);
     }
-  }
-
-  if (files.some((file) => FORBIDDEN_PROJECT_NAME.test(file))) {
-    fail("Generated API output contains an unselected project or directory.");
   }
 }
 
@@ -1224,7 +1239,11 @@ export async function verifyApiRelease({
       generatedRoot,
       firstGeneration.plan,
     );
-    await verifyGeneratedOutput(generatedRoot, firstGeneration.files);
+    await verifyGeneratedOutput(
+      generatedRoot,
+      firstGeneration.files,
+      firstGeneration.plan.applicationName,
+    );
     const projects = await verifyGeneratedProjectShape(
       generatedRoot,
       firstGeneration.plan.applicationName,

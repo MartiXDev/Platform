@@ -191,6 +191,21 @@ test("generation writes only the selected API composition and manifest", async (
     );
     assert.deepEqual(manifest.providers, []);
     assert.equal(manifest.platformContractVersion, API_PLATFORM_VERSION);
+    const apiSource = await readFile(
+      join(
+        firstRoot,
+        "generated",
+        "src",
+        "Contoso.Inventory.Api",
+        "Program.cs",
+      ),
+      "utf8",
+    );
+    assert.match(apiSource, /using MartiX\.Platform\.Results;/);
+    assert.match(
+      apiSource,
+      /\.ProducesMartiXProblemDetails\(ErrorKind\.Unexpected\)/,
+    );
 
     const source = await Promise.all(
       first.files.map((file) =>

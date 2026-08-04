@@ -433,6 +433,7 @@ ${renderPackageReferences(packageReferences, plan.packageReferences)}
 
 function apiProgramFile() {
   return `using MartiX.Platform.AspNetCore;
+using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
@@ -462,7 +463,8 @@ public static class ApiComposition
                 "/health",
                 static () => TypedResults.Ok(new HealthResponse("ok")))
             .WithName("Health")
-            .Produces<HealthResponse>(StatusCodes.Status200OK);
+            .Produces<HealthResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
     }
 }
 
