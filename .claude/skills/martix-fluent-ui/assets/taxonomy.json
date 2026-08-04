@@ -1,0 +1,53 @@
+{
+  "skill": "martix-fluent-ui",
+  "workstreams": {
+    "foundation": "Packages, FluentProvider, themes, and tokens",
+    "composition": "Component selection, slots, and advanced recomposition",
+    "accessibility": "Semantics, keyboard interaction, focus, and user preferences",
+    "rendering": "CSS-first styling, bounded Griffel use, SSR, hydration, and Next.js",
+    "ecosystem": "Icons, motion, charts, and Vue Web Components",
+    "migration": "v8, v0, Fabric, and mixed-generation migration",
+    "quality": "Behavioral testing, compatibility checks, and review"
+  },
+  "groups": [
+    {
+      "id": "foundation",
+      "displayName": "Foundation and styling",
+      "rules": [
+        "rules/foundation-packages-provider-theme.md",
+        "rules/styling-tokens-griffel.md"
+      ]
+    },
+    {
+      "id": "composition",
+      "displayName": "Composition and accessibility",
+      "rules": [
+        "rules/component-composition-slots.md",
+        "rules/accessibility-focus.md"
+      ]
+    },
+    {
+      "id": "rendering",
+      "displayName": "Rendering and ecosystem",
+      "rules": [
+        "rules/ssr-nextjs.md",
+        "rules/icons-motion-charts.md"
+      ]
+    },
+    {
+      "id": "migration",
+      "displayName": "Migration and exceptional frameworks",
+      "rules": [
+        "rules/migration-v8-v0.md",
+        "rules/vue-web-components.md"
+      ]
+    },
+    {
+      "id": "quality",
+      "displayName": "Testing and quality",
+      "rules": [
+        "rules/testing-quality-gates.md"
+      ]
+    }
+  ]
+}

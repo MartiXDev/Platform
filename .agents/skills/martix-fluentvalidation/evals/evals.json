@@ -1,0 +1,160 @@
+{
+  "skill": "martix-fluentvalidation",
+  "evals": [
+    {
+      "id": "validator-authoring-baseline",
+      "prompt": "Write review guidance for a new AbstractValidator<CustomerRequest> that checks required fields, email format, numeric ranges, nested address validation, and collection items. Choose built-in validators where possible and identify the package files to consult.",
+      "expected_sections": [
+        "Built-in validator selection",
+        "Composition and collections",
+        "Avoided custom validators",
+        "Files to consult"
+      ],
+      "assertions": [
+        "Prefers built-in validators before Must, Custom, or reusable custom validators.",
+        "Routes nested validators and collection rules through foundation composition guidance.",
+        "Keeps guidance specific to FluentValidation instead of broad .NET validation advice."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/foundation-validator-basics.md",
+        "rules/foundation-collections-composition.md",
+        "references/built-in-validators-map.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "async-api-boundary-review",
+      "prompt": "Review an ASP.NET Core endpoint that calls Validate instead of ValidateAsync even though one FluentValidation rule queries a database asynchronously, then maps failures to ValidationProblem. Explain the safe fix and the companion skill boundary.",
+      "expected_sections": [
+        "Async validation issue",
+        "API boundary mapping",
+        "Companion skill boundary",
+        "Testing route"
+      ],
+      "assertions": [
+        "Requires ValidateAsync and ambient CancellationToken when any rule or dependency is async.",
+        "Keeps FluentValidation-specific rule behavior in this skill and leaves general API host shape to martix-dotnet-csharp or martix-fastendpoints.",
+        "Recommends validator tests with FluentValidation.TestHelper and boundary tests only when framework wiring is part of the contract."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/integration-async-validation.md",
+        "rules/integration-aspnet-core.md",
+        "rules/testing-validator-testhelper.md",
+        "references/integration-map.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "upgrade-planning-slice",
+      "prompt": "Plan a FluentValidation 11 to 12 upgrade for a solution with shared validators, localized messages, ASP.NET Core integration, async rules, and hundreds of tests. Classify model tier and split the work into parallel-safe slices.",
+      "expected_sections": [
+        "Premium planning rationale",
+        "Upgrade scope",
+        "Parallel slices",
+        "Validation strategy"
+      ],
+      "assertions": [
+        "Treats the initial upgrade plan as premium or mixed tier because it crosses packages and runtime behavior.",
+        "Splits validators, integration, localization, and test updates into separate worktree-safe slices.",
+        "Uses the upgrade baseline, breaking changes history, and compatibility matrix before editing."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/upgrade-current-baseline.md",
+        "rules/upgrade-breaking-changes-history.md",
+        "references/compatibility-matrix.md",
+        "..\\..\\docs\\execution-profiles.md"
+      ],
+      "model_tier": "premium",
+      "parallel_safe": false,
+      "token_budget": "large",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "scope-boundary-general-handoff",
+      "prompt": "A user asks for help that is adjacent to martix-fluentvalidation but belongs to a different MartiX skill or general Copilot guidance. Assess whether this skill should handle it.",
+      "negative_activation": true,
+      "expected_sections": [
+        "Scope assessment",
+        "Out-of-scope identification",
+        "Recommended handoff or fallback"
+      ],
+      "assertions": [
+        "States whether the request is inside this skill boundary before applying rules.",
+        "Does not load unrelated rule files or claim ownership of another skill domain.",
+        "Recommends a companion skill or generic guidance path when this skill is not the right fit."
+      ],
+      "files": [
+        "SKILL.md",
+        "AGENTS.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "escalation": null
+    },
+    {
+      "id": "integration-boundary-choice",
+      "prompt": "Choose the safest FluentValidation boundary for a new ASP.NET Core service that may add async rules later. Compare manual validation, filter-based integration, and the old MVC validation pipeline, then name the package files to consult first.",
+      "expected_sections": [
+        "Boundary choice",
+        "Async implications",
+        "Preferred route",
+        "Files to consult"
+      ],
+      "assertions": [
+        "Prefers manual validation as the first-party default for new application code.",
+        "Treats async-capable filter integration as an ecosystem option instead of the default route.",
+        "Keeps legacy MVC auto-validation as a migration-only path for existing synchronous code."
+      ],
+      "files": [
+        "SKILL.md",
+        "references/integration-map.md",
+        "rules/integration-aspnet-core.md",
+        "rules/integration-async-validation.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "runtime-metadata-selection",
+      "prompt": "A validator needs localized user-facing messages, a stable machine-readable failure key, warning-level severity in one branch, and structured extra state for downstream handling. Explain which FluentValidation output fields should carry each concern.",
+      "expected_sections": [
+        "Message text",
+        "Error code",
+        "Severity",
+        "Custom state"
+      ],
+      "assertions": [
+        "Routes user-facing or localized text through WithMessage instead of machine parsing.",
+        "Uses WithErrorCode for stable machine-readable reasons and WithState for structured extra payload.",
+        "Keeps severity separate from error codes so triage level does not replace the contract key."
+      ],
+      "files": [
+        "SKILL.md",
+        "references/runtime-metadata-map.md",
+        "rules/runtime-severity-error-codes-state.md",
+        "rules/runtime-localization-language-manager.md"
+      ],
+      "model_tier": "medium",
+      "parallel_safe": true,
+      "token_budget": "medium",
+      "negative_activation": false,
+      "escalation": null
+    }
+  ]
+}

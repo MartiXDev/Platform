@@ -1,0 +1,142 @@
+{
+  "package": "martix-powershell",
+  "mode": "standalone-first",
+  "root": "skills/martix-powershell",
+  "status": {
+    "scaffoldPhase": false,
+    "note": "All 17 rule files are authored. The naming-approved-verbs-cmdlet-contract.md and naming-parameter-and-common-names.md rules form the naming domain. All 11 reference maps are authored."
+  },
+  "totalRuleCount": 17,
+  "rulePrefixes": {
+    "foundation": "Base class selection (Cmdlet vs PSCmdlet), Cmdlet attribute declaration, OutputType, SupportsShouldProcess, SupportsTransactions, assembly structure, module packaging, DLL naming, .psd1 manifest, Import-Module wiring",
+    "naming": "Approved verb selection, Verbs* typed constants, verb group semantics, paired inverse verbs, vendor noun prefix, standard parameter names (Path, Name, Force, Credential, InputObject, PassThru), common parameter injection list, Credential attribute",
+    "parameters": "Parameter attribute options, Mandatory, Position, ParameterSetName, HelpMessage, validation attribute stacking, standard parameter names, ValueFromPipeline, ValueFromPipelineByPropertyName, wildcard support, binding precedence",
+    "pipeline": "BeginProcessing, ProcessRecord, EndProcessing, StopProcessing override patterns, WriteObject semantics, streaming vs buffering, object vs text output, null handling, OutputType declaration",
+    "error-handling": "Terminating vs non-terminating error classification, ErrorRecord construction, exception object, ErrorId design, ErrorCategory enum selection, WriteError, ThrowTerminatingError, PSCmdlet error methods",
+    "confirmation-safety": "SupportsShouldProcess, ShouldProcess call patterns, ShouldContinue nesting, ConfirmImpact level selection, WhatIf/Confirm automatic parameters, Force parameter bypass semantics, non-interactive automation safety",
+    "advanced-patterns": "IDynamicParameters, RuntimeDefinedParameterDictionary, parameter aliases, ScriptBlock invocation via PSCmdlet, SessionState access, credential parameters, SupportsTransactions, CurrentPSTransaction",
+    "attributes-validators": "ValidateSet, ValidateRange, ValidatePattern, ValidateScript, ValidateLength, ValidateCount, ValidateNotNull, ValidateNotNullOrEmpty, custom validation attributes, OutputType declaration, credential handling",
+    "documentation": "Comment-based help block structure, required help sections (.SYNOPSIS, .DESCRIPTION, .PARAMETER, .EXAMPLE, .OUTPUTS, .NOTES), MAML/PlatyPS help for compiled cmdlets, .OUTPUTS/[OutputType] alignment, script-body alias avoidance, Read-Host prohibition, Write-Host stream semantics, Tier-5 repo style overlay"
+  },
+  "domains": [
+    {
+      "id": "foundation",
+      "displayName": "Foundation and base class selection",
+      "ruleCount": 2,
+      "referenceMap": "references/foundation-map.md",
+      "rules": [
+        "rules/foundation-base-class-attribute.md",
+        "rules/foundation-project-module-shape.md"
+      ]
+    },
+    {
+      "id": "naming",
+      "displayName": "Naming and conventions",
+      "ruleCount": 2,
+      "referenceMap": "references/naming-map.md",
+      "rules": [
+        "rules/naming-approved-verbs-cmdlet-contract.md",
+        "rules/naming-parameter-and-common-names.md"
+      ]
+    },
+    {
+      "id": "parameters",
+      "displayName": "Parameters, validation, and sets",
+      "ruleCount": 3,
+      "referenceMap": "references/parameters-validation-map.md",
+      "rules": [
+        "rules/parameters-declaration-validation.md",
+        "rules/parameters-sets-dynamic.md",
+        "rules/parameters-pipeline-binding.md"
+      ]
+    },
+    {
+      "id": "pipeline",
+      "displayName": "Input processing and output streaming",
+      "ruleCount": 2,
+      "referenceMap": "references/pipeline-map.md",
+      "rules": [
+        "rules/pipeline-input-processing-methods.md",
+        "rules/pipeline-output-streaming.md"
+      ]
+    },
+    {
+      "id": "error-handling",
+      "displayName": "Error handling",
+      "ruleCount": 2,
+      "referenceMap": "references/error-handling-categories-map.md",
+      "rules": [
+        "rules/error-handling-terminating-nonterminating.md",
+        "rules/error-handling-errorrecord-construction.md"
+      ]
+    },
+    {
+      "id": "confirmation-safety",
+      "displayName": "Confirmation, safety, and transactions",
+      "ruleCount": 2,
+      "referenceMap": "references/confirmation-safety-map.md",
+      "rules": [
+        "rules/confirmation-shouldprocess-shouldcontinue.md",
+        "rules/confirmation-force-parameter.md"
+      ]
+    },
+    {
+      "id": "advanced-patterns",
+      "displayName": "Advanced patterns and extensibility",
+      "ruleCount": 2,
+      "referenceMap": "references/advanced-patterns-map.md",
+      "rules": [
+        "rules/advanced-dynamic-parameters-alias.md",
+        "rules/advanced-transactions-jobs.md"
+      ]
+    },
+    {
+      "id": "attributes-validators",
+      "displayName": "Attributes and validators",
+      "ruleCount": 1,
+      "referenceMap": "references/attributes-validators-map.md",
+      "rules": [
+        "rules/attributes-validators-outputtype.md"
+      ]
+    },
+    {
+      "id": "documentation",
+      "displayName": "Documentation, help, and style",
+      "ruleCount": 1,
+      "referenceMap": "references/documentation-style-map.md",
+      "rules": [
+        "rules/documentation-help-style.md"
+      ]
+    }
+  ],
+  "crossCuttingReferences": [
+    {
+      "path": "references/doc-source-index.md",
+      "role": "approved source index, precedence rules, and exclusion guardrails for all domains"
+    },
+    {
+      "path": "references/cookbook-index.md",
+      "role": "secondary recipe index for advanced integration, testing, and help authoring scenarios"
+    }
+  ],
+  "tags": [
+    "PowerShell",
+    "cmdlet",
+    "C#",
+    ".NET",
+    "PSCmdlet",
+    "Cmdlet",
+    "parameter validation",
+    "pipeline",
+    "error handling",
+    "ErrorRecord",
+    "ShouldProcess",
+    "WhatIf",
+    "module packaging",
+    "binary module",
+    "approved verbs",
+    "OutputType",
+    "dynamic parameters",
+    "compiled cmdlet"
+  ]
+}

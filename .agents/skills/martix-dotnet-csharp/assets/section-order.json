@@ -1,0 +1,51 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Default guidance",
+    "Avoid",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "recommendedRuleOrder": [
+    "rules/lang-modern-features.md",
+    "rules/lang-pattern-matching.md",
+    "rules/lang-nullability.md",
+    "rules/sdk-project-system.md",
+    "rules/sdk-build-test-pack-publish.md",
+    "rules/runtime-memory-spans.md",
+    "rules/runtime-collections-immutability.md",
+    "rules/async-tasks-valuetasks.md",
+    "rules/async-cancellation-timeouts.md",
+    "rules/async-concurrency-channels.md",
+    "rules/design-api-type-design.md",
+    "rules/design-exceptions-validation.md",
+    "rules/web-http-resilience.md",
+    "rules/web-aspnet-core.md",
+    "rules/data-serialization.md",
+    "rules/data-efcore.md",
+    "rules/testing-unit-integration.md",
+    "rules/diagnostics-logging-tracing.md",
+    "rules/security-auth-authz.md"
+  ],
+  "referenceOrder": [
+    "references/doc-source-index.md",
+    "references/anti-patterns-quick-reference.md",
+    "references/web-bootstrap-recipes.md",
+    "references/testing-bootstrap-recipes.md",
+    "references/libraries-catalog.md",
+    "references/csharp-language-map.md",
+    "references/dotnet-sdk-map.md",
+    "references/runtime-bcl-map.md",
+    "references/async-map.md",
+    "references/design-map.md",
+    "references/web-stack-map.md",
+    "references/data-stack-map.md",
+    "references/quality-security-map.md"
+  ],
+  "templateOrder": [
+    "templates/rule-template.md",
+    "templates/research-pack-template.md",
+    "templates/comparison-matrix-template.md"
+  ]
+}

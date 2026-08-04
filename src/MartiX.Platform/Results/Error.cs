@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace MartiX.Platform.Results;
 
@@ -120,7 +121,7 @@ public sealed class Error
         {
             if (character == '.')
             {
-                if (segmentLength == 0 || previousWasHyphen)
+                if (!IsValidSegmentEnd(segmentLength, previousWasHyphen))
                 {
                     return false;
                 }
@@ -131,30 +132,49 @@ public sealed class Error
                 continue;
             }
 
-            if (character == '-')
+            if (!TryAppendCodeCharacter(
+                    character,
+                    ref segmentLength,
+                    ref previousWasHyphen))
             {
-                if (segmentLength == 0 || previousWasHyphen)
-                {
-                    return false;
-                }
-
-                segmentLength++;
-                previousWasHyphen = true;
-                continue;
+                return false;
             }
+        }
 
-            if (!IsLowercaseAsciiLetterOrDigit(character))
+        return IsValidSegmentEnd(segmentLength, previousWasHyphen)
+            && segmentCount >= 2;
+    }
+
+    private static bool IsValidSegmentEnd(int segmentLength, bool previousWasHyphen)
+    {
+        return segmentLength > 0 && !previousWasHyphen;
+    }
+
+    private static bool TryAppendCodeCharacter(
+        char character,
+        ref int segmentLength,
+        ref bool previousWasHyphen)
+    {
+        if (character == '-')
+        {
+            if (segmentLength == 0 || previousWasHyphen)
             {
                 return false;
             }
 
             segmentLength++;
-            previousWasHyphen = false;
+            previousWasHyphen = true;
+            return true;
         }
 
-        return segmentLength > 0
-            && !previousWasHyphen
-            && segmentCount >= 2;
+        if (!IsLowercaseAsciiLetterOrDigit(character))
+        {
+            return false;
+        }
+
+        segmentLength++;
+        previousWasHyphen = false;
+        return true;
     }
 
     private static bool IsLowercaseAsciiLetterOrDigit(char character)
@@ -165,14 +185,6 @@ public sealed class Error
 
     private static bool ContainsControlCharacter(string value)
     {
-        foreach (var character in value)
-        {
-            if (char.IsControl(character))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return value.Any(char.IsControl);
     }
 }

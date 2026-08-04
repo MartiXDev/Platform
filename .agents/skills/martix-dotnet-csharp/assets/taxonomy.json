@@ -1,0 +1,86 @@
+{
+  "package": "martix-dotnet-csharp",
+  "mode": "standalone-first",
+  "root": "skills/martix-dotnet-csharp",
+  "rulePrefixes": {
+    "lang": "C# language and feature selection",
+    "sdk": ".NET SDK, project system, and build workflow",
+    "runtime": "Runtime primitives, performance, collections, and memory",
+    "async": "Async APIs, cancellation, concurrency, and channels",
+    "design": "API shape, validation, and error handling",
+    "web": "ASP.NET Core app shape and outbound HTTP",
+    "data": "Serialization and EF Core",
+    "testing": "Unit and integration test strategy",
+    "diagnostics": "Logging, tracing, metrics, and health signals",
+    "security": "Authentication, authorization, and secure defaults"
+  },
+  "domains": [
+    {
+      "id": "language",
+      "displayName": "Language",
+      "rules": [
+        "rules/lang-modern-features.md",
+        "rules/lang-pattern-matching.md",
+        "rules/lang-nullability.md"
+      ]
+    },
+    {
+      "id": "sdk",
+      "displayName": "SDK and build",
+      "rules": [
+        "rules/sdk-project-system.md",
+        "rules/sdk-build-test-pack-publish.md"
+      ]
+    },
+    {
+      "id": "runtime",
+      "displayName": "Runtime and performance",
+      "rules": [
+        "rules/runtime-memory-spans.md",
+        "rules/runtime-collections-immutability.md"
+      ]
+    },
+    {
+      "id": "async",
+      "displayName": "Async and concurrency",
+      "rules": [
+        "rules/async-tasks-valuetasks.md",
+        "rules/async-cancellation-timeouts.md",
+        "rules/async-concurrency-channels.md"
+      ]
+    },
+    {
+      "id": "design",
+      "displayName": "Design",
+      "rules": [
+        "rules/design-api-type-design.md",
+        "rules/design-exceptions-validation.md"
+      ]
+    },
+    {
+      "id": "web-data-quality",
+      "displayName": "Web, data, quality, and security",
+      "rules": [
+        "rules/web-http-resilience.md",
+        "rules/web-aspnet-core.md",
+        "rules/data-serialization.md",
+        "rules/data-efcore.md",
+        "rules/testing-unit-integration.md",
+        "rules/diagnostics-logging-tracing.md",
+        "rules/security-auth-authz.md"
+      ]
+    }
+  ],
+  "tags": [
+    ".NET 10",
+    "C# 14",
+    "ASP.NET Core",
+    "Minimal APIs",
+    "EF Core",
+    "SDK-style projects",
+    "async",
+    "diagnostics",
+    "security",
+    "testing"
+  ]
+}

@@ -28,6 +28,8 @@ Pay extra attention to test files that touch the relevant parts of the code.
 
 If applicable, use RGR to complete the task.
 
+Use skills /martix-dotnet-csharp for c# code and /martix-tunit for tests
+
 1. RED: write one test
 2. GREEN: write the implementation to pass that test
 3. REPEAT until done

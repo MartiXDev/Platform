@@ -1,0 +1,21 @@
+{
+  "name": "martix-tunit",
+  "description": "Standalone TUnit skill package for test authoring, parameterized data-driven tests, lifecycle hooks, parallel-by-default execution, async assertions, dependency injection, mocking, and framework comparison for xUnit/NUnit/MSTest.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MartiXDev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "martix",
+    "tunit",
+    "dotnet",
+    "testing",
+    "unit-testing",
+    "parameterized-tests",
+    "parallel-execution",
+    "microsoft-testing-platform"
+  ],
+  "repository": "https://github.com/MartiXDev/skills",
+  "skills": "skills/"
+}

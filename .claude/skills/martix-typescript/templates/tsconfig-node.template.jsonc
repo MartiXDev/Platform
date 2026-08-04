@@ -1,0 +1,20 @@
+{
+  // Use when Node or Bun owns module loading and TypeScript owns JavaScript emit.
+  // This ESM variant expects the nearest package.json to contain "type": "module".
+  "compilerOptions": {
+    "target": "ES2025",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true,
+    "types": ["node"],
+    "verbatimModuleSyntax": true,
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

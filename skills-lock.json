@@ -79,11 +79,53 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "569299a60c8e93880f3b3c1eca55578f58f7e1a4155876edb4cb814da3d6b3ea"
     },
+    "martix-dotnet-csharp": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-dotnet-csharp/SKILL.md",
+      "computedHash": "da6195a2ea3d28f5476f704019959123815c585159951a80f4e214ccd146497b"
+    },
+    "martix-fastendpoints": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-fastendpoints/SKILL.md",
+      "computedHash": "59ac8241080160f1860e8ab7fc4b1bddf5902ccdda9bee2d246e7fbdeb56d391"
+    },
+    "martix-fluent-ui": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-fluent-ui/SKILL.md",
+      "computedHash": "d797552b4b78854d140d0be58ab80990e59e832b2687efc13e2f79f55a9ca1d9"
+    },
+    "martix-fluentvalidation": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-fluentvalidation/SKILL.md",
+      "computedHash": "e962bf521ac8eaa9d19040a4782f6ccfb6941d4ee9c67fe9f7ff6856b1ca2a43"
+    },
     "martix-markdown": {
       "source": "MartiXDev/skills",
       "sourceType": "github",
       "skillPath": "skills/martix-markdown/SKILL.md",
       "computedHash": "5895a1ce1045203cef0c6b08bfc93030fa7ef8f566ef85d5283c1b4631393e7a"
+    },
+    "martix-powershell": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-powershell/SKILL.md",
+      "computedHash": "70edc30f3fb9703c3f390627e14b8b7a28988f482aa60cb6ecc1c796ab6fe289"
+    },
+    "martix-tunit": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-tunit/SKILL.md",
+      "computedHash": "fb55a283347c24207fc8709c98e7b6186f068a6f2be9bc48b6a5dcc0a1dfc0fc"
+    },
+    "martix-typescript": {
+      "source": "MartiXDev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/martix-typescript/SKILL.md",
+      "computedHash": "8eedc3f1065c3a275ec5f92a64acfedf69c109b3df90ff458fb709e71fda1c71"
     },
     "prototype": {
       "source": "mattpocock/skills",

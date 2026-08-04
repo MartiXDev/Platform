@@ -9,7 +9,7 @@ namespace MartiX.Platform.Results;
 /// <typeparam name="T">The success value type.</typeparam>
 public sealed class Result<T>
 {
-    private readonly T _value = default!;
+    private readonly T _value;
 
     private Result(T value, IReadOnlyList<Error> errors, bool isSuccess)
     {

@@ -1,0 +1,24 @@
+{
+  "name": "martix-fluentvalidation",
+  "description": "Standalone FluentValidation skill package for validator authoring, built-in validator selection, RuleSets, ASP.NET Core integration, async validation, extensibility, localization, and testing.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MartiXDev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "martix",
+    "fluentvalidation",
+    "dotnet",
+    "aspnetcore",
+    "validators",
+    "rulesets",
+    "async-validation",
+    "validationproblem",
+    "testhelper",
+    "error-codes",
+    "localization"
+  ],
+  "repository": "https://github.com/MartiXDev/skills",
+  "skills": "skills/"
+}

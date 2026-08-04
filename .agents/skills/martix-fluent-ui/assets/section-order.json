@@ -1,0 +1,37 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Default guidance",
+    "Decision branches",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "recommendedRuleOrder": [
+    "rules/foundation-packages-provider-theme.md",
+    "rules/styling-tokens-griffel.md",
+    "rules/component-composition-slots.md",
+    "rules/accessibility-focus.md",
+    "rules/ssr-nextjs.md",
+    "rules/icons-motion-charts.md",
+    "rules/migration-v8-v0.md",
+    "rules/vue-web-components.md",
+    "rules/testing-quality-gates.md"
+  ],
+  "referenceOrder": [
+    "references/source-index.md",
+    "references/version-support-map.md",
+    "references/component-selection-map.md",
+    "references/accessibility-map.md",
+    "references/ssr-recipes.md",
+    "references/migration-map.md",
+    "references/ecosystem-boundaries.md"
+  ],
+  "templateOrder": [
+    "templates/fluent-provider.template.tsx",
+    "templates/token-styles.template.module.css",
+    "templates/accessible-toolbar.template.tsx",
+    "templates/vue-custom-elements.template.d.ts",
+    "templates/nextjs-app-router-registry.template.tsx"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Default guidance",
+    "Decision branches",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "recommendedRuleOrder": [
+    "rules/language-type-design.md",
+    "rules/language-narrowing-boundaries.md",
+    "rules/language-generics-advanced-types.md",
+    "rules/config-project-shape.md",
+    "rules/modules-host-resolution.md",
+    "rules/libraries-declarations-publishing.md",
+    "rules/migration-typescript-7.md",
+    "rules/tooling-api-compatibility.md",
+    "rules/quality-type-tests.md",
+    "rules/performance-diagnostics.md"
+  ],
+  "referenceOrder": [
+    "references/source-index.md",
+    "references/typescript-7-compatibility-map.md",
+    "references/tsconfig-decision-map.md",
+    "references/module-host-map.md",
+    "references/compiler-diagnostics-map.md",
+    "references/javascript-jsdoc-ts7-changes.md",
+    "references/anti-patterns-quick-reference.md"
+  ],
+  "templateOrder": [
+    "templates/tsconfig-node.template.jsonc",
+    "templates/tsconfig-bundler.template.jsonc",
+    "templates/tsconfig-library.template.jsonc",
+    "templates/type-test.template.ts"
+  ]
+}
+

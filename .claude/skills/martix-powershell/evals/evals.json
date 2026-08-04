@@ -1,0 +1,184 @@
+{
+  "skill": "martix-powershell",
+  "evals": [
+    {
+      "id": "compiled-cmdlet-base-class-review",
+      "prompt": "I'm writing a new compiled PowerShell cmdlet in C# called Remove-StaleCache. It needs to support -WhatIf and -Confirm, accept a pipeline of string paths, and return a result object per path. Should I inherit from Cmdlet or PSCmdlet? Show me the class skeleton with the correct [Cmdlet] attribute, [OutputType], base class, and ProcessRecord override.",
+      "expected_sections": [
+        "Base class recommendation with rationale",
+        "Cmdlet attribute declaration (verb, noun, SupportsShouldProcess)",
+        "OutputType declaration",
+        "ProcessRecord override skeleton",
+        "Pipeline binding on the Path parameter",
+        "ShouldProcess call pattern inside ProcessRecord"
+      ],
+      "assertions": [
+        "Recommends PSCmdlet (not Cmdlet) — the SDK documentation requires PSCmdlet as the base class for cmdlets that call ShouldProcess, because PSCmdlet provides the full runtime context ShouldProcess needs at execution time",
+        "Declares [Cmdlet(VerbsCommon.Remove, \"StaleCache\", SupportsShouldProcess = true)] on the class",
+        "Includes [OutputType(typeof(...))] attribute above the class",
+        "ProcessRecord override calls $PSCmdlet.ShouldProcess or this.ShouldProcess before performing the destructive operation",
+        "Path parameter uses [Parameter(ValueFromPipeline = true)] or [Parameter(ValueFromPipelineByPropertyName = true)]",
+        "Does not use Write-Host or Console.WriteLine for output — uses WriteObject"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null,
+      "model_tier": "medium"
+    },
+    {
+      "id": "advanced-function-error-handling-shouldprocess",
+      "prompt": "Write a PowerShell advanced function called Invoke-ResourceProvisioning that takes a mandatory -ResourceName string and an optional -Force switch. It should support -WhatIf/-Confirm for the provisioning step, throw a terminating error if the resource name is null or empty after trimming, and emit a non-terminating error if provisioning fails but -Force is not set. Use [CmdletBinding()] and the full cmdlet contract.",
+      "expected_sections": [
+        "CmdletBinding declaration with SupportsShouldProcess",
+        "Parameter block with Mandatory and Force switch",
+        "Begin or Process block structure",
+        "ShouldProcess call before provisioning",
+        "Terminating error via $PSCmdlet.ThrowTerminatingError with ErrorRecord",
+        "Non-terminating error via $PSCmdlet.WriteError with ErrorRecord",
+        "ErrorRecord construction (exception, errorId, ErrorCategory, targetObject)"
+      ],
+      "assertions": [
+        "Declares [CmdletBinding(SupportsShouldProcess = $true)] — not just [CmdletBinding()]",
+        "Uses $PSCmdlet.ShouldProcess($ResourceName, 'Provision resource') before the state-changing call",
+        "Constructs an [System.Management.Automation.ErrorRecord] with a typed exception, string errorId, ErrorCategory enum value, and target object",
+        "Uses $PSCmdlet.ThrowTerminatingError(...) for the null/empty guard — not throw or Write-Error",
+        "Uses $PSCmdlet.WriteError(...) for the non-fatal provisioning failure path",
+        "Does not use Write-Host for status output in the pipeline path"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null,
+      "model_tier": "medium"
+    },
+    {
+      "id": "advanced-function-help-style-authoring",
+      "prompt": "Write a [CmdletBinding()] advanced function called Get-StaleFileReport that accepts a mandatory -SourcePath string, a mandatory -OlderThanDays positive integer, and an optional -IncludeHidden flag. The function should enumerate all files under -SourcePath recursively, filter to those whose LastWriteTime is older than -OlderThanDays days, and emit one [PSCustomObject] per matching file with Name, FullPath, AgeDays, and SizeBytes properties. Include a complete comment-based help block with all required sections. Declare the output type explicitly. Use the correct type for the optional flag parameter.",
+      "expected_sections": [
+        "Comment-based help block placed immediately inside the function body before the param block",
+        "All six required help sections: .SYNOPSIS, .DESCRIPTION, one .PARAMETER entry per public parameter, at least one .EXAMPLE, .OUTPUTS, and .NOTES",
+        "[OutputType] attribute declaration consistent with the .OUTPUTS type",
+        "CmdletBinding declaration",
+        "Parameter block with Mandatory attributes and [switch] for -IncludeHidden",
+        "Process block using Get-ChildItem and Where-Object with full cmdlet names",
+        "PSCustomObject construction emitted into the pipeline"
+      ],
+      "assertions": [
+        "Comment-based help block (<# ... #>) appears inside the function body before the param block — not outside or adjacent to the function",
+        "Help block contains all six required sections: .SYNOPSIS, .DESCRIPTION, a .PARAMETER entry for every public parameter (-SourcePath, -OlderThanDays, -IncludeHidden), at least one .EXAMPLE with expected output, .OUTPUTS naming the concrete emitted type, and .NOTES",
+        ".OUTPUTS names the same concrete type as the [OutputType] attribute — the two declarations are consistent with each other",
+        "[OutputType] is not [object] or [PSObject]; a concrete or descriptive type is declared",
+        "-IncludeHidden is declared as [switch], not [bool] or [System.Boolean]",
+        "Script body uses Get-ChildItem (not gci, ls, or dir) with explicit -Path and -Recurse named parameters",
+        "Script body uses Where-Object (not ? or where) for filtering",
+        "Script body does not call Read-Host anywhere",
+        "Script body does not use the ForEach-Object alias % or a bare foreach pipeline alias in place of ForEach-Object"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null,
+      "model_tier": "medium"
+    },
+    {
+      "id": "advanced-function-help-style-review",
+      "prompt": "Review this advanced function for documentation, help, and style issues. Identify every violation of the [CmdletBinding()] authoring contract and provide corrected code:\n\nfunction Search-LogEntries {\n    <#\n    .SYNOPSIS\n    Searches log files for a pattern.\n\n    .DESCRIPTION\n    Looks through log files in a directory and returns matching lines.\n\n    .PARAMETER LogDirectory\n    The directory containing log files.\n\n    .PARAMETER Pattern\n    The text pattern to search for.\n\n    .EXAMPLE\n    Search-LogEntries -LogDirectory 'C:\\Logs' -Pattern 'ERROR'\n    #>\n    [CmdletBinding()]\n    param(\n        [Parameter(Mandatory)]\n        [string]$LogDirectory,\n\n        [Parameter(Mandatory)]\n        [string]$Pattern,\n\n        [bool]$CaseSensitive = $false\n    )\n\n    process {\n        $targetDir = Read-Host 'Confirm log directory (press Enter to use default)'\n        if (-not $targetDir) { $targetDir = $LogDirectory }\n\n        gci $targetDir -Filter '*.log' -Recurse | % {\n            Get-Content $_.FullName | ? { $_ -match $Pattern }\n        }\n    }\n}",
+      "expected_sections": [
+        "Enumeration of every documentation and style violation found",
+        "Missing .OUTPUTS section in the help block",
+        "Missing .NOTES section in the help block",
+        "Missing .PARAMETER entry for -CaseSensitive",
+        "Missing [OutputType] attribute",
+        "Read-Host call that blocks non-interactive execution",
+        "[bool] parameter that should be [switch]",
+        "Alias usages: gci, %, ?",
+        "Corrected function with all violations resolved"
+      ],
+      "assertions": [
+        "Identifies the missing .OUTPUTS section — the help block does not document what type the function emits",
+        "Identifies the missing .NOTES section — the help block omits the required author/version notes entry",
+        "Identifies the missing .PARAMETER entry for -CaseSensitive — a public parameter with no corresponding help documentation",
+        "Identifies the missing [OutputType] attribute and adds [OutputType([string])] (or a more specific type) aligned with the .OUTPUTS text in the corrected code",
+        "Identifies the Read-Host call as a violation — it blocks non-interactive execution; all required input must arrive via declared parameters",
+        "Identifies [bool]$CaseSensitive as a violation and replaces it with [switch]$CaseSensitive in the corrected code",
+        "Identifies gci as an alias for Get-ChildItem and replaces it with Get-ChildItem using explicit named parameters in the corrected code",
+        "Identifies % as an alias for ForEach-Object and replaces it with ForEach-Object in the corrected code",
+        "Identifies ? as an alias for Where-Object and replaces it with Where-Object in the corrected code",
+        "Corrected code does not contain Read-Host",
+        "Corrected code declares [switch]$CaseSensitive (no default value needed; [switch] implies $false when absent)",
+        "Corrected code includes both .OUTPUTS and .NOTES in the help block"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null,
+      "model_tier": "medium"
+    },
+    {
+      "id": "naming-approved-verb-selection",
+      "prompt": "I'm writing a PowerShell cmdlet in C# that retrieves all expired certificates from a Windows certificate store and returns each certificate as an object. What verb should I use for the cmdlet name, and how do I verify it is an approved PowerShell verb?",
+      "expected_sections": [
+        "Verb recommendation from the approved verb list",
+        "Rationale for the selected verb group (e.g., Diagnostic, Data, Common)",
+        "Get-Verb verification step",
+        "Typed constant from the Verbs* class (e.g., VerbsCommon.Get)",
+        "Warning about non-approved verbs",
+        "Suggested cmdlet noun with vendor prefix guidance"
+      ],
+      "assertions": [
+        "Recommends a verb that is on the approved PowerShell verb list — typically Get (VerbsCommon.Get) for retrieval operations",
+        "References Get-Verb as the runtime verification step",
+        "Provides the typed constant form (e.g., VerbsCommon.Get) not a raw string literal",
+        "Explains that using a non-approved verb causes an Import-Module warning",
+        "Mentions the vendor or module prefix convention for the noun (e.g., CompanyExpiredCertificate rather than a bare ExpiredCertificate)"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null,
+      "model_tier": "medium"
+    },
+    {
+      "id": "scope-boundary-dsc-resource",
+      "prompt": "I'm authoring a DSC resource class in C# that configures IIS application pool settings. The class implements the Get, Set, and Test methods with [DscProperty] attributes. Can you review it for compliance with the DSC resource authoring contract?",
+      "expected_sections": [
+        "Scope assessment — whether DSC resource authoring falls within the skill boundary",
+        "Identification that DSC resources are explicitly excluded from this skill",
+        "Redirect note pointing to appropriate DSC documentation or resource"
+      ],
+      "assertions": [
+        "Identifies that DSC resource authoring is explicitly outside this skill's scope",
+        "Does NOT apply PowerShell cmdlet rules (ErrorRecord, ThrowTerminatingError, ShouldProcess, [Cmdlet] attribute, ProcessRecord) to the DSC resource class",
+        "States clearly that DSC resources are excluded per the skill description",
+        "Does not confuse [DscProperty] with [Parameter] or DSC Get/Set/Test methods with BeginProcessing/ProcessRecord/EndProcessing",
+        "If offering any guidance, defers to official DSC or PowerShell resource documentation rather than applying cmdlet contract rules"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null,
+      "model_tier": "medium"
+    },
+    {
+      "id": "scope-boundary-generic-script",
+      "prompt": "I have a plain PowerShell function (no [CmdletBinding()]) that loops through log files in a folder and deletes ones older than 30 days. Can you review it and suggest improvements? Here's the function:\n\nfunction Remove-OldLogs {\n    param($FolderPath, $Days)\n    Get-ChildItem $FolderPath | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$Days) } | Remove-Item\n}",
+      "expected_sections": [
+        "Scope assessment — whether this falls within the skill boundary",
+        "Identification that the function lacks [CmdletBinding()] and does not follow the cmdlet contract",
+        "Redirect or note pointing to the appropriate guidance resource"
+      ],
+      "assertions": [
+        "Identifies that the function is outside this skill's scope because it does not declare [CmdletBinding()]",
+        "Does NOT apply cmdlet-contract rules (ErrorRecord, ThrowTerminatingError, ShouldProcess) as if this were a compiled cmdlet or advanced function",
+        "States clearly that generic PowerShell scripts without [CmdletBinding()] are explicitly out of scope per the skill description",
+        "If offering any improvement, suggests adding [CmdletBinding(SupportsShouldProcess = $true)] and WhatIf support as the path to bring the function into scope — or defers to a general PowerShell resource"
+      ],
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null,
+      "model_tier": "medium"
+    }
+  ]
+}

@@ -1,0 +1,459 @@
+{
+  "skill": "martix-typescript",
+  "evals": [
+    {
+      "id": "typescript7-node-greenfield",
+      "prompt": "Create the TypeScript configuration and validation plan for a new Node 24 ESM service. TypeScript 7.0.2 owns JavaScript emit, source lives in src, output goes to dist, and Node globals are required. Explain the module choices and list the checks that prove the setup.",
+      "expected_sections": [
+        "Project inventory",
+        "NodeNext configuration",
+        "Validation commands"
+      ],
+      "assertions": [
+        "Uses NodeNext for both module and moduleResolution because Node owns runtime resolution.",
+        "Includes explicit rootDir, outDir, strict, and Node global types without using removed baseUrl or node10 resolution.",
+        "Separates typecheck or build validation from other project checks."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/config-project-shape.md",
+        "rules/modules-host-resolution.md",
+        "templates/tsconfig-node.template.jsonc"
+      ],
+      "model_tier": "medium",
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "typescript7-bundler-app",
+      "prompt": "Our Vite browser app is upgrading to TypeScript 7. It emits through Vite, includes TSX, and currently uses moduleResolution node plus baseUrl aliases. Propose the TypeScript-side migration without inventing Vite configuration.",
+      "expected_sections": [
+        "Bundler host decision",
+        "Removed option migration",
+        "Runtime alias boundary"
+      ],
+      "assertions": [
+        "Selects module preserve with moduleResolution bundler and noEmit.",
+        "Removes TypeScript 7-incompatible node resolution and baseUrl.",
+        "Explains that paths or aliases require a matching runtime or bundler owner and hands Vite-specific configuration off."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/config-project-shape.md",
+        "rules/modules-host-resolution.md",
+        "templates/tsconfig-bundler.template.jsonc"
+      ],
+      "model_tier": "medium",
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "typescript6-to-7-library-migration",
+      "prompt": "Plan a TypeScript 6.0 to 7.0 migration for a declaration-producing library. It uses typescript-eslint, has project references, and snapshots generated d.ts files. The team wants TS7 build speed without breaking lint or consumers.",
+      "expected_sections": [
+        "Compiler and API compatibility split",
+        "Declaration comparison",
+        "Project-reference validation"
+      ],
+      "assertions": [
+        "Separates TypeScript 7 CLI compilation from the TypeScript 6 compiler API needed by unsupported tooling.",
+        "Uses stableTypeOrdering only on the TypeScript 6 comparison side and treats it as temporary.",
+        "Runs project-reference builds and consumer declaration checks independently."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/migration-typescript-7.md",
+        "rules/tooling-api-compatibility.md",
+        "rules/libraries-declarations-publishing.md",
+        "references/typescript-7-compatibility-map.md"
+      ],
+      "model_tier": "premium",
+      "token_budget": "large",
+      "parallel_safe": false,
+      "negative_activation": false,
+      "escalation": "Escalate when the package export graph or consumer compatibility is ambiguous."
+    },
+    {
+      "id": "framework-tooling-handoff",
+      "prompt": "Upgrade a Svelte application and its editor tooling to TypeScript 7, then rewrite the Svelte component props and test setup to current best practices.",
+      "expected_sections": [
+        "TypeScript compatibility boundary",
+        "Framework handoff"
+      ],
+      "assertions": [
+        "Checks current Svelte embedded-tooling support instead of assuming TypeScript 7 compiler API compatibility.",
+        "Keeps cross-cutting TypeScript configuration here and hands Svelte component and test-runner details to their owning skills.",
+        "Does not provide speculative framework-specific rewrite instructions."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/tooling-api-compatibility.md",
+        "references/typescript-7-compatibility-map.md"
+      ],
+      "model_tier": "medium",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "advanced-generic-api",
+      "prompt": "Design a TypeScript helper whose return type preserves the literal keys selected from a readonly tuple. Include compile-time success and failure cases and keep diagnostics understandable.",
+      "expected_sections": [
+        "Type relationship",
+        "Implementation",
+        "Type tests"
+      ],
+      "assertions": [
+        "Uses generics only to preserve a real input-output relationship.",
+        "Includes a positive inference assertion and an intentional negative compile case.",
+        "Runs the selected compiler and confirms that success cases pass and every @ts-expect-error directive suppresses a real diagnostic.",
+        "Avoids unchecked any and unbounded recursive conditional types."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/language-generics-advanced-types.md",
+        "rules/quality-type-tests.md",
+        "templates/type-test.template.ts"
+      ],
+      "model_tier": "medium",
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "slow-typescript7-monorepo",
+      "prompt": "Our TypeScript 7 monorepo typecheck is slow in CI. Add --checkers 12 and --builders 8 everywhere so it finishes faster.",
+      "expected_sections": [
+        "Baseline measurement",
+        "Project graph diagnosis",
+        "Worker tradeoff"
+      ],
+      "assertions": [
+        "Measures the existing project build before selecting worker counts.",
+        "Accounts for the multiplicative concurrency and memory effect of checkers and builders.",
+        "Keeps correctness checks enabled and reports gains as environment-specific."
+      ],
+      "files": [
+        "SKILL.md",
+        "rules/performance-diagnostics.md",
+        "references/compiler-diagnostics-map.md"
+      ],
+      "model_tier": "medium",
+      "token_budget": "medium",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "node-native-type-stripping",
+      "prompt": "Run our TypeScript CLI directly with Node's built-in TypeScript support. It currently uses decorators, enums, tsconfig paths, and TSX. Tell us which parts work and produce a safe implementation route.",
+      "expected_sections": [
+        "Node stripping constraints",
+        "Full runtime alternative",
+        "Separate typecheck"
+      ],
+      "assertions": [
+        "States that Node strips types without typechecking and ignores tsconfig at runtime.",
+        "Identifies TSX, decorators, enums, and tsconfig paths as incompatible with lightweight stripping.",
+        "Routes transformed syntax to a full runner and retains an independent compiler check."
+      ],
+      "files": [
+        "SKILL.md",
+        "references/module-host-map.md",
+        "rules/modules-host-resolution.md"
+      ],
+      "model_tier": "medium",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "plain-javascript-runtime-negative",
+      "prompt": "A plain JavaScript Node service has an intermittent fetch timeout and no TypeScript files, tsconfig, JSDoc typing, or type-checking. Diagnose the runtime retry behavior.",
+      "expected_sections": [
+        "Scope boundary",
+        "JavaScript or runtime handoff"
+      ],
+      "assertions": [
+        "Recognizes that no TypeScript or typed-JavaScript concern is present.",
+        "Hands the task to JavaScript runtime or HTTP resilience guidance.",
+        "Does not introduce TypeScript configuration or type-system advice."
+      ],
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "medium",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-ts7-project-references-migration",
+      "prompt": "Our pnpm monorepo is on TypeScript 6.0 and emits declarations through project references. Plan the TS7 migration, including the temporary stableTypeOrdering comparison and tools that import the compiler API.",
+      "expected_output": "Activates martix-typescript and routes to TypeScript 7 migration, compiler API compatibility, declarations, and project-reference validation.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-node-esm-removed-options",
+      "prompt": "tsc 7 says baseUrl and moduleResolution node are unsupported in packages/api/tsconfig.json. This runs as Node ESM; fix the config and explain every module decision.",
+      "expected_output": "Activates martix-typescript and routes to TypeScript 7 project configuration and Node ESM module resolution.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-readonly-tuple-generic",
+      "prompt": "Design a generic pick helper that preserves keys from a readonly tuple, and add positive plus @ts-expect-error type tests so future refactors cannot widen the return type.",
+      "expected_output": "Activates martix-typescript and routes to advanced generics and compile-time type testing.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-runtime-alias-mismatch",
+      "prompt": "Why does the TypeScript compiler resolve @/domain/user but Node 24 cannot find it after emit? package.json has type module and the tsconfig uses paths.",
+      "expected_output": "Activates martix-typescript and routes to host-aware module resolution while preserving Node as the runtime owner.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-consumer-declaration-resolution",
+      "prompt": "Our published package compiles from source but consumers cannot resolve its declarations under NodeNext. Review exports, types conditions, emitted d.ts paths, and a consumer fixture.",
+      "expected_output": "Activates martix-typescript and routes to declarations, publishing correctness, NodeNext resolution, and consumer type tests.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-ts7-ci-performance",
+      "prompt": "TypeScript 7 CI builds are slower than local and sometimes run out of memory. Measure extended diagnostics and decide whether checkers, builders, or singleThreaded fits the runner.",
+      "expected_output": "Activates martix-typescript and routes to measured compiler-performance diagnosis.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-checkjs-corsa-migration",
+      "prompt": "Migrate this checkJs codebase from constructor functions and Closure-style JSDoc to syntax accepted by the TypeScript 7 Go compiler.",
+      "expected_output": "Activates martix-typescript and routes to JavaScript and JSDoc changes in the TypeScript 7 compiler.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-eslint-ts7-api-split",
+      "prompt": "We want typescript-eslint typed linting and the TS7 CLI in the same workspace. Work out the supported compiler/API arrangement without silently changing which tsc CI runs.",
+      "expected_output": "Activates martix-typescript for compiler API compatibility and keeps lint-policy details with the linting owner.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-vite-strict-config",
+      "prompt": "Create a strict tsconfig for a Vite TSX app where Vite owns emit, and explain noUncheckedIndexedAccess and exactOptionalPropertyTypes as contract choices.",
+      "expected_output": "Activates martix-typescript and routes to bundler-owned project configuration and strict type-contract choices.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-positive-unknown-discriminated-union",
+      "prompt": "This API accepts unknown webhook JSON. Model a discriminated union, implement safe narrowing, and make the default branch fail compilation when a new event kind is added.",
+      "expected_output": "Activates martix-typescript and routes to boundary narrowing, discriminated unions, and exhaustive type checks.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": false,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-react-render-performance",
+      "prompt": "Our React TypeScript component rerenders too often when users type. Profile the hooks and fix useMemo/useCallback usage; the tsconfig and types are already correct.",
+      "expected_output": "Does not claim ownership for React render-performance work and hands the task to React guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-vitest-mocking",
+      "prompt": "Configure Vitest fake timers and module mocks for our TypeScript app. We are not changing public types or compiler options.",
+      "expected_output": "Does not claim ownership for runtime test-runner configuration and hands the task to testing guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-eslint-style-policy",
+      "prompt": "Pick the @typescript-eslint stylistic rules for naming, import order, semicolons, and maximum line length in eslint.config.mjs.",
+      "expected_output": "Does not claim ownership for ESLint style policy and hands the task to linting guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-package-release",
+      "prompt": "Publish our TypeScript package to npm with provenance, changesets, semantic versioning, and a release GitHub Action. Declarations are already verified.",
+      "expected_output": "Does not claim ownership for package release automation and hands the task to package-management and CI guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-vite-bundle-optimization",
+      "prompt": "Reduce the Vite production bundle by splitting vendor chunks and tuning Rollup tree shaking. TypeScript typecheck is already fast and clean.",
+      "expected_output": "Does not claim ownership for bundler optimization and hands the task to Vite or Rollup guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-spfx-web-part",
+      "prompt": "Build an SPFx React web part in TypeScript with Fluent UI controls, SharePoint theme tokens, and tenant-wide deployment.",
+      "expected_output": "Does not claim primary ownership for SPFx, React, Fluent UI, or tenant deployment and hands the task to SPFx guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-plain-javascript-retries",
+      "prompt": "A JavaScript Node service times out during fetch retries. There are no TS files, JSDoc annotations, or tsconfig in the repository.",
+      "expected_output": "Does not activate martix-typescript and hands the runtime retry problem to JavaScript or HTTP resilience guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-security-audit",
+      "prompt": "Review this pull request for authentication bypasses and SQL injection. It happens to be written in TypeScript, but the request is a security audit.",
+      "expected_output": "Does not claim ownership based only on the implementation language and hands the task to security review guidance.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-angular-framework-upgrade",
+      "prompt": "Upgrade our Angular workspace and rewrite typed reactive forms, template control flow, and component tests. The framework's documented TypeScript version is already installed.",
+      "expected_output": "Does not claim primary ownership for an Angular framework upgrade when no TypeScript compatibility decision remains.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    },
+    {
+      "id": "trigger-negative-formatter-ownership",
+      "prompt": "Prettier and ESLint disagree on formatting generated TypeScript files. Decide ignore patterns and formatter ownership; compilation is unaffected.",
+      "expected_output": "Does not claim ownership for formatter and lint-policy coordination when TypeScript compilation is unaffected.",
+      "files": [
+        "SKILL.md"
+      ],
+      "model_tier": "cheap",
+      "token_budget": "small",
+      "parallel_safe": true,
+      "negative_activation": true,
+      "escalation": null
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "package": "martix-fastendpoints",
+  "mode": "standalone-first",
+  "root": "skills/martix-fastendpoints",
+  "rulePrefixes": {
+    "foundation": "Application bootstrap, registration, scaffolding, configuration, and AOT setup",
+    "architecture": "Mapping, dependency boundaries, job queues, and command or event bus usage",
+    "contracts": "Request and response models, binding, and validation-failure boundaries",
+    "pipeline": "Endpoint conveniences, preprocessors, postprocessors, and execution flow",
+    "transport": "Files, streaming, SSE, RPC, and HTTP boundary selection",
+    "docs": "Swagger, OpenAPI metadata, and client-generation guidance",
+    "runtime": "Caching, rate limiting, idempotency, and exception behavior",
+    "security": "Authentication and authorization policies for endpoints",
+    "testing": "Unit and integration verification for endpoints and side effects",
+    "versioning": "Release groups, API versioning, and deprecation guidance"
+  },
+  "domains": [
+    {
+      "id": "foundation",
+      "displayName": "Foundation and hosting",
+      "rules": [
+        "rules/foundation-startup-registration.md",
+        "rules/foundation-configuration-options.md",
+        "rules/foundation-source-generation-aot.md",
+        "rules/foundation-scaffolding.md"
+      ]
+    },
+    {
+      "id": "architecture",
+      "displayName": "Architecture and messaging",
+      "rules": [
+        "rules/architecture-mapping.md",
+        "rules/architecture-di-service-resolution.md",
+        "rules/architecture-job-queues.md",
+        "rules/architecture-command-event-bus.md"
+      ]
+    },
+    {
+      "id": "request-pipeline",
+      "displayName": "Validation and execution pipeline",
+      "rules": [
+        "rules/contracts-request-dtos-binding.md",
+        "rules/contracts-validation-errors.md",
+        "rules/pipeline-endpoint-conveniences.md",
+        "rules/pipeline-pre-post-processors.md"
+      ]
+    },
+    {
+      "id": "transport-docs",
+      "displayName": "Transport and documentation",
+      "rules": [
+        "rules/docs-swagger-openapi.md",
+        "rules/transport-files-streaming-sse.md",
+        "rules/transport-rpc-http-patterns.md"
+      ]
+    },
+    {
+      "id": "runtime-security",
+      "displayName": "Runtime and security",
+      "rules": [
+        "rules/runtime-caching-rate-limits.md",
+        "rules/runtime-idempotency-exceptions.md",
+        "rules/security-authn-authz.md"
+      ]
+    },
+    {
+      "id": "testing-versioning",
+      "displayName": "Testing and versioning",
+      "rules": [
+        "rules/testing-fastendpoints.md",
+        "rules/versioning-release-groups.md"
+      ]
+    }
+  ],
+  "tags": [
+    "FastEndpoints",
+    "ASP.NET Core",
+    ".NET 10",
+    "C# 14",
+    "request pipeline",
+    "NSwag",
+    "OpenAPI",
+    "middleware ordering",
+    "Native AOT",
+    "SSE",
+    "RPC",
+    "validators",
+    "security",
+    "versioning",
+    "testing"
+  ]
+}

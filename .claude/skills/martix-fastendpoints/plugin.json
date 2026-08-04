@@ -1,0 +1,19 @@
+{
+  "name": "martix-fastendpoints",
+  "description": "Standalone FastEndpoints skill package for startup, endpoint contracts, processors, transport choices, security, testing, versioning, and Native AOT workflows.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MartiXDev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "martix",
+    "fastendpoints",
+    "dotnet",
+    "aspnetcore",
+    "openapi",
+    "aot"
+  ],
+  "repository": "https://github.com/MartiXDev/skills",
+  "skills": "skills/"
+}

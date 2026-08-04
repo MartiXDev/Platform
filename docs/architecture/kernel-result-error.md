@@ -1,5 +1,7 @@
 # Platform Kernel Result/Error Contract
 
+> Status: **Implemented** in Repository Bootstrap.
+
 The `MartiX.Platform` package is the BCL-only Platform Kernel. Its public
 namespace is `MartiX.Platform.Results`; it has no hosting, dependency
 injection, logging, JSON, ASP.NET Core, EF Core, or third-party dependency.

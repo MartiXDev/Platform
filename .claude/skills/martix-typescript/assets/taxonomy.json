@@ -1,0 +1,54 @@
+{
+  "skill": "martix-typescript",
+  "workstreams": {
+    "language": "Type-first API design, narrowing, generics, and advanced types",
+    "configuration": "tsconfig, project shape, and project references",
+    "modules": "Host-aware modules and resolution",
+    "libraries": "Declarations and published type surfaces",
+    "migration": "TypeScript 7 migration and compiler-API compatibility",
+    "quality": "Type tests, validation, diagnostics, and performance"
+  },
+  "groups": [
+    {
+      "id": "language",
+      "displayName": "Language and type design",
+      "rules": [
+        "rules/language-type-design.md",
+        "rules/language-narrowing-boundaries.md",
+        "rules/language-generics-advanced-types.md"
+      ]
+    },
+    {
+      "id": "configuration",
+      "displayName": "Configuration and modules",
+      "rules": [
+        "rules/config-project-shape.md",
+        "rules/modules-host-resolution.md"
+      ]
+    },
+    {
+      "id": "libraries",
+      "displayName": "Libraries and declarations",
+      "rules": [
+        "rules/libraries-declarations-publishing.md"
+      ]
+    },
+    {
+      "id": "migration",
+      "displayName": "TypeScript 7 migration and tooling",
+      "rules": [
+        "rules/migration-typescript-7.md",
+        "rules/tooling-api-compatibility.md"
+      ]
+    },
+    {
+      "id": "quality",
+      "displayName": "Quality and performance",
+      "rules": [
+        "rules/quality-type-tests.md",
+        "rules/performance-diagnostics.md"
+      ]
+    }
+  ]
+}
+

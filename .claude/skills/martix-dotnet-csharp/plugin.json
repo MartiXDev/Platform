@@ -1,0 +1,19 @@
+{
+  "name": "martix-dotnet-csharp",
+  "description": "Trigger when the task involves SDK-style .NET modernization, ASP.NET Core, EF Core, async/concurrency, diagnostics, testing, or security defaults; hand off FastEndpoints endpoint work to `martix-fastendpoints` and validator-focused FluentValidation work to `martix-fluentvalidation`.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MartiXDev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "martix",
+    "dotnet",
+    "csharp",
+    "net10",
+    "csharp14",
+    "sdk"
+  ],
+  "repository": "https://github.com/MartiXDev/skills",
+  "skills": "skills/"
+}

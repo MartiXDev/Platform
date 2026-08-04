@@ -1,0 +1,104 @@
+{
+  "package": "martix-fluentvalidation",
+  "mode": "standalone-first",
+  "root": "skills/martix-fluentvalidation",
+  "rulePrefixes": {
+    "foundation": "Installation, version boundaries, validator authoring basics, and collection or composition defaults",
+    "validators": "Built-in validator families for presence, comparison, range, length, format, enum, predicate, and regex decisions",
+    "configuration": "Messages, placeholders, property names, and property-path shaping for validation failures",
+    "execution": "RuleSets, conditions, cascade behavior, validator inclusion, and dependent-rule execution flow",
+    "integration": "Dependency injection, ASP.NET Core entrypoints, async validation flow, and ecosystem boundary choices",
+    "extensibility": "Custom validators, reusable property validators, inheritance dispatch, context data, and exception shaping",
+    "runtime": "Severity, error codes, custom state, and localization behavior that affect downstream validation contracts",
+    "testing": "Validator black-box testing, test helper usage, and application-boundary integration coverage",
+    "upgrade": "Current baselines, historical breaking changes, and version-compatibility decisions across major releases"
+  },
+  "domains": [
+    {
+      "id": "foundation",
+      "displayName": "Foundation and composition",
+      "rules": [
+        "rules/foundation-installation-versioning.md",
+        "rules/foundation-validator-basics.md",
+        "rules/foundation-collections-composition.md"
+      ]
+    },
+    {
+      "id": "built-in-validators",
+      "displayName": "Built-in validator families",
+      "rules": [
+        "rules/validators-null-empty.md",
+        "rules/validators-comparison-range.md",
+        "rules/validators-length-format.md",
+        "rules/validators-enum-predicate-regex.md"
+      ]
+    },
+    {
+      "id": "rule-configuration-execution",
+      "displayName": "Rule configuration and execution",
+      "rules": [
+        "rules/configuration-messages-placeholders.md",
+        "rules/configuration-property-names-paths.md",
+        "rules/execution-conditions-rulesets.md",
+        "rules/execution-cascade-dependent-inclusion.md"
+      ]
+    },
+    {
+      "id": "integration",
+      "displayName": "Integration and application boundaries",
+      "rules": [
+        "rules/integration-di-registration.md",
+        "rules/integration-aspnet-core.md",
+        "rules/integration-async-validation.md"
+      ]
+    },
+    {
+      "id": "extensibility",
+      "displayName": "Extensibility and advanced behavior",
+      "rules": [
+        "rules/extensibility-custom-validators.md",
+        "rules/extensibility-property-validators.md",
+        "rules/extensibility-inheritance-prevalidate-context.md"
+      ]
+    },
+    {
+      "id": "runtime",
+      "displayName": "Runtime metadata and localization",
+      "rules": [
+        "rules/runtime-severity-error-codes-state.md",
+        "rules/runtime-localization-language-manager.md"
+      ]
+    },
+    {
+      "id": "testing",
+      "displayName": "Testing and verification",
+      "rules": [
+        "rules/testing-validator-testhelper.md",
+        "rules/testing-integration-boundaries.md"
+      ]
+    },
+    {
+      "id": "upgrade",
+      "displayName": "Upgrade and compatibility",
+      "rules": [
+        "rules/upgrade-current-baseline.md",
+        "rules/upgrade-breaking-changes-history.md"
+      ]
+    }
+  ],
+  "tags": [
+    "FluentValidation",
+    "ASP.NET Core",
+    ".NET 10",
+    "C# 14",
+    "validators",
+    "rule composition",
+    "dependency injection",
+    "async validation",
+    "localization",
+    "error metadata",
+    "testing",
+    "RuleSets",
+    "upgrade planning"
+  ]
+}

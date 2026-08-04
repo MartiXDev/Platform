@@ -1,0 +1,62 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Default guidance",
+    "Avoid",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "recommendedRuleOrder": [
+    "rules/foundation-base-class-attribute.md",
+    "rules/foundation-project-module-shape.md",
+    "rules/naming-approved-verbs-cmdlet-contract.md",
+    "rules/naming-parameter-and-common-names.md",
+    "rules/parameters-declaration-validation.md",
+    "rules/parameters-sets-dynamic.md",
+    "rules/parameters-pipeline-binding.md",
+    "rules/pipeline-input-processing-methods.md",
+    "rules/pipeline-output-streaming.md",
+    "rules/error-handling-terminating-nonterminating.md",
+    "rules/error-handling-errorrecord-construction.md",
+    "rules/confirmation-shouldprocess-shouldcontinue.md",
+    "rules/confirmation-force-parameter.md",
+    "rules/advanced-dynamic-parameters-alias.md",
+    "rules/advanced-transactions-jobs.md",
+    "rules/attributes-validators-outputtype.md",
+    "rules/documentation-help-style.md"
+  ],
+  "referenceOrder": [
+    "references/doc-source-index.md",
+    "references/foundation-map.md",
+    "references/naming-map.md",
+    "references/parameters-validation-map.md",
+    "references/pipeline-map.md",
+    "references/error-handling-categories-map.md",
+    "references/confirmation-safety-map.md",
+    "references/advanced-patterns-map.md",
+    "references/attributes-validators-map.md",
+    "references/documentation-style-map.md",
+    "references/cookbook-index.md"
+  ],
+  "templateOrder": [
+    "templates/rule-template.md",
+    "templates/research-pack-template.md",
+    "templates/comparison-matrix-template.md"
+  ],
+  "assetOrder": [
+    "assets/taxonomy.json",
+    "assets/section-order.json"
+  ],
+  "plannedDomainOrder": [
+    "foundation",
+    "naming",
+    "parameters",
+    "pipeline",
+    "error-handling",
+    "confirmation-safety",
+    "advanced-patterns",
+    "attributes-validators",
+    "documentation"
+  ]
+}

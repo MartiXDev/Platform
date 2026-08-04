@@ -1,0 +1,24 @@
+{
+  "name": "martix-powershell",
+  "description": "Standalone PowerShell cmdlet guidance for compiled C# cmdlets and [CmdletBinding()] advanced functions, covering approved verbs, parameter sets, pipeline processing, ErrorRecord and ShouldProcess behavior, module manifests, and validator selection.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MartiXDev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "martix",
+    "powershell",
+    "cmdlet",
+    "advanced-function",
+    "csharp",
+    "dotnet",
+    "binary-module",
+    "parameter-validation",
+    "pipeline",
+    "error-handling",
+    "shouldprocess"
+  ],
+  "repository": "https://github.com/MartiXDev/skills",
+  "skills": "skills/"
+}

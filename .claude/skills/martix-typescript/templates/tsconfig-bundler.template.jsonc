@@ -1,0 +1,29 @@
+{
+  // Use when a bundler owns module resolution and JavaScript emit.
+  "compilerOptions": {
+    "target": "ES2025",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2025",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "types": [],
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
+}

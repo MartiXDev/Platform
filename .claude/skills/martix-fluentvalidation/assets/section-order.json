@@ -1,0 +1,55 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Default guidance",
+    "Avoid",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "recommendedRuleOrder": [
+    "rules/foundation-installation-versioning.md",
+    "rules/foundation-validator-basics.md",
+    "rules/foundation-collections-composition.md",
+    "rules/validators-null-empty.md",
+    "rules/validators-comparison-range.md",
+    "rules/validators-length-format.md",
+    "rules/validators-enum-predicate-regex.md",
+    "rules/configuration-messages-placeholders.md",
+    "rules/configuration-property-names-paths.md",
+    "rules/execution-conditions-rulesets.md",
+    "rules/execution-cascade-dependent-inclusion.md",
+    "rules/integration-di-registration.md",
+    "rules/integration-aspnet-core.md",
+    "rules/integration-async-validation.md",
+    "rules/extensibility-custom-validators.md",
+    "rules/extensibility-property-validators.md",
+    "rules/extensibility-inheritance-prevalidate-context.md",
+    "rules/runtime-severity-error-codes-state.md",
+    "rules/runtime-localization-language-manager.md",
+    "rules/testing-validator-testhelper.md",
+    "rules/testing-integration-boundaries.md",
+    "rules/upgrade-current-baseline.md",
+    "rules/upgrade-breaking-changes-history.md"
+  ],
+  "referenceOrder": [
+    "references/anti-patterns-quick-reference.md",
+    "references/web-bootstrap-recipes.md",
+    "references/testing-bootstrap-recipes.md",
+    "references/foundation-map.md",
+    "references/built-in-validators-map.md",
+    "references/rule-configuration-map.md",
+    "references/integration-map.md",
+    "references/extensibility-map.md",
+    "references/runtime-metadata-map.md",
+    "references/testing-map.md",
+    "references/upgrade-map.md",
+    "references/compatibility-matrix.md",
+    "references/blazor-ecosystem-note.md"
+  ],
+  "templateOrder": [
+    "templates/rule-template.md",
+    "templates/research-pack-template.md",
+    "templates/comparison-matrix-template.md"
+  ]
+}

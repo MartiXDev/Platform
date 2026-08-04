@@ -1,0 +1,14 @@
+.root {
+  display: grid;
+  gap: var(--spacingVerticalM);
+  padding-block: var(--spacingVerticalM);
+  padding-inline: var(--spacingHorizontalM);
+  color: var(--colorNeutralForeground1);
+  background-color: var(--colorNeutralBackground1);
+}
+
+@media (forced-colors: active) {
+  .root {
+    border: 1px solid CanvasText;
+  }
+}

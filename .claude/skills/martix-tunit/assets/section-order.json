@@ -1,0 +1,53 @@
+{
+  "ruleSectionOrder": [
+    "Purpose",
+    "Default guidance",
+    "Avoid",
+    "Review checklist",
+    "Related files",
+    "Source anchors"
+  ],
+  "recommendedRuleOrder": [
+    "rules/foundation-installation-project.md",
+    "rules/data-inline-method-sources.md",
+    "rules/data-class-property-sources.md",
+    "rules/data-matrix-combined-generators.md",
+    "rules/lifecycle-hooks.md",
+    "rules/lifecycle-property-injection.md",
+    "rules/lifecycle-di.md",
+    "rules/assertions-fundamentals.md",
+    "rules/assertions-value-collection-async.md",
+    "rules/assertions-combining-custom.md",
+    "rules/execution-parallelism.md",
+    "rules/execution-control.md",
+    "rules/mocking-tunit-mocks.md",
+    "rules/extending-extension-points.md",
+    "rules/migration-comparison.md"
+  ],
+  "referenceOrder": [
+    "references/doc-source-index.md",
+    "references/seed-skill-harvest.md",
+    "references/foundation-map.md",
+    "references/data-map.md",
+    "references/lifecycle-map.md",
+    "references/assertions-map.md",
+    "references/execution-map.md",
+    "references/mocking-extending-map.md",
+    "references/migration-attribute-matrix.md",
+    "references/cookbook-index.md"
+  ],
+  "templateOrder": [
+    "templates/rule-template.md",
+    "templates/research-pack-template.md",
+    "templates/comparison-matrix-template.md"
+  ],
+  "plannedDomainOrder": [
+    "foundation",
+    "data",
+    "lifecycle",
+    "assertions",
+    "execution",
+    "mocking-extending",
+    "migration"
+  ]
+}

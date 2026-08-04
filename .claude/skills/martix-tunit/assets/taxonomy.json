@@ -1,0 +1,101 @@
+{
+  "package": "martix-tunit",
+  "mode": "standalone-first",
+  "root": "skills/martix-tunit",
+  "rulePrefixes": {
+    "foundation": "Installation, project shape, OutputType=Exe model, source generator, runner wiring, Microsoft.Testing.Platform integration, IDE configuration, and platform constraints",
+    "data": "Parameterized tests, Arguments attribute, MethodDataSource, ClassDataSource, TestDataRow, matrix tests, combined data sources, nested data sources, generic attributes, and IDataSourceGeneratorAttribute",
+    "lifecycle": "Before and After hooks at Test/Class/Assembly/TestSession/TestDiscovery scopes, BeforeEvery/AfterEvery, hook execution order, property injection, IAsyncInitializer, IAsyncDiscoveryInitializer, and dependency injection construction",
+    "assertions": "Assert.That entry point, async assertion model, unawaited-assertion pitfall, value assertions, collection assertions, async and exception assertions, combining assertions, Assert.Multiple, member assertions, and custom assertion extensibility",
+    "execution": "Parallel-by-default behavior, ParallelLimiter<T>, NotInParallel, DependsOn, test ordering, retries, repeats, timeouts, test filters, skip, explicit, CI/CD reporting, engine modes, and AOT constraints",
+    "mocking-extending": "TUnit.Mocks beta library, mock setup and verification, argument matchers, ITestRegisteredEventReceiver, custom test attributes, data source generators, argument formatters, dynamic tests, and built-in extension points",
+    "migration": "Behavioral differences from xUnit, NUnit, and MSTest, attribute equivalence, class and method lifecycle mapping, assertion API differences, and step-by-step migration guidance"
+  },
+  "domains": [
+    {
+      "id": "foundation",
+      "displayName": "Foundation and project setup",
+      "ruleCount": 1,
+      "rules": [
+        "rules/foundation-installation-project.md"
+      ]
+    },
+    {
+      "id": "data",
+      "displayName": "Data-driven and parameterized tests",
+      "ruleCount": 3,
+      "rules": [
+        "rules/data-inline-method-sources.md",
+        "rules/data-class-property-sources.md",
+        "rules/data-matrix-combined-generators.md"
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "displayName": "Lifecycle, hooks, and dependency injection",
+      "ruleCount": 3,
+      "rules": [
+        "rules/lifecycle-hooks.md",
+        "rules/lifecycle-property-injection.md",
+        "rules/lifecycle-di.md"
+      ]
+    },
+    {
+      "id": "assertions",
+      "displayName": "Assertions",
+      "ruleCount": 3,
+      "rules": [
+        "rules/assertions-fundamentals.md",
+        "rules/assertions-value-collection-async.md",
+        "rules/assertions-combining-custom.md"
+      ]
+    },
+    {
+      "id": "execution",
+      "displayName": "Parallel execution and execution control",
+      "ruleCount": 2,
+      "rules": [
+        "rules/execution-parallelism.md",
+        "rules/execution-control.md"
+      ]
+    },
+    {
+      "id": "mocking-extending",
+      "displayName": "Mocking and extensibility",
+      "ruleCount": 2,
+      "rules": [
+        "rules/mocking-tunit-mocks.md",
+        "rules/extending-extension-points.md"
+      ]
+    },
+    {
+      "id": "migration",
+      "displayName": "Migration and framework comparison",
+      "ruleCount": 1,
+      "rules": [
+        "rules/migration-comparison.md"
+      ]
+    }
+  ],
+  "tags": [
+    "TUnit",
+    ".NET 8",
+    ".NET 10",
+    "C# 12",
+    "C# 14",
+    "testing",
+    "unit testing",
+    "parameterized tests",
+    "data-driven tests",
+    "parallel execution",
+    "Microsoft.Testing.Platform",
+    "assertions",
+    "dependency injection",
+    "lifecycle hooks",
+    "mocking",
+    "TUnit.Mocks",
+    "migration",
+    "source generation",
+    "extensibility"
+  ]
+}

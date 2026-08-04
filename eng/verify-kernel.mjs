@@ -149,7 +149,8 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         "--configuration",
         "Release",
         "--no-restore",
-        "--nologo",
+        "--",
+        "--disable-logo",
       ],
       repositoryRoot,
     );
