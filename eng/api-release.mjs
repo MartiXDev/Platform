@@ -1273,7 +1273,7 @@ export async function verifyApiRelease({
       cwd,
       "API release",
       environment,
-      fail,
+      (message) => new ApiReleaseVerificationError(message),
     );
 
   let releaseDetails;
