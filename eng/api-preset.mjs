@@ -81,6 +81,7 @@ const PLACEHOLDER_NAME_SEGMENTS = new Set([
   "app",
   "application",
   "appname",
+  "default",
   "defaultapi",
   "defaultapp",
   "demo",
@@ -102,6 +103,7 @@ const PLACEHOLDER_NAME_SEGMENTS = new Set([
   "sampleapi",
   "sampleapp",
   "test",
+  "testproject",
   "weatherforecast",
   "yourapi",
   "yourapp",
@@ -181,13 +183,15 @@ function normalizeApplicationName(value) {
 
 function isPlaceholderApplicationName(applicationName) {
   const normalizedName = applicationName.toLowerCase();
+  const segments = normalizedName.split(".");
   return (
     PLACEHOLDER_APPLICATION_NAMES.has(normalizedName) ||
-    applicationName
-      .split(".")
-      .some((segment) =>
-        PLACEHOLDER_NAME_SEGMENTS.has(segment.toLowerCase()),
-      )
+    segments.some((segment) => PLACEHOLDER_NAME_SEGMENTS.has(segment)) ||
+    (segments.length > 1 &&
+      segments.every(
+        (segment) =>
+          segment === "api" || PLACEHOLDER_NAME_SEGMENTS.has(segment),
+      ))
   );
 }
 

@@ -106,8 +106,11 @@ test("identity and unsupported selections fail before generation writes", async 
     for (const [index, applicationName] of [
       "Sample.Api",
       "Api",
+      "Api.Api",
       "Default.Api",
+      "Default.Api.V2",
       "TestProject",
+      "TestProject.Api",
     ].entries()) {
       await assert.rejects(
         () => generateApiPreset({

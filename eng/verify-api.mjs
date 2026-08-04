@@ -105,12 +105,6 @@ export async function verifyApiPreset({
     ...process.env,
     NUGET_PACKAGES: packageCache,
   };
-  const generatedTestProject = join(
-    generatedRoot,
-    "tests",
-    `${applicationName}.Tests`,
-    `${applicationName}.Tests.csproj`,
-  );
   const run = (argumentsList, cwd = repositoryRoot) =>
     runDotnet(
       dotnet,
@@ -125,6 +119,13 @@ export async function verifyApiPreset({
       applicationName,
       outputDirectory: generatedRoot,
     });
+    const normalizedApplicationName = generation.plan.applicationName;
+    const generatedTestProject = join(
+      generatedRoot,
+      "tests",
+      `${normalizedApplicationName}.Tests`,
+      `${normalizedApplicationName}.Tests.csproj`,
+    );
     await verifyManifest(repositoryRoot, generatedRoot);
     await verifyGeneratedAbsence(generatedRoot, generation.files);
 
@@ -187,7 +188,7 @@ export async function verifyApiPreset({
     return {
       status: "passed",
       preset: "api",
-      applicationName,
+      applicationName: normalizedApplicationName,
       files: generation.files,
       packages: [
         "MartiX.Platform",
