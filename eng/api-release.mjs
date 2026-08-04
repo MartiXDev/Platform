@@ -729,14 +729,22 @@ async function verifyPackageCacheIdentity(packageCache, packageResults) {
 }
 
 async function getSourceCommit(repositoryRoot, sourceCommit) {
-  if (sourceCommit !== undefined) {
-    return requireSourceCommit(sourceCommit);
-  }
-
-  const configuredCommit =
-    process.env.GITHUB_SHA ?? process.env.SOURCE_COMMIT;
-  if (configuredCommit !== undefined) {
-    return requireSourceCommit(configuredCommit);
+  const requestedCommit =
+    sourceCommit ??
+    process.env.GITHUB_SHA ??
+    process.env.SOURCE_COMMIT;
+  if (requestedCommit !== undefined) {
+    const expectedCommit = requireSourceCommit(requestedCommit);
+    const result = await execFileAsync(
+      "git",
+      ["rev-parse", "--verify", `${expectedCommit}^{commit}`],
+      { cwd: repositoryRoot },
+    );
+    const resolvedCommit = requireSourceCommit(result.stdout.trim());
+    if (resolvedCommit !== expectedCommit) {
+      fail("sourceCommit does not resolve to the requested commit.");
+    }
+    return resolvedCommit;
   }
 
   const result = await execFileAsync("git", ["rev-parse", "HEAD"], {
@@ -1232,6 +1240,10 @@ export async function verifyApiRelease({
   const repositoryRoot = resolve(rootDir);
   const dotnet = process.env.DOTNET ?? "dotnet";
   const rid = requireNativeAotRid(nativeAotRid);
+  const sourceCommitValue = await getSourceCommit(
+    repositoryRoot,
+    sourceCommit,
+  );
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-api-release-"));
   const generatedRoot = join(temporaryRoot, "generated");
   const reproducibleRoot = join(temporaryRoot, "generated-repro");
@@ -1365,10 +1377,6 @@ export async function verifyApiRelease({
       outputDirectory: aotOutput,
       run,
     });
-    const sourceCommitValue = await getSourceCommit(
-      repositoryRoot,
-      sourceCommit,
-    );
     const verification = {
       artifactsPackedOnce: true,
       isolatedFeed: packageResults.feed,
