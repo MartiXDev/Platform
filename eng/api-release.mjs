@@ -12,7 +12,6 @@ import {
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import {
-  basename,
   dirname,
   join,
   resolve,
@@ -62,8 +61,14 @@ const PACKAGE_DEFINITIONS = Object.freeze([
 ]);
 
 const PUBLIC_API_EVIDENCE = Object.freeze([
-  "tests/Compatibility/MartiX.Platform.public-api.txt",
-  "tests/Compatibility/MartiX.Platform.AspNetCore.public-api.txt",
+  Object.freeze({
+    path: "tests/Compatibility/MartiX.Platform.public-api.txt",
+    requiredSymbols: ["MartiX.Platform.Results.Result<T>", "ErrorKind"],
+  }),
+  Object.freeze({
+    path: "tests/Compatibility/MartiX.Platform.AspNetCore.public-api.txt",
+    requiredSymbols: ["ProblemHttpResult ToProblemDetails"],
+  }),
 ]);
 const FIRST_PARTY_PACKAGE_IDS = new Set(
   PACKAGE_DEFINITIONS.map((definition) => definition.id),
@@ -74,6 +79,7 @@ const FORBIDDEN_PROJECT_NAME =
   /(?:Migrator|Module|Web|Persistence|DbContext|Migrations)/i;
 const SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const NATIVE_AOT_RID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export class ApiReleaseVerificationError extends Error {
   constructor(message) {
@@ -486,11 +492,16 @@ async function verifyGeneratedProjectShape(generatedRoot, applicationName) {
 
 async function verifyPublicApi(rootDir) {
   const records = [];
-  for (const relativePath of PUBLIC_API_EVIDENCE) {
+  for (const { path: relativePath, requiredSymbols } of PUBLIC_API_EVIDENCE) {
     const path = join(rootDir, relativePath);
     const contents = await readFile(path, "utf8");
     if (contents.trim().length === 0) {
       fail(`Public API evidence is empty: ${relativePath}`);
+    }
+    for (const symbol of requiredSymbols) {
+      if (!contents.includes(symbol)) {
+        fail(`Public API evidence is missing ${symbol}: ${relativePath}`);
+      }
     }
     records.push({
       path: relativePath,
@@ -969,10 +980,6 @@ async function runNativeAotProbe({
     ],
     generatedRoot,
   );
-  await verifyPackageCacheIdentity(
-    packageCache,
-    packageResults.packages,
-  );
   const publishResult = await run(
     [
       "publish",
@@ -1026,11 +1033,9 @@ async function packFirstPartyArtifacts({
   repositoryRoot,
   temporaryRoot,
   packageFeed,
-  packageCache,
   configPath,
   run,
 }) {
-  const packageBuilds = new Map();
   for (const definition of [
     PACKAGE_DEFINITIONS[0],
     PACKAGE_DEFINITIONS[2],
@@ -1062,7 +1067,6 @@ async function packFirstPartyArtifacts({
       ],
       repositoryRoot,
     );
-    packageBuilds.set(definition.id, buildRoot);
   }
 
   const adapter = PACKAGE_DEFINITIONS[1];
@@ -1093,8 +1097,6 @@ async function packFirstPartyArtifacts({
     ],
     repositoryRoot,
   );
-  packageBuilds.set(adapter.id, adapterBuildRoot);
-
   const feedFiles = (await readdir(packageFeed)).sort();
   const expectedFiles = PACKAGE_DEFINITIONS.map(
     (definition) => `${definition.id}.${API_RELEASE_PACKAGE_VERSION}.nupkg`,
@@ -1120,7 +1122,6 @@ async function packFirstPartyArtifacts({
 
   return {
     packages: packageEvidence,
-    packageCache,
     feed: "isolated",
   };
 }
@@ -1130,7 +1131,9 @@ async function writeImmutableEvidence(evidence, evidenceDirectory) {
     return null;
   }
 
-  const directory = resolve(evidenceDirectory);
+  const directory = resolve(
+    requireString(evidenceDirectory, "evidenceDirectory"),
+  );
   await mkdir(directory, { recursive: true });
   const fileName = `${evidence.candidateId}.json`;
   const evidencePath = join(directory, fileName);
@@ -1175,6 +1178,9 @@ export async function verifyApiRelease({
   const repositoryRoot = resolve(rootDir);
   const dotnet = process.env.DOTNET ?? "dotnet";
   const rid = requireString(nativeAotRid, "nativeAotRid");
+  if (!NATIVE_AOT_RID_PATTERN.test(rid)) {
+    fail("nativeAotRid must be a lowercase runtime identifier.");
+  }
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-api-release-"));
   const generatedRoot = join(temporaryRoot, "generated");
   const reproducibleRoot = join(temporaryRoot, "generated-repro");
@@ -1229,7 +1235,6 @@ export async function verifyApiRelease({
       repositoryRoot,
       temporaryRoot,
       packageFeed,
-      packageCache,
       configPath,
       run,
     });
@@ -1242,6 +1247,10 @@ export async function verifyApiRelease({
         "--nologo",
       ],
       generatedRoot,
+    );
+    await verifyPackageCacheIdentity(
+      packageCache,
+      packageResults.packages,
     );
     await run(
       [
