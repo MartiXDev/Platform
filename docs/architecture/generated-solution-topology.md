@@ -1,7 +1,8 @@
 # Generated Solution topology
 
-> Status: **Approved target**. The bootstrap fixture proves only the temporary
-> acceptance seam; the topology below is the intended `martix-app` output.
+> Status: **Approved target with an Implemented Lean API slice**. The bootstrap
+> fixture remains a temporary acceptance seam; the API generator proves the
+> first deterministic `martix-app` output.
 
 ## Canonical generated shape
 
@@ -34,6 +35,27 @@ Migrator, and one project per genuine Business Module. `full-stack` adds
 exactly `src/MartiX.Planner.Web/` for the selected UI provider. A persistence-
 free `api` has only `src/MartiX.Planner.Api/`; relational persistence adds the
 Migrator. Empty directories and placeholder projects are not generated.
+
+The implemented Lean API slice generates the smaller shape below:
+
+```text
+<name>.slnx
+README.md
+AGENTS.md
+CONTEXT.md
+martix.platform.json
+src/
+  <name>.Api/
+tests/
+  <name>.Tests/
+```
+
+Its manifest records the `api` Preset, the six Platform baseline Capabilities,
+the canonical origin, and the Platform and manifest contract versions. The API
+composition root explicitly registers the Kernel adapter, OpenAPI contract,
+exception handling, and health endpoint. The generated test-owned conformance
+slice exercises typed Kernel results, every expected failure category, safe
+unexpected-failure redaction, and OpenAPI metadata.
 
 ## Project boundaries
 

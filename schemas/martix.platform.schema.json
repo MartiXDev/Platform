@@ -136,6 +136,9 @@
           "format": "uri-reference",
           "minLength": 1
         },
+        "template": {
+          "const": "martix-app"
+        },
         "historicalSnapshot": {
           "type": "object",
           "additionalProperties": false,

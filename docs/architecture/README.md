@@ -32,17 +32,23 @@ Repository Bootstrap establishes this minimum structure:
 - `martix.platform.json` is the exact, secret-free composition manifest.
 - `eng/quality-gates.json` is the machine-readable verification policy.
 - `eng/verify.mjs` is the cross-platform verification entrypoint.
+- `eng/generate-api.mjs` exposes the deterministic `martix-app --preset api`
+  generation seam, and `eng/verify-api.mjs` verifies its packed consumer.
 - `tests/fixtures/RepositoryBootstrapGeneratedSolution/` is the temporary named
   Generated Solution acceptance seam.
+- The API Preset generator emits an application-owned solution with an explicit
+  composition root, baseline Capability Manifest, and no persistence or
+  unselected provider residue.
 - `MartiX.Platform` contains the implemented BCL-only Result/Error Kernel.
 - `MartiX.Platform.AspNetCore` contains the implemented safe HTTP failure
   adapter and OpenAPI contract seam.
 - `MartiX.Platform.Analyzers` contains the implemented compile-time
   error-code diagnostics.
 
-The manifest has no Preset, Capability, provider, migration, or Supported
-Capability claim. The empty arrays are intentional and remain authoritative
-until a later tracer bullet supplies complete evidence.
+The repository manifest has no Preset, Capability, provider, migration, or
+Supported Capability claim. The empty arrays are intentional and remain
+authoritative for the repository until a later tracer bullet supplies complete
+evidence. Generated API solutions carry their own resolved `api` manifest.
 
 ## Authority boundaries
 

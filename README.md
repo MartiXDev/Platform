@@ -21,6 +21,8 @@ cadence is the required CI entry point; both invoke the same
 
 - `martix.platform.json` and `schemas/` define machine-readable identity and
   composition.
+- `eng/generate-api.mjs` generates the deterministic Lean API Preset; use
+  `npm run verify:api` for its packed consumer verification.
 - `AGENTS.md` routes contributors and agents.
 - `CONTEXT.md` defines Platform vocabulary.
 - `PROVENANCE.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `LICENSE` define
