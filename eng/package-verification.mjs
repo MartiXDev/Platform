@@ -14,6 +14,7 @@ export async function runDotnet(
   rootDir,
   verificationName,
   environment = process.env,
+  createError = (message) => new Error(message),
 ) {
   try {
     return await execFileAsync(dotnet, argumentsList, {
@@ -23,11 +24,10 @@ export async function runDotnet(
     });
   } catch (error) {
     const detail = error?.stderr?.trim() || error?.message || "unknown error";
-    fail(
-      `${verificationName} verification command failed: ${dotnet} ${argumentsList.join(
-        " ",
-      )}: ${detail}`,
-    );
+    const message = `${verificationName} verification command failed: ${dotnet} ${argumentsList.join(
+      " ",
+    )}: ${detail}`;
+    throw createError(message);
   }
 }
 

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ApiReleaseVerificationError,
   createCandidateEvidence,
   verifyCandidateEvidence,
+  verifyApiRelease,
 } from "../eng/api-release.mjs";
 
 const candidateInput = {
@@ -125,4 +127,43 @@ test("candidate evidence requires every release gate to pass", () => {
       }),
     /packedArtifactCount must be 3/i,
   );
+});
+
+test("an unavailable configured source commit fails as a release verification error", async () => {
+  await assert.rejects(
+    () =>
+      verifyApiRelease({
+        sourceCommit: "ffffffffffffffffffffffffffffffffffffffff",
+      }),
+    (error) => {
+      assert.ok(error instanceof ApiReleaseVerificationError);
+      assert.match(error.message, /sourceCommit does not resolve/i);
+      return true;
+    },
+  );
+});
+
+test("dotnet command failures stay in the API release error contract", async () => {
+  const originalDotnet = process.env.DOTNET;
+  process.env.DOTNET = "/definitely/missing/martix-dotnet";
+
+  try {
+    await assert.rejects(
+      () =>
+        verifyApiRelease({
+          nativeAotRid: "linux-x64",
+        }),
+      (error) => {
+        assert.ok(error instanceof ApiReleaseVerificationError);
+        assert.match(error.message, /API release verification command failed/i);
+        return true;
+      },
+    );
+  } finally {
+    if (originalDotnet === undefined) {
+      delete process.env.DOTNET;
+    } else {
+      process.env.DOTNET = originalDotnet;
+    }
+  }
 });
