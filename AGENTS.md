@@ -36,5 +36,6 @@ Use these repository-owned commands:
 - `npm run test` and `npm run typecheck` for the package/build skeleton.
 
 Do not add secrets, credentials, private keys, or Supported Capability claims to
-the bootstrap manifest. The explicitly named temporary acceptance seam is
-`tests/fixtures/RepositoryBootstrapGeneratedSolution/`.
+the bootstrap manifests. The explicitly named acceptance seams are
+`tests/fixtures/RepositoryBootstrapGeneratedSolution/` and
+`tests/fixtures/ModularMonolithGeneratedSolution/`.

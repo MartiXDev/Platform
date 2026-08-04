@@ -1,0 +1,99 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.1.0-preview.1",
+  "platformContractVersion": "0.1.0-preview.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "MartiX.TemplateTestApp",
+    "product": "MartiX.TemplateTestApp Modular Monolith",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "modular-monolith",
+  "capabilities": [
+    {
+      "id": "kernel.result-error",
+      "state": "selected"
+    },
+    {
+      "id": "aspnetcore.failure-adapter",
+      "state": "selected"
+    },
+    {
+      "id": "analyzers.contract-diagnostics",
+      "state": "selected"
+    },
+    {
+      "id": "api.explicit-composition",
+      "state": "selected"
+    },
+    {
+      "id": "api.openapi",
+      "state": "selected"
+    },
+    {
+      "id": "api.safe-failure",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.business-modules",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.contracts-only-graph",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.explicit-composition",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.one-shot-migrator",
+      "state": "selected"
+    }
+  ],
+  "providers": [
+    {
+      "id": "postgresql",
+      "capability": "relational-persistence",
+      "state": "selected"
+    }
+  ],
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  },
+  "modules": [
+    {
+      "name": "Orders",
+      "project": "src/MartiX.TemplateTestApp.Orders",
+      "contractsNamespace": "MartiX.TemplateTestApp.Orders.Contracts",
+      "dependencies": []
+    },
+    {
+      "name": "Billing",
+      "project": "src/MartiX.TemplateTestApp.Billing",
+      "contractsNamespace": "MartiX.TemplateTestApp.Billing.Contracts",
+      "dependencies": [
+        "Orders"
+      ]
+    }
+  ]
+}

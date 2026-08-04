@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj" />
+  <Project Path="src/MartiX.TemplateTestApp.Migrator/MartiX.TemplateTestApp.Migrator.csproj" />
+  <Project Path="src/MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj" />
+  <Project Path="src/MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj" />
+  <Project Path="tests/MartiX.TemplateTestApp.Tests/MartiX.TemplateTestApp.Tests.csproj" />
+</Solution>

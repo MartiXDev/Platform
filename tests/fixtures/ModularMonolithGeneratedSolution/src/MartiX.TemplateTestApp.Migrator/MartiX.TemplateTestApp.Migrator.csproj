@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <MartiXPlatformVersion>0.1.0-preview.1</MartiXPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj" />
+    <ProjectReference Include="../MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj" />
+  </ItemGroup>
+</Project>

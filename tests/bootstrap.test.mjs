@@ -60,6 +60,8 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.equal(result.cadence, "pull-request");
   assert.equal(result.generatedSolution, "RepositoryBootstrapGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.generated-solution"));
+  assert.equal(result.modularMonolithSolution, "ModularMonolithGeneratedSolution");
+  assert.ok(result.gates.includes("bootstrap.modular-monolith"));
 });
 
 test("unknown verification cadences fail before reading repository inputs", async () => {

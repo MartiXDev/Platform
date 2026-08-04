@@ -1,8 +1,8 @@
 # Generated Solution topology
 
-> Status: **Approved target with an Implemented Lean API slice**. The bootstrap
-> fixture remains a temporary acceptance seam; the API generator proves the
-> first deterministic `martix-app` output.
+> Status: **Approved target with Implemented Lean API and Modular Monolith
+> composition slices**. The two named fixtures remain acceptance seams; neither
+> is a Supported Capability claim.
 
 ## Canonical generated shape
 
@@ -56,6 +56,24 @@ composition root explicitly registers the Kernel adapter, OpenAPI contract,
 exception handling, and health endpoint. The generated test-owned conformance
 slice exercises typed Kernel results, every expected failure category, safe
 unexpected-failure redaction, and OpenAPI metadata.
+
+The implemented Modular Monolith composition slice is generated with:
+
+```text
+node eng/generate-modular-monolith.mjs \
+  --name MartiX.Planner \
+  --module Orders \
+  --module Billing \
+  --module-dependency Billing:Orders \
+  --output ./generated
+```
+
+It requires at least one genuine Business Module and emits one API host, one
+one-shot Migrator, one project per module, and one consolidated TUnit project.
+The API calls every module's `AddServices` and `MapEndpoints` entry point
+directly. A module-to-module edge is a project reference consumed through the
+provider's `Contracts.ModuleContracts` namespace; the generator rejects cycles
+before writing.
 
 ## Project boundaries
 

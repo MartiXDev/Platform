@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -12,11 +12,15 @@ const CADENCES = [
 
 const GENERATED_SOLUTION_NAME = "RepositoryBootstrapGeneratedSolution";
 const GENERATED_SOLUTION_ROOT = `tests/fixtures/${GENERATED_SOLUTION_NAME}`;
+const MODULAR_MONOLITH_SOLUTION_NAME = "ModularMonolithGeneratedSolution";
+const MODULAR_MONOLITH_SOLUTION_ROOT =
+  `tests/fixtures/${MODULAR_MONOLITH_SOLUTION_NAME}`;
 const MANIFEST_PRESETS = new Set(["api", "modular-monolith", "full-stack"]);
 const BOOTSTRAP_GATE_IDS = [
   "bootstrap.manifest",
   "bootstrap.governance",
   "bootstrap.generated-solution",
+  "bootstrap.modular-monolith",
   "bootstrap.secret-free",
 ];
 const MANIFEST_REQUIRED_PROPERTIES = [
@@ -35,6 +39,10 @@ const MANIFEST_REQUIRED_PROPERTIES = [
   "security",
   "verification",
 ];
+const MANIFEST_ALLOWED_PROPERTIES = [
+  ...MANIFEST_REQUIRED_PROPERTIES,
+  "modules",
+];
 
 export const REQUIRED_BOOTSTRAP_INPUTS = [
   "martix.platform.json",
@@ -50,6 +58,27 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${GENERATED_SOLUTION_ROOT}/README.md`,
   `${GENERATED_SOLUTION_ROOT}/AGENTS.md`,
   `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/README.md`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/AGENTS.md`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/CONTEXT.md`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/MartiX.TemplateTestApp.slnx`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Program.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Migrator/MartiX.TemplateTestApp.Migrator.csproj`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Migrator/Program.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/OrdersModule.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Contracts/ModuleContracts/IOrdersStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Domain/OrdersAggregate.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Features/Status/OrdersStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/BillingModule.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Contracts/ModuleContracts/IBillingStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Domain/BillingAggregate.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Features/Status/BillingStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/MartiX.TemplateTestApp.Tests.csproj`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/ModularMonolithCompositionTests.cs`,
 ];
 
 const FORBIDDEN_SECRET_KEY =
@@ -228,7 +257,7 @@ function validateAgainstSchema(value, schema, path) {
 function validateManifest(manifest, expectedKind, path) {
   requireRecord(manifest, path);
   assertSecretFree(manifest, path);
-  rejectUnknownProperties(manifest, MANIFEST_REQUIRED_PROPERTIES, path);
+  rejectUnknownProperties(manifest, MANIFEST_ALLOWED_PROPERTIES, path);
 
   for (const property of MANIFEST_REQUIRED_PROPERTIES) {
     requireProperty(manifest, property, path);
@@ -247,6 +276,14 @@ function validateManifest(manifest, expectedKind, path) {
   if (manifest.kind !== expectedKind) {
     fail(
       `Invalid bootstrap value at ${path}.kind: expected ${expectedKind}, received ${manifest.kind}.`,
+    );
+  }
+
+  if (manifest.preset === "modular-monolith") {
+    validateModularMonolithManifest(manifest, path);
+  } else if (Object.hasOwn(manifest, "modules")) {
+    fail(
+      `Invalid bootstrap value at ${path}.modules: modules require the modular-monolith preset.`,
     );
   }
 
@@ -297,6 +334,172 @@ function validateManifest(manifest, expectedKind, path) {
   ) {
     fail(
       `Bootstrap manifest verification cadences must be ${CADENCES.join(", ")}.`,
+    );
+  }
+}
+
+function validateModularMonolithManifest(manifest, path) {
+  requireArray(manifest.modules, `${path}.modules`);
+  if (manifest.modules.length === 0) {
+    fail(`Invalid bootstrap value at ${path}.modules: expected at least one module.`);
+  }
+
+  const moduleNames = new Set();
+  for (const [index, module] of manifest.modules.entries()) {
+    const modulePath = `${path}.modules[${index}]`;
+    requireRecord(module, modulePath);
+    rejectUnknownProperties(
+      module,
+      ["name", "project", "contractsNamespace", "dependencies"],
+      modulePath,
+    );
+    for (const property of [
+      "name",
+      "project",
+      "contractsNamespace",
+    ]) {
+      requireString(module[property], `${modulePath}.${property}`);
+    }
+    requireArray(module.dependencies, `${modulePath}.dependencies`);
+    if (moduleNames.has(module.name)) {
+      fail(`Duplicate Business Module identity: ${module.name}`);
+    }
+    moduleNames.add(module.name);
+  }
+
+  const dependencies = new Map();
+  for (const [index, module] of manifest.modules.entries()) {
+    const modulePath = `${path}.modules[${index}]`;
+    const providers = [];
+    for (const [dependencyIndex, provider] of module.dependencies.entries()) {
+      requireString(
+        provider,
+        `${modulePath}.dependencies[${dependencyIndex}]`,
+      );
+      if (!moduleNames.has(provider)) {
+        fail(
+          `Unknown Business Module dependency at ${modulePath}.dependencies[${dependencyIndex}]: ${provider}.`,
+        );
+      }
+      if (provider === module.name) {
+        fail(`Business Module ${module.name} cannot depend on itself.`);
+      }
+      if (providers.includes(provider)) {
+        fail(`Duplicate Business Module dependency: ${module.name} -> ${provider}.`);
+      }
+      providers.push(provider);
+    }
+    dependencies.set(module.name, providers);
+  }
+
+  const states = new Map([...moduleNames].map((name) => [name, "unvisited"]));
+  const pathStack = [];
+  const visit = (moduleName) => {
+    const state = states.get(moduleName);
+    if (state === "visiting") {
+      const cycleStart = pathStack.indexOf(moduleName);
+      fail(
+        `Business Module dependency graph must be acyclic: ${[
+          ...pathStack.slice(cycleStart),
+          moduleName,
+        ].join(" -> ")}.`,
+      );
+    }
+    if (state === "visited") {
+      return;
+    }
+    states.set(moduleName, "visiting");
+    pathStack.push(moduleName);
+    for (const provider of dependencies.get(moduleName)) {
+      visit(provider);
+    }
+    pathStack.pop();
+    states.set(moduleName, "visited");
+  };
+  for (const moduleName of moduleNames) {
+    visit(moduleName);
+  }
+}
+
+async function listFiles(rootDir) {
+  const files = [];
+
+  async function visit(directory, relativeDirectory = "") {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const relativePath = relativeDirectory
+        ? `${relativeDirectory}/${entry.name}`
+        : entry.name;
+      const absolutePath = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(absolutePath, relativePath);
+      } else {
+        files.push(relativePath);
+      }
+    }
+  }
+
+  await visit(rootDir);
+  return files.sort();
+}
+
+function modularMonolithExpectedFiles(manifest) {
+  const applicationName = manifest.repository.name;
+  const files = [
+    "AGENTS.md",
+    "CONTEXT.md",
+    `${applicationName}.slnx`,
+    "README.md",
+    "martix.platform.json",
+    `src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    `src/${applicationName}.Api/Program.cs`,
+    `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
+    `src/${applicationName}.Migrator/Program.cs`,
+    `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
+    `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
+  ];
+
+  for (const module of manifest.modules) {
+    const project = module.project;
+    const projectName = project.slice("src/".length);
+    files.push(
+      `${project}/${projectName}.csproj`,
+      `${project}/${module.name}Module.cs`,
+      `${project}/Contracts/ModuleContracts/I${module.name}Status.cs`,
+      `${project}/Domain/${module.name}Aggregate.cs`,
+      `${project}/Features/Status/${module.name}Status.cs`,
+    );
+  }
+
+  return files.sort();
+}
+
+async function validateModularMonolithSolution(rootDir, manifest) {
+  const solutionRoot = resolve(rootDir, MODULAR_MONOLITH_SOLUTION_ROOT);
+  const actualFiles = await listFiles(solutionRoot);
+  const expectedFiles = modularMonolithExpectedFiles(manifest);
+  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
+    const missing = expectedFiles.filter((file) => !actualFiles.includes(file));
+    const extra = actualFiles.filter((file) => !expectedFiles.includes(file));
+    fail(
+      `Modular Monolith Generated Solution inventory mismatch; missing: ${
+        missing.join(", ") || "none"
+      }; extra: ${extra.join(", ") || "none"}.`,
+    );
+  }
+
+  const sourceFiles = await Promise.all(
+    actualFiles
+      .filter((file) => file.endsWith(".cs") || file.endsWith(".csproj"))
+      .map((file) => readFile(resolve(solutionRoot, file), "utf8")),
+  );
+  const source = sourceFiles.join("\n");
+  if (
+    /Assembly\.Get|GetTypes\(|MediatR|Shared\.Contracts|Microsoft\.NET\.Test\.Sdk/.test(
+      source,
+    )
+  ) {
+    fail(
+      "Modular Monolith Generated Solution contains discovery, mediator, shared-contract, or incompatible test-runner residue.",
     );
   }
 }
@@ -413,6 +616,9 @@ export async function verifyBootstrap({
   const generatedManifest = parseJson(
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
   );
+  const modularMonolithManifest = parseJson(
+    `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
+  );
 
   validateManifestSchema(manifestSchema);
   requireRecord(qualityGateSchema, "schemas/quality-gates.schema.json");
@@ -446,6 +652,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    modularMonolithManifest,
+    "generated-solution",
+    `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    modularMonolithManifest,
+    manifestSchema,
+    `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -453,6 +669,7 @@ export async function verifyBootstrap({
   );
   validateQualityGatePolicy(qualityPolicy);
   validateGovernanceDocuments(documents);
+  await validateModularMonolithSolution(root, modularMonolithManifest);
 
   const gates = qualityPolicy.gates
     .filter((gate) => gate.cadences.includes(cadence))
@@ -467,6 +684,7 @@ export async function verifyBootstrap({
     cadence,
     gates,
     generatedSolution: GENERATED_SOLUTION_NAME,
+    modularMonolithSolution: MODULAR_MONOLITH_SOLUTION_NAME,
   };
 }
 
