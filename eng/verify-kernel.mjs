@@ -6,31 +6,51 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const execFileAsync = promisify(execFile);
-const PACKAGE_ID = "MartiX.Platform";
 const PACKAGE_VERSION = "0.1.0-preview.1";
-const PACKAGE_PROJECT = "src/MartiX.Platform/MartiX.Platform.csproj";
-const ANALYZER_PACKAGE_ID = "MartiX.Platform.Analyzers";
-const ANALYZER_PACKAGE_PROJECT =
-  "src/MartiX.Platform.Analyzers/MartiX.Platform.Analyzers.csproj";
+const KERNEL_PACKAGE = Object.freeze({
+  id: "MartiX.Platform",
+  projectPath: "src/MartiX.Platform/MartiX.Platform.csproj",
+  evidencePath: "tests/Compatibility/MartiX.Platform.package-content.json",
+  targetFramework: "net10.0",
+});
+const ANALYZER_PACKAGE = Object.freeze({
+  id: "MartiX.Platform.Analyzers",
+  projectPath: "src/MartiX.Platform.Analyzers/MartiX.Platform.Analyzers.csproj",
+  evidencePath:
+    "tests/Compatibility/MartiX.Platform.Analyzers.package-content.json",
+  targetFramework: "netstandard2.0",
+});
 const CONSUMER_PROJECT =
   "tests/Compatibility/KernelResultErrorGeneratedSolution/KernelResultErrorGeneratedSolution.csproj";
 const INVALID_CONSUMER_PROJECT =
   "tests/Compatibility/KernelResultErrorAnalyzerInvalidGeneratedSolution/KernelResultErrorAnalyzerInvalidGeneratedSolution.csproj";
-const PACKAGE_EVIDENCE = "tests/Compatibility/MartiX.Platform.package-content.json";
-const ANALYZER_PACKAGE_EVIDENCE =
-  "tests/Compatibility/MartiX.Platform.Analyzers.package-content.json";
 const NUGET_SOURCE = "https://api.nuget.org/v3/index.json";
 
 function fail(message) {
   throw new Error(message);
 }
 
-async function runDotnet(dotnet, argumentsList, rootDir) {
+async function executeDotnet(
+  dotnet,
+  argumentsList,
+  rootDir,
+  environment = process.env,
+) {
+  return execFileAsync(dotnet, argumentsList, {
+    cwd: rootDir,
+    env: environment,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+}
+
+async function runDotnet(
+  dotnet,
+  argumentsList,
+  rootDir,
+  environment = process.env,
+) {
   try {
-    return await execFileAsync(dotnet, argumentsList, {
-      cwd: rootDir,
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    return await executeDotnet(dotnet, argumentsList, rootDir, environment);
   } catch (error) {
     const detail = [error?.stdout, error?.stderr]
       .filter((output) => typeof output === "string" && output.trim().length > 0)
@@ -40,12 +60,14 @@ async function runDotnet(dotnet, argumentsList, rootDir) {
   }
 }
 
-async function runDotnetExpectFailure(dotnet, argumentsList, rootDir) {
+async function runDotnetExpectFailure(
+  dotnet,
+  argumentsList,
+  rootDir,
+  environment = process.env,
+) {
   try {
-    await execFileAsync(dotnet, argumentsList, {
-      cwd: rootDir,
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    await executeDotnet(dotnet, argumentsList, rootDir, environment);
   } catch (error) {
     if (error?.code === "ENOENT" || typeof error?.stderr !== "string") {
       throw error;
@@ -56,6 +78,13 @@ async function runDotnetExpectFailure(dotnet, argumentsList, rootDir) {
 
   fail(
     `Expected command to fail: ${dotnet} ${argumentsList.join(" ")}`,
+  );
+}
+
+function packageFilePath(packageFeed, packageDefinition) {
+  return join(
+    packageFeed,
+    `${packageDefinition.id}.${PACKAGE_VERSION}.nupkg`,
   );
 }
 
@@ -101,24 +130,25 @@ function listZipEntries(archive) {
   return entries;
 }
 
-async function verifyPackageContent(
-  packagePath,
-  evidencePath,
-  expectedPackageId,
-  expectedTargetFramework,
-  rootDir,
-) {
+async function verifyPackageContent(packagePath, packageDefinition, rootDir) {
   const evidence = JSON.parse(
-    await readFile(join(rootDir, evidencePath), "utf8"),
+    await readFile(join(rootDir, packageDefinition.evidencePath), "utf8"),
   );
+  const expectedRuntimeEntries = evidence.runtimeAssemblyEntries;
+  const expectedAnalyzerEntries = evidence.analyzerAssemblyEntries ?? [];
   if (
-    evidence.packageId !== expectedPackageId
+    evidence.packageId !== packageDefinition.id
     || evidence.version !== PACKAGE_VERSION
-    || evidence.targetFramework !== expectedTargetFramework
+    || evidence.targetFramework !== packageDefinition.targetFramework
     || !Array.isArray(evidence.dependencies)
     || evidence.dependencies.length !== 0
+    || !Array.isArray(evidence.requiredEntries)
+    || !Array.isArray(expectedRuntimeEntries)
+    || !Array.isArray(expectedAnalyzerEntries)
   ) {
-    fail(`Package evidence does not describe the expected package: ${evidencePath}`);
+    fail(
+      `Package evidence does not describe the expected package: ${packageDefinition.evidencePath}`,
+    );
   }
 
   const entries = listZipEntries(await readFile(packagePath));
@@ -132,25 +162,28 @@ async function verifyPackageContent(
     (entry) => entry.startsWith("lib/") && entry.endsWith(".dll"),
   );
   if (
-    runtimeEntries.length !== evidence.runtimeAssemblyEntries.length
-    || evidence.runtimeAssemblyEntries.some(
+    runtimeEntries.length !== expectedRuntimeEntries.length
+    || expectedRuntimeEntries.some(
       (entry) => !runtimeEntries.includes(entry),
     )
   ) {
-    fail(`Package contains an unexpected runtime asset: ${evidencePath}`);
+    fail(
+      `Package contains an unexpected runtime asset: ${packageDefinition.evidencePath}`,
+    );
   }
 
   const analyzerEntries = entries.filter(
     (entry) => entry.startsWith("analyzers/dotnet/cs/") && entry.endsWith(".dll"),
   );
-  const expectedAnalyzerEntries = evidence.analyzerAssemblyEntries ?? [];
   if (
     analyzerEntries.length !== expectedAnalyzerEntries.length
     || expectedAnalyzerEntries.some(
       (entry) => !analyzerEntries.includes(entry),
     )
   ) {
-    fail(`Package contains an unexpected analyzer asset: ${evidencePath}`);
+    fail(
+      `Package contains an unexpected analyzer asset: ${packageDefinition.evidencePath}`,
+    );
   }
 
   return entries;
@@ -159,17 +192,23 @@ async function verifyPackageContent(
 export async function verifyKernel({ rootDir = process.cwd() } = {}) {
   const repositoryRoot = resolve(rootDir);
   const dotnet = process.env.DOTNET ?? "dotnet";
-  const packageName = `${PACKAGE_ID}.${PACKAGE_VERSION}`;
+  const packageName = `${KERNEL_PACKAGE.id}.${PACKAGE_VERSION}`;
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-kernel-"));
   const packageFeed = join(temporaryRoot, "feed");
-  const packagePath = join(packageFeed, `${packageName}.nupkg`);
+  const packageCache = join(temporaryRoot, "packages");
+  const packagePath = packageFilePath(packageFeed, KERNEL_PACKAGE);
+  const analyzerPackagePath = packageFilePath(packageFeed, ANALYZER_PACKAGE);
+  const dotnetEnvironment = {
+    ...process.env,
+    NUGET_PACKAGES: packageCache,
+  };
 
   try {
     await runDotnet(
       dotnet,
       [
         "pack",
-        PACKAGE_PROJECT,
+        KERNEL_PACKAGE.projectPath,
         "--configuration",
         "Release",
         "--output",
@@ -177,12 +216,13 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         "--nologo",
       ],
       repositoryRoot,
+      dotnetEnvironment,
     );
     await runDotnet(
       dotnet,
       [
         "pack",
-        ANALYZER_PACKAGE_PROJECT,
+        ANALYZER_PACKAGE.projectPath,
         "--configuration",
         "Release",
         "--output",
@@ -190,6 +230,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         "--nologo",
       ],
       repositoryRoot,
+      dotnetEnvironment,
     );
     await runDotnet(
       dotnet,
@@ -200,10 +241,10 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         packageFeed,
         "--source",
         NUGET_SOURCE,
-        "--ignore-failed-sources",
         "--nologo",
       ],
       repositoryRoot,
+      dotnetEnvironment,
     );
     await runDotnet(
       dotnet,
@@ -218,6 +259,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         "--disable-logo",
       ],
       repositoryRoot,
+      dotnetEnvironment,
     );
     await runDotnet(
       dotnet,
@@ -226,10 +268,10 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         INVALID_CONSUMER_PROJECT,
         "--source",
         packageFeed,
-        "--ignore-failed-sources",
         "--nologo",
       ],
       repositoryRoot,
+      dotnetEnvironment,
     );
     const invalidBuildOutput = await runDotnetExpectFailure(
       dotnet,
@@ -242,6 +284,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
         "--nologo",
       ],
       repositoryRoot,
+      dotnetEnvironment,
     );
     for (const diagnosticId of ["MXP001", "MXP002"]) {
       if (!new RegExp(`\\b${diagnosticId}\\b`).test(invalidBuildOutput)) {
@@ -251,20 +294,12 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
 
     const packageEntries = await verifyPackageContent(
       packagePath,
-      PACKAGE_EVIDENCE,
-      PACKAGE_ID,
-      "net10.0",
+      KERNEL_PACKAGE,
       repositoryRoot,
-    );
-    const analyzerPackagePath = join(
-      packageFeed,
-      `${ANALYZER_PACKAGE_ID}.${PACKAGE_VERSION}.nupkg`,
     );
     const analyzerPackageEntries = await verifyPackageContent(
       analyzerPackagePath,
-      ANALYZER_PACKAGE_EVIDENCE,
-      ANALYZER_PACKAGE_ID,
-      "netstandard2.0",
+      ANALYZER_PACKAGE,
       repositoryRoot,
     );
     return {
@@ -272,7 +307,7 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
       package: packageName,
       consumer: "KernelResultErrorGeneratedSolution",
       packageEntries,
-      analyzerPackage: `${ANALYZER_PACKAGE_ID}.${PACKAGE_VERSION}`,
+      analyzerPackage: `${ANALYZER_PACKAGE.id}.${PACKAGE_VERSION}`,
       analyzerPackageEntries,
       invalidConsumer: "KernelResultErrorAnalyzerInvalidGeneratedSolution",
       diagnostics: ["MXP001", "MXP002"],

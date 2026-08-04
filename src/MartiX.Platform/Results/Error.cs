@@ -8,8 +8,6 @@ namespace MartiX.Platform.Results;
 /// </summary>
 public sealed class Error
 {
-    private const string ReservedPlatformPrefix = "platform.";
-
     private Error(
         string code,
         ErrorKind kind,
@@ -60,14 +58,14 @@ public sealed class Error
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(description);
 
-        if (!IsValidCode(code))
+        if (!ErrorCodeContract.IsValidErrorCode(code))
         {
             throw new ArgumentException(
                 "Error codes must use lowercase owner-prefixed dot-separated segments.",
                 nameof(code));
         }
 
-        if (code.StartsWith(ReservedPlatformPrefix, StringComparison.Ordinal))
+        if (ErrorCodeContract.IsReservedPlatformCode(code))
         {
             throw new ArgumentException(
                 "The platform.* error-code prefix is reserved by the Platform.",
@@ -109,78 +107,6 @@ public sealed class Error
                 "Error targets must contain safe, non-empty text.",
                 nameof(target));
         }
-    }
-
-    private static bool IsValidCode(string code)
-    {
-        var segmentCount = 1;
-        var segmentLength = 0;
-        var previousWasHyphen = false;
-
-        foreach (var character in code)
-        {
-            if (character == '.')
-            {
-                if (!IsValidSegmentEnd(segmentLength, previousWasHyphen))
-                {
-                    return false;
-                }
-
-                segmentCount++;
-                segmentLength = 0;
-                previousWasHyphen = false;
-                continue;
-            }
-
-            if (!TryAppendCodeCharacter(
-                    character,
-                    ref segmentLength,
-                    ref previousWasHyphen))
-            {
-                return false;
-            }
-        }
-
-        return IsValidSegmentEnd(segmentLength, previousWasHyphen)
-            && segmentCount >= 2;
-    }
-
-    private static bool IsValidSegmentEnd(int segmentLength, bool previousWasHyphen)
-    {
-        return segmentLength > 0 && !previousWasHyphen;
-    }
-
-    private static bool TryAppendCodeCharacter(
-        char character,
-        ref int segmentLength,
-        ref bool previousWasHyphen)
-    {
-        if (character == '-')
-        {
-            if (segmentLength == 0 || previousWasHyphen)
-            {
-                return false;
-            }
-
-            segmentLength++;
-            previousWasHyphen = true;
-            return true;
-        }
-
-        if (!IsLowercaseAsciiLetterOrDigit(character))
-        {
-            return false;
-        }
-
-        segmentLength++;
-        previousWasHyphen = false;
-        return true;
-    }
-
-    private static bool IsLowercaseAsciiLetterOrDigit(char character)
-    {
-        return character is >= 'a' and <= 'z'
-            or >= '0' and <= '9';
     }
 
     private static bool ContainsControlCharacter(string value)

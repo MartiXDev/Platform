@@ -1,9 +1,9 @@
-using System;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
+using MartiX.Platform.Results;
 
 namespace MartiX.Platform.Analyzers.Diagnostics;
 
@@ -13,28 +13,30 @@ namespace MartiX.Platform.Analyzers.Diagnostics;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ContractDiagnosticsAnalyzer : DiagnosticAnalyzer
 {
-    private const string ErrorTypeName = "MartiX.Platform.Results.Error";
-    private const string ReservedPlatformPrefix = "platform.";
+    private const string ErrorTypeMetadataName = "MartiX.Platform.Results.Error";
+    private const string DiagnosticCategory = "MartiX.Platform";
+    private const string DiagnosticHelpLink =
+        "https://github.com/MartiXDev/Platform/blob/main/docs/architecture/kernel-result-error.md#compile-time-diagnostics";
 
     private static readonly DiagnosticDescriptor InvalidErrorCode = new(
         id: "MXP001",
         title: "Error code does not follow the Platform contract",
         messageFormat: "Error code '{0}' must use lowercase owner-prefixed dot-separated segments",
-        category: "MartiX.Platform",
+        category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Application Error codes must use lowercase owner-prefixed dot-separated segments.",
-        helpLinkUri: "https://github.com/MartiXDev/Platform/blob/main/docs/architecture/kernel-result-error.md#compile-time-diagnostics");
+        helpLinkUri: DiagnosticHelpLink);
 
     private static readonly DiagnosticDescriptor ReservedErrorCode = new(
         id: "MXP002",
         title: "Error code uses the reserved Platform prefix",
         messageFormat: "Error code '{0}' uses the reserved 'platform.' prefix",
-        category: "MartiX.Platform",
+        category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The platform.* error-code prefix is reserved for Platform-owned errors.",
-        helpLinkUri: "https://github.com/MartiXDev/Platform/blob/main/docs/architecture/kernel-result-error.md#compile-time-diagnostics");
+        helpLinkUri: DiagnosticHelpLink);
 
     /// <summary>Gets the diagnostics reported by this analyzer.</summary>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -51,96 +53,60 @@ public sealed class ContractDiagnosticsAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         var invocation = (IInvocationOperation)context.Operation;
-        if (!IsErrorCreate(invocation.TargetMethod))
+        if (!IsErrorCreate(invocation, context.Compilation)
+            || !TryGetConstantErrorCode(invocation, out var code))
         {
             return;
         }
 
-        var codeArgument = invocation.Arguments.FirstOrDefault(
-            argument => argument.Parameter?.Name == "code");
-        if (codeArgument is null
-            || !codeArgument.Value.ConstantValue.HasValue
-            || codeArgument.Value.ConstantValue.Value is not string code)
-        {
-            return;
-        }
-
-        var location = codeArgument.Value.Syntax.GetLocation();
-        if (code.StartsWith(ReservedPlatformPrefix, StringComparison.Ordinal))
+        var location = GetCodeLocation(invocation);
+        if (ErrorCodeContract.IsReservedPlatformCode(code))
         {
             context.ReportDiagnostic(
                 Diagnostic.Create(ReservedErrorCode, location, code));
             return;
         }
 
-        if (!IsValidCode(code))
+        if (!ErrorCodeContract.IsValidErrorCode(code))
         {
             context.ReportDiagnostic(
                 Diagnostic.Create(InvalidErrorCode, location, code));
         }
     }
 
-    private static bool IsErrorCreate(IMethodSymbol method)
+    private static bool IsErrorCreate(
+        IInvocationOperation invocation,
+        Compilation compilation)
     {
+        var method = invocation.TargetMethod;
+        var errorType = compilation.GetTypeByMetadataName(ErrorTypeMetadataName);
+
         return method.IsStatic
             && method.Name == "Create"
-            && method.ContainingType?.ToDisplayString() == ErrorTypeName;
+            && SymbolEqualityComparer.Default.Equals(method.ContainingType, errorType);
     }
 
-    private static bool IsValidCode(string code)
+    private static bool TryGetConstantErrorCode(
+        IInvocationOperation invocation,
+        out string code)
     {
-        var segmentCount = 1;
-        var segmentLength = 0;
-        var previousWasHyphen = false;
-
-        foreach (var character in code)
+        var codeArgument = invocation.Arguments.FirstOrDefault(
+            argument => argument.Parameter?.Name == "code");
+        if (codeArgument?.Value.ConstantValue is
+            { HasValue: true, Value: string constantCode })
         {
-            if (character == '.')
-            {
-                if (!IsValidSegmentEnd(segmentLength, previousWasHyphen))
-                {
-                    return false;
-                }
-
-                segmentCount++;
-                segmentLength = 0;
-                previousWasHyphen = false;
-                continue;
-            }
-
-            if (character == '-')
-            {
-                if (segmentLength == 0 || previousWasHyphen)
-                {
-                    return false;
-                }
-
-                segmentLength++;
-                previousWasHyphen = true;
-                continue;
-            }
-
-            if (!IsLowercaseAsciiLetterOrDigit(character))
-            {
-                return false;
-            }
-
-            segmentLength++;
-            previousWasHyphen = false;
+            code = constantCode;
+            return true;
         }
 
-        return IsValidSegmentEnd(segmentLength, previousWasHyphen)
-            && segmentCount >= 2;
+        code = string.Empty;
+        return false;
     }
 
-    private static bool IsValidSegmentEnd(int segmentLength, bool previousWasHyphen)
+    private static Location GetCodeLocation(IInvocationOperation invocation)
     {
-        return segmentLength > 0 && !previousWasHyphen;
-    }
-
-    private static bool IsLowercaseAsciiLetterOrDigit(char character)
-    {
-        return character is >= 'a' and <= 'z'
-            or >= '0' and <= '9';
+        return invocation.Arguments
+            .First(argument => argument.Parameter?.Name == "code")
+            .Value.Syntax.GetLocation();
     }
 }
