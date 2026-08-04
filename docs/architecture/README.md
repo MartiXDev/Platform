@@ -33,6 +33,8 @@ Repository Bootstrap establishes this minimum structure:
 - `tests/fixtures/RepositoryBootstrapGeneratedSolution/` is the temporary named
   Generated Solution acceptance seam.
 - `MartiX.Platform` contains the implemented BCL-only Result/Error Kernel.
+- `MartiX.Platform.Analyzers` contains the implemented compile-time
+  error-code diagnostics.
 
 The manifest has no Preset, Capability, provider, migration, or Supported
 Capability claim. The empty arrays are intentional and remain authoritative

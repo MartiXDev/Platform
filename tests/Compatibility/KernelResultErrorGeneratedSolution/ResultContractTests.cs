@@ -106,12 +106,12 @@ public sealed class ResultContractTests
     await Assert.That(() => Result.Failure(null!))
         .Throws<ArgumentNullException>();
     await Assert.That(() => Error.Create(
-            "Orders.invalid",
+            RuntimeCode("Orders.invalid"),
             ErrorKind.Validation,
             "Invalid."))
         .Throws<ArgumentException>();
     await Assert.That(() => Error.Create(
-            "platform.unexpected",
+            RuntimeCode("platform.unexpected"),
             ErrorKind.Unexpected,
             "Unexpected."))
         .Throws<ArgumentException>();
@@ -140,4 +140,6 @@ public sealed class ResultContractTests
   }
 
   private sealed record Order(string Id);
+
+  private static string RuntimeCode(string code) => code;
 }

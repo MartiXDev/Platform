@@ -9,9 +9,17 @@ const execFileAsync = promisify(execFile);
 const PACKAGE_ID = "MartiX.Platform";
 const PACKAGE_VERSION = "0.1.0-preview.1";
 const PACKAGE_PROJECT = "src/MartiX.Platform/MartiX.Platform.csproj";
+const ANALYZER_PACKAGE_ID = "MartiX.Platform.Analyzers";
+const ANALYZER_PACKAGE_PROJECT =
+  "src/MartiX.Platform.Analyzers/MartiX.Platform.Analyzers.csproj";
 const CONSUMER_PROJECT =
   "tests/Compatibility/KernelResultErrorGeneratedSolution/KernelResultErrorGeneratedSolution.csproj";
+const INVALID_CONSUMER_PROJECT =
+  "tests/Compatibility/KernelResultErrorAnalyzerInvalidGeneratedSolution/KernelResultErrorAnalyzerInvalidGeneratedSolution.csproj";
 const PACKAGE_EVIDENCE = "tests/Compatibility/MartiX.Platform.package-content.json";
+const ANALYZER_PACKAGE_EVIDENCE =
+  "tests/Compatibility/MartiX.Platform.Analyzers.package-content.json";
+const NUGET_SOURCE = "https://api.nuget.org/v3/index.json";
 
 function fail(message) {
   throw new Error(message);
@@ -24,9 +32,31 @@ async function runDotnet(dotnet, argumentsList, rootDir) {
       maxBuffer: 10 * 1024 * 1024,
     });
   } catch (error) {
-    const detail = error?.stderr?.trim() || error?.message || "unknown error";
+    const detail = [error?.stdout, error?.stderr]
+      .filter((output) => typeof output === "string" && output.trim().length > 0)
+      .join("\n")
+      .trim() || error?.message || "unknown error";
     fail(`Kernel verification command failed: ${dotnet} ${argumentsList.join(" ")}: ${detail}`);
   }
+}
+
+async function runDotnetExpectFailure(dotnet, argumentsList, rootDir) {
+  try {
+    await execFileAsync(dotnet, argumentsList, {
+      cwd: rootDir,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT" || typeof error?.stderr !== "string") {
+      throw error;
+    }
+
+    return `${error.stdout ?? ""}\n${error.stderr}`;
+  }
+
+  fail(
+    `Expected command to fail: ${dotnet} ${argumentsList.join(" ")}`,
+  );
 }
 
 function listZipEntries(archive) {
@@ -71,23 +101,30 @@ function listZipEntries(archive) {
   return entries;
 }
 
-async function verifyPackageContent(packagePath, rootDir) {
+async function verifyPackageContent(
+  packagePath,
+  evidencePath,
+  expectedPackageId,
+  expectedTargetFramework,
+  rootDir,
+) {
   const evidence = JSON.parse(
-    await readFile(join(rootDir, PACKAGE_EVIDENCE), "utf8"),
+    await readFile(join(rootDir, evidencePath), "utf8"),
   );
   if (
-    evidence.packageId !== PACKAGE_ID
+    evidence.packageId !== expectedPackageId
     || evidence.version !== PACKAGE_VERSION
-    || evidence.targetFramework !== "net10.0"
+    || evidence.targetFramework !== expectedTargetFramework
+    || !Array.isArray(evidence.dependencies)
     || evidence.dependencies.length !== 0
   ) {
-    fail("Kernel package evidence does not describe the expected package.");
+    fail(`Package evidence does not describe the expected package: ${evidencePath}`);
   }
 
   const entries = listZipEntries(await readFile(packagePath));
   for (const requiredEntry of evidence.requiredEntries) {
     if (!entries.includes(requiredEntry)) {
-      fail(`Kernel package is missing required entry: ${requiredEntry}`);
+      fail(`Package is missing required entry: ${requiredEntry}`);
     }
   }
 
@@ -100,7 +137,20 @@ async function verifyPackageContent(packagePath, rootDir) {
       (entry) => !runtimeEntries.includes(entry),
     )
   ) {
-    fail("Kernel package contains an unexpected runtime asset.");
+    fail(`Package contains an unexpected runtime asset: ${evidencePath}`);
+  }
+
+  const analyzerEntries = entries.filter(
+    (entry) => entry.startsWith("analyzers/dotnet/cs/") && entry.endsWith(".dll"),
+  );
+  const expectedAnalyzerEntries = evidence.analyzerAssemblyEntries ?? [];
+  if (
+    analyzerEntries.length !== expectedAnalyzerEntries.length
+    || expectedAnalyzerEntries.some(
+      (entry) => !analyzerEntries.includes(entry),
+    )
+  ) {
+    fail(`Package contains an unexpected analyzer asset: ${evidencePath}`);
   }
 
   return entries;
@@ -131,10 +181,25 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
     await runDotnet(
       dotnet,
       [
+        "pack",
+        ANALYZER_PACKAGE_PROJECT,
+        "--configuration",
+        "Release",
+        "--output",
+        packageFeed,
+        "--nologo",
+      ],
+      repositoryRoot,
+    );
+    await runDotnet(
+      dotnet,
+      [
         "restore",
         CONSUMER_PROJECT,
         "--source",
         packageFeed,
+        "--source",
+        NUGET_SOURCE,
         "--ignore-failed-sources",
         "--nologo",
       ],
@@ -154,13 +219,63 @@ export async function verifyKernel({ rootDir = process.cwd() } = {}) {
       ],
       repositoryRoot,
     );
+    await runDotnet(
+      dotnet,
+      [
+        "restore",
+        INVALID_CONSUMER_PROJECT,
+        "--source",
+        packageFeed,
+        "--ignore-failed-sources",
+        "--nologo",
+      ],
+      repositoryRoot,
+    );
+    const invalidBuildOutput = await runDotnetExpectFailure(
+      dotnet,
+      [
+        "build",
+        INVALID_CONSUMER_PROJECT,
+        "--configuration",
+        "Release",
+        "--no-restore",
+        "--nologo",
+      ],
+      repositoryRoot,
+    );
+    for (const diagnosticId of ["MXP001", "MXP002"]) {
+      if (!new RegExp(`\\b${diagnosticId}\\b`).test(invalidBuildOutput)) {
+        fail(`Analyzer verification did not produce ${diagnosticId}.`);
+      }
+    }
 
-    const packageEntries = await verifyPackageContent(packagePath, repositoryRoot);
+    const packageEntries = await verifyPackageContent(
+      packagePath,
+      PACKAGE_EVIDENCE,
+      PACKAGE_ID,
+      "net10.0",
+      repositoryRoot,
+    );
+    const analyzerPackagePath = join(
+      packageFeed,
+      `${ANALYZER_PACKAGE_ID}.${PACKAGE_VERSION}.nupkg`,
+    );
+    const analyzerPackageEntries = await verifyPackageContent(
+      analyzerPackagePath,
+      ANALYZER_PACKAGE_EVIDENCE,
+      ANALYZER_PACKAGE_ID,
+      "netstandard2.0",
+      repositoryRoot,
+    );
     return {
       status: "passed",
       package: packageName,
       consumer: "KernelResultErrorGeneratedSolution",
       packageEntries,
+      analyzerPackage: `${ANALYZER_PACKAGE_ID}.${PACKAGE_VERSION}`,
+      analyzerPackageEntries,
+      invalidConsumer: "KernelResultErrorAnalyzerInvalidGeneratedSolution",
+      diagnostics: ["MXP001", "MXP002"],
     };
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
