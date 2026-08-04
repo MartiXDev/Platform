@@ -195,7 +195,7 @@ export async function verifyApiPreset({
         "MartiX.Platform.AspNetCore",
         "MartiX.Platform.Analyzers",
       ],
-      consumer: `${applicationName}.Tests`,
+      consumer: `${normalizedApplicationName}.Tests`,
     };
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });

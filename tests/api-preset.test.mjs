@@ -69,6 +69,10 @@ test("the API plan is explicit and deterministic", () => {
     createApiPresetPlan({ applicationName: "Contoso.Api" }).applicationName,
     "Contoso.Api",
   );
+  assert.equal(
+    createApiPresetPlan({ applicationName: " Contoso.Api " }).applicationName,
+    "Contoso.Api",
+  );
 });
 
 test("the CLI prints the resolved plan without writing in dry-run mode", async () => {

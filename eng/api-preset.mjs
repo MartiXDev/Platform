@@ -110,9 +110,6 @@ const PLACEHOLDER_NAME_SEGMENTS = new Set([
 ]);
 const PLACEHOLDER_APPLICATION_NAMES = new Set([
   "api",
-  "default",
-  "default.api",
-  "testproject",
 ]);
 const KNOWN_UNAVAILABLE_CAPABILITIES = new Set([
   "application-ui",
@@ -184,14 +181,20 @@ function normalizeApplicationName(value) {
 function isPlaceholderApplicationName(applicationName) {
   const normalizedName = applicationName.toLowerCase();
   const segments = normalizedName.split(".");
+  const hasPlaceholderSegment = segments.some((segment) =>
+    PLACEHOLDER_NAME_SEGMENTS.has(segment),
+  );
+  const isApiPlaceholderName =
+    segments.length > 1 &&
+    segments.every(
+      (segment) =>
+        segment === "api" || PLACEHOLDER_NAME_SEGMENTS.has(segment),
+    );
+
   return (
     PLACEHOLDER_APPLICATION_NAMES.has(normalizedName) ||
-    segments.some((segment) => PLACEHOLDER_NAME_SEGMENTS.has(segment)) ||
-    (segments.length > 1 &&
-      segments.every(
-        (segment) =>
-          segment === "api" || PLACEHOLDER_NAME_SEGMENTS.has(segment),
-      ))
+    hasPlaceholderSegment ||
+    isApiPlaceholderName
   );
 }
 
