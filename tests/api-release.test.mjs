@@ -39,6 +39,10 @@ const candidateInput = {
       "sha256:6666666666666666666666666666666666666666666666666666666666666666",
   },
   verification: {
+    artifactsPackedOnce: true,
+    isolatedFeed: "isolated",
+    packedArtifactCount: 3,
+    warningsAsErrors: true,
     jit: true,
     tunit: true,
     openApi: true,
@@ -85,4 +89,40 @@ test("candidate evidence is immutable and records only the lean API claim", () =
   assert.equal("enterpriseReadiness" in evidence, false);
   assert.deepEqual(evidence.providers, []);
   assert.deepEqual(evidence.supportClaims, []);
+});
+
+test("candidate evidence requires every release gate to pass", () => {
+  assert.throws(
+    () =>
+      createCandidateEvidence({
+        ...candidateInput,
+        verification: {
+          ...candidateInput.verification,
+          aot: false,
+        },
+      }),
+    /verification\.aot must be true/i,
+  );
+
+  const { tunit, ...missingGate } = candidateInput.verification;
+  assert.throws(
+    () =>
+      createCandidateEvidence({
+        ...candidateInput,
+        verification: missingGate,
+      }),
+    /verification\.tunit must be true/i,
+  );
+
+  assert.throws(
+    () =>
+      createCandidateEvidence({
+        ...candidateInput,
+        verification: {
+          ...candidateInput.verification,
+          packedArtifactCount: 2,
+        },
+      }),
+    /packedArtifactCount must be 3/i,
+  );
 });

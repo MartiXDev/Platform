@@ -11,11 +11,7 @@ import {
 } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import {
-  dirname,
-  join,
-  resolve,
-} from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -37,6 +33,24 @@ export const API_RELEASE_EVIDENCE_SCHEMA_VERSION = "1.0.0";
 export const API_RELEASE_PACKAGE_VERSION = API_PLATFORM_VERSION;
 export const API_RELEASE_PUBLIC_SOURCE = "https://api.nuget.org/v3/index.json";
 
+const REQUIRED_VERIFICATION_FLAGS = Object.freeze([
+  "artifactsPackedOnce",
+  "warningsAsErrors",
+  "jit",
+  "tunit",
+  "openApi",
+  "trim",
+  "aot",
+  "reproducible",
+  "cleanOutput",
+]);
+const PUBLIC_PACKAGE_PATTERNS = Object.freeze([
+  "Microsoft.*",
+  "NETStandard.*",
+  "System.*",
+  "TUnit*",
+  "runtime.*",
+]);
 const PACKAGE_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: "MartiX.Platform",
@@ -119,6 +133,15 @@ function requireSourceCommit(value) {
   return sourceCommit;
 }
 
+function requireNativeAotRid(value, label = "nativeAotRid") {
+  const rid = requireString(value, label);
+  if (!NATIVE_AOT_RID_PATTERN.test(rid)) {
+    fail("nativeAotRid must be a lowercase runtime identifier.");
+  }
+
+  return rid;
+}
+
 export function canonicalize(value) {
   if (Array.isArray(value)) {
     return value.map((item) => canonicalize(item));
@@ -192,9 +215,31 @@ function normalizeNativeAot(nativeAot) {
   }
 
   return {
-    rid: requireString(nativeAot.rid, "nativeAot.rid"),
+    rid: requireNativeAotRid(nativeAot.rid, "nativeAot.rid"),
     digest: requireDigest(nativeAot.digest, "nativeAot.digest"),
   };
+}
+
+function normalizeVerification(value) {
+  if (!isRecord(value)) {
+    fail("Candidate evidence must declare verification outcomes.");
+  }
+
+  for (const flag of REQUIRED_VERIFICATION_FLAGS) {
+    if (value[flag] !== true) {
+      fail(`Candidate evidence verification.${flag} must be true.`);
+    }
+  }
+  if (value.isolatedFeed !== "isolated") {
+    fail("Candidate evidence verification.isolatedFeed must be isolated.");
+  }
+  if (value.packedArtifactCount !== PACKAGE_DEFINITIONS.length) {
+    fail(
+      `Candidate evidence verification.packedArtifactCount must be ${PACKAGE_DEFINITIONS.length}.`,
+    );
+  }
+
+  return canonicalize(value);
 }
 
 export function createCandidateEvidence(input) {
@@ -224,9 +269,7 @@ export function createCandidateEvidence(input) {
     fail("Candidate evidence package versions must match platformVersion.");
   }
   const nativeAot = normalizeNativeAot(input.nativeAot);
-  if (!isRecord(input.verification)) {
-    fail("Candidate evidence must declare verification outcomes.");
-  }
+  const verification = normalizeVerification(input.verification);
 
   const candidateSeed = sha256(
     canonicalJson({
@@ -256,7 +299,7 @@ export function createCandidateEvidence(input) {
     },
     artifacts: packages,
     nativeAot,
-    verification: canonicalize(input.verification),
+    verification,
     persistence: "none",
     providers: [],
     supportClaims: [],
@@ -546,7 +589,7 @@ function packageBuildProperties(buildRoot) {
   ];
 }
 
-async function verifyPackage(rootDir, definition, path) {
+async function verifyPackage(rootDir, definition, archivePath) {
   const evidence = await readJson(
     join(rootDir, definition.evidencePath),
     definition.evidencePath,
@@ -562,7 +605,7 @@ async function verifyPackage(rootDir, definition, path) {
     fail(`Package evidence has an unexpected identity: ${definition.evidencePath}`);
   }
 
-  const archive = await readFile(path);
+  const archive = await readFile(archivePath);
   const entries = listZipEntries(archive, definition.id);
   const entryNames = entries.map((entry) => entry.name);
   for (const requiredEntry of evidence.requiredEntries) {
@@ -618,7 +661,7 @@ async function verifyPackage(rootDir, definition, path) {
     id: definition.id,
     version: API_RELEASE_PACKAGE_VERSION,
     targetFramework: definition.targetFramework,
-    digest: await digestFile(path),
+    digest: await digestFile(archivePath),
     entries: entryNames,
   };
 }
@@ -632,6 +675,9 @@ async function createNuGetConfig(directory, packageFeed) {
       .replaceAll(">", "&gt;");
   const configPath = join(directory, "NuGet.Config");
   const feed = escapeXml(packageFeed);
+  const publicPackageMappings = PUBLIC_PACKAGE_PATTERNS.map(
+    (pattern) => `      <package pattern="${pattern}" />`,
+  ).join("\n");
   await writeFile(
     configPath,
     `<?xml version="1.0" encoding="utf-8"?>
@@ -646,7 +692,7 @@ async function createNuGetConfig(directory, packageFeed) {
       <package pattern="MartiX.*" />
     </packageSource>
     <packageSource key="public">
-      <package pattern="*" />
+${publicPackageMappings}
     </packageSource>
   </packageSourceMapping>
 </configuration>
@@ -979,7 +1025,6 @@ async function runNativeAotProbe({
   configPath,
   rid,
   outputDirectory,
-  buildProperties,
   run,
 }) {
   await run(
@@ -991,7 +1036,6 @@ async function runNativeAotProbe({
       "--configfile",
       configPath,
       "--nologo",
-      ...buildProperties,
     ],
     generatedRoot,
   );
@@ -1014,7 +1058,6 @@ async function runNativeAotProbe({
       "-p:EnableTrimAnalyzer=true",
       "-p:TreatWarningsAsErrors=true",
       "-warnaserror",
-      ...buildProperties,
     ],
     generatedRoot,
   );
@@ -1044,6 +1087,42 @@ async function runNativeAotProbe({
   };
 }
 
+async function packPackage({
+  repositoryRoot,
+  temporaryRoot,
+  packageFeed,
+  definition,
+  restoreArguments,
+  run,
+}) {
+  const buildRoot = join(temporaryRoot, "package-build", definition.id);
+  const properties = packageBuildProperties(buildRoot);
+  await run(
+    [
+      "restore",
+      definition.projectPath,
+      ...restoreArguments,
+      "--nologo",
+      ...properties,
+    ],
+    repositoryRoot,
+  );
+  await run(
+    [
+      "pack",
+      definition.projectPath,
+      "--configuration",
+      "Release",
+      "--output",
+      packageFeed,
+      "--no-restore",
+      "--nologo",
+      ...properties,
+    ],
+    repositoryRoot,
+  );
+}
+
 async function packFirstPartyArtifacts({
   repositoryRoot,
   temporaryRoot,
@@ -1051,67 +1130,27 @@ async function packFirstPartyArtifacts({
   configPath,
   run,
 }) {
-  for (const definition of [
-    PACKAGE_DEFINITIONS[0],
-    PACKAGE_DEFINITIONS[2],
-  ]) {
-    const buildRoot = join(temporaryRoot, "package-build", definition.id);
-    const properties = packageBuildProperties(buildRoot);
-    await run(
-      [
-        "restore",
-        definition.projectPath,
-        "--source",
-        API_RELEASE_PUBLIC_SOURCE,
-        "--nologo",
-        ...properties,
-      ],
+  const [platformPackage, adapterPackage, analyzerPackage] =
+    PACKAGE_DEFINITIONS;
+  for (const definition of [platformPackage, analyzerPackage]) {
+    await packPackage({
       repositoryRoot,
-    );
-    await run(
-      [
-        "pack",
-        definition.projectPath,
-        "--configuration",
-        "Release",
-        "--output",
-        packageFeed,
-        "--no-restore",
-        "--nologo",
-        ...properties,
-      ],
-      repositoryRoot,
-    );
+      temporaryRoot,
+      packageFeed,
+      definition,
+      restoreArguments: ["--source", API_RELEASE_PUBLIC_SOURCE],
+      run,
+    });
   }
 
-  const adapter = PACKAGE_DEFINITIONS[1];
-  const adapterBuildRoot = join(temporaryRoot, "package-build", adapter.id);
-  const adapterProperties = packageBuildProperties(adapterBuildRoot);
-  await run(
-    [
-      "restore",
-      adapter.projectPath,
-      "--configfile",
-      configPath,
-      "--nologo",
-      ...adapterProperties,
-    ],
+  await packPackage({
     repositoryRoot,
-  );
-  await run(
-    [
-      "pack",
-      adapter.projectPath,
-      "--configuration",
-      "Release",
-      "--output",
-      packageFeed,
-      "--no-restore",
-      "--nologo",
-      ...adapterProperties,
-    ],
-    repositoryRoot,
-  );
+    temporaryRoot,
+    packageFeed,
+    definition: adapterPackage,
+    restoreArguments: ["--configfile", configPath],
+    run,
+  });
   const feedFiles = (await readdir(packageFeed)).sort();
   const expectedFiles = PACKAGE_DEFINITIONS.map(
     (definition) => `${definition.id}.${API_RELEASE_PACKAGE_VERSION}.nupkg`,
@@ -1192,10 +1231,7 @@ export async function verifyApiRelease({
 } = {}) {
   const repositoryRoot = resolve(rootDir);
   const dotnet = process.env.DOTNET ?? "dotnet";
-  const rid = requireString(nativeAotRid, "nativeAotRid");
-  if (!NATIVE_AOT_RID_PATTERN.test(rid)) {
-    fail("nativeAotRid must be a lowercase runtime identifier.");
-  }
+  const rid = requireNativeAotRid(nativeAotRid);
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-api-release-"));
   const generatedRoot = join(temporaryRoot, "generated");
   const reproducibleRoot = join(temporaryRoot, "generated-repro");
@@ -1327,7 +1363,6 @@ export async function verifyApiRelease({
       configPath,
       rid,
       outputDirectory: aotOutput,
-      buildProperties: [],
       run,
     });
     const sourceCommitValue = await getSourceCommit(

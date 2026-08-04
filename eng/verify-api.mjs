@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  ApiReleaseVerificationError,
   runApiReleaseCli,
   verifyApiRelease,
 } from "./api-release.mjs";
@@ -14,7 +15,11 @@ const invokedFile = process.argv[1]
 
 if (invokedFile === import.meta.url) {
   runApiReleaseCli().catch((error) => {
-    console.error(`API release verification failed: ${error.message}`);
+    if (error instanceof ApiReleaseVerificationError) {
+      console.error(`API release verification failed: ${error.message}`);
+    } else {
+      console.error("API release verification failed due to an unexpected error.");
+    }
     process.exitCode = 1;
   });
 }
