@@ -1,0 +1,15 @@
+{
+  "packageId": "MartiX.Platform.Analyzers",
+  "version": "0.1.0-preview.1",
+  "targetFramework": "netstandard2.0",
+  "dependencies": [],
+  "requiredEntries": [
+    "LICENSE",
+    "README.md",
+    "analyzers/dotnet/cs/MartiX.Platform.Analyzers.dll"
+  ],
+  "runtimeAssemblyEntries": [],
+  "analyzerAssemblyEntries": [
+    "analyzers/dotnet/cs/MartiX.Platform.Analyzers.dll"
+  ]
+}

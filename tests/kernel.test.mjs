@@ -40,3 +40,35 @@ test("the Kernel candidate retains packed-consumer and artifact evidence", async
   assert.match(publicApi, /MartiX\.Platform\.Results\.Result<T>/);
   assert.match(publicApi, /MartiX\.Platform\.Results\.ErrorKind/);
 });
+
+test("the packed Kernel consumer requires the analyzer build asset", async () => {
+  const analyzerEvidence = JSON.parse(
+    await readFile(
+      join(
+        repositoryRoot,
+        "tests",
+        "Compatibility",
+        "MartiX.Platform.Analyzers.package-content.json",
+      ),
+      "utf8",
+    ),
+  );
+  const project = await readFile(
+    join(compatibilityRoot, "KernelResultErrorGeneratedSolution.csproj"),
+    "utf8",
+  );
+  const analyzerReadme = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform.Analyzers", "README.md"),
+    "utf8",
+  );
+
+  assert.equal(analyzerEvidence.packageId, "MartiX.Platform.Analyzers");
+  assert.equal(analyzerEvidence.targetFramework, "netstandard2.0");
+  assert.deepEqual(analyzerEvidence.dependencies, []);
+  assert.deepEqual(analyzerEvidence.analyzerAssemblyEntries, [
+    "analyzers/dotnet/cs/MartiX.Platform.Analyzers.dll",
+  ]);
+  assert.match(project, /<PackageReference Include="MartiX\.Platform\.Analyzers"/);
+  assert.match(analyzerReadme, /\bMXP001\b/);
+  assert.match(analyzerReadme, /\bMXP002\b/);
+});

@@ -13,10 +13,12 @@ export async function runDotnet(
   argumentsList,
   rootDir,
   verificationName,
+  environment = process.env,
 ) {
   try {
     return await execFileAsync(dotnet, argumentsList, {
       cwd: rootDir,
+      env: environment,
       maxBuffer: 10 * 1024 * 1024,
     });
   } catch (error) {
