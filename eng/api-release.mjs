@@ -735,11 +735,20 @@ async function getSourceCommit(repositoryRoot, sourceCommit) {
     process.env.SOURCE_COMMIT;
   if (requestedCommit !== undefined) {
     const expectedCommit = requireSourceCommit(requestedCommit);
-    const result = await execFileAsync(
-      "git",
-      ["rev-parse", "--verify", `${expectedCommit}^{commit}`],
-      { cwd: repositoryRoot },
-    );
+    let result;
+    try {
+      result = await execFileAsync(
+        "git",
+        ["rev-parse", "--verify", `${expectedCommit}^{commit}`],
+        { cwd: repositoryRoot },
+      );
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        throw error;
+      }
+
+      fail("sourceCommit does not resolve to the requested commit.");
+    }
     const resolvedCommit = requireSourceCommit(result.stdout.trim());
     if (resolvedCommit !== expectedCommit) {
       fail("sourceCommit does not resolve to the requested commit.");
@@ -1264,6 +1273,7 @@ export async function verifyApiRelease({
       cwd,
       "API release",
       environment,
+      fail,
     );
 
   let releaseDetails;
