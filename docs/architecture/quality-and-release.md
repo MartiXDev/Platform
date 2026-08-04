@@ -21,11 +21,19 @@ The current repository verification commands are:
 ```text
 npm run verify:fast
 npm run verify:pr
+npm run verify:api
 ```
 
 The target roadmap later calls for one .NET file-based Verification Entrypoint
 with the same cadence contract. Until that tracer is implemented, the
 JavaScript entrypoint and its machine policy remain the current truth.
+
+The internal `0.1.0-preview.1` API release loop is an executable release
+profile alongside the bootstrap cadence checks. It packs each first-party
+artifact once, restores the generated API from an isolated feed, runs the
+generated TUnit consumer and JIT/OpenAPI probes, publishes and probes the
+declared Native AOT artifact, and writes content-addressed candidate evidence.
+The profile remains persistence-free, provider-free, and claim-free.
 
 ## Quality Gate model
 
