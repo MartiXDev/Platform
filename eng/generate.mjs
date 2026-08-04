@@ -11,28 +11,40 @@ import {
 } from "./modular-monolith-preset.mjs";
 import { runModularMonolithCli } from "./generate-modular-monolith.mjs";
 
+const PRESET_HANDLERS = new Map([
+  [
+    "api",
+    {
+      createPlan: createApiPresetPlan,
+      generate: generateApiPreset,
+    },
+  ],
+  [
+    "modular-monolith",
+    {
+      createPlan: createModularMonolithPresetPlan,
+      generate: generateModularMonolithPreset,
+    },
+  ],
+]);
+
+function getPresetHandler(preset) {
+  const handler = PRESET_HANDLERS.get(preset);
+  if (handler === undefined) {
+    throw new Error(`Unsupported Template System preset: ${preset}.`);
+  }
+
+  return handler;
+}
+
 export function createPresetPlan(options = {}) {
   const preset = options.preset ?? "api";
-  switch (preset) {
-    case "api":
-      return createApiPresetPlan(options);
-    case "modular-monolith":
-      return createModularMonolithPresetPlan(options);
-    default:
-      throw new Error(`Unsupported Template System preset: ${preset}.`);
-  }
+  return getPresetHandler(preset).createPlan(options);
 }
 
 export async function generatePreset(options = {}) {
   const preset = options.preset ?? "api";
-  switch (preset) {
-    case "api":
-      return generateApiPreset(options);
-    case "modular-monolith":
-      return generateModularMonolithPreset(options);
-    default:
-      throw new Error(`Unsupported Template System preset: ${preset}.`);
-  }
+  return getPresetHandler(preset).generate(options);
 }
 
 function readPreset(argumentsList) {

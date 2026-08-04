@@ -1,7 +1,9 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { listFiles } from "./list-files.mjs";
+import { findDependencyCycle } from "./module-graph.mjs";
 
 const CADENCES = [
   "fast",
@@ -392,54 +394,15 @@ function validateModularMonolithManifest(manifest, path) {
     dependencies.set(module.name, providers);
   }
 
-  const states = new Map([...moduleNames].map((name) => [name, "unvisited"]));
-  const pathStack = [];
-  const visit = (moduleName) => {
-    const state = states.get(moduleName);
-    if (state === "visiting") {
-      const cycleStart = pathStack.indexOf(moduleName);
-      fail(
-        `Business Module dependency graph must be acyclic: ${[
-          ...pathStack.slice(cycleStart),
-          moduleName,
-        ].join(" -> ")}.`,
-      );
-    }
-    if (state === "visited") {
-      return;
-    }
-    states.set(moduleName, "visiting");
-    pathStack.push(moduleName);
-    for (const provider of dependencies.get(moduleName)) {
-      visit(provider);
-    }
-    pathStack.pop();
-    states.set(moduleName, "visited");
-  };
-  for (const moduleName of moduleNames) {
-    visit(moduleName);
+  const cycle = findDependencyCycle(
+    [...moduleNames],
+    (moduleName) => dependencies.get(moduleName),
+  );
+  if (cycle !== null) {
+    fail(
+      `Business Module dependency graph must be acyclic: ${cycle.join(" -> ")}.`,
+    );
   }
-}
-
-async function listFiles(rootDir) {
-  const files = [];
-
-  async function visit(directory, relativeDirectory = "") {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const relativePath = relativeDirectory
-        ? `${relativeDirectory}/${entry.name}`
-        : entry.name;
-      const absolutePath = resolve(directory, entry.name);
-      if (entry.isDirectory()) {
-        await visit(absolutePath, relativePath);
-      } else {
-        files.push(relativePath);
-      }
-    }
-  }
-
-  await visit(rootDir);
-  return files.sort();
 }
 
 function modularMonolithExpectedFiles(manifest) {

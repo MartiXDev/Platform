@@ -4,6 +4,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
+import { findDependencyCycle } from "./module-graph.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -400,31 +401,12 @@ function findModule(modules, requestedName) {
 }
 
 function assertAcyclicModuleGraph(dependencies, modules) {
-  const states = new Map(modules.map((moduleName) => [moduleName, "unvisited"]));
-  const path = [];
-
-  function visit(moduleName) {
-    const state = states.get(moduleName);
-    if (state === "visiting") {
-      const cycleStart = path.indexOf(moduleName);
-      const cycle = [...path.slice(cycleStart), moduleName].join(" -> ");
-      fail(`Business Module dependency graph must be acyclic: ${cycle}.`);
-    }
-    if (state === "visited") {
-      return;
-    }
-
-    states.set(moduleName, "visiting");
-    path.push(moduleName);
-    for (const provider of dependencies[moduleName]) {
-      visit(provider);
-    }
-    path.pop();
-    states.set(moduleName, "visited");
-  }
-
-  for (const moduleName of modules) {
-    visit(moduleName);
+  const cycle = findDependencyCycle(
+    modules,
+    (moduleName) => dependencies[moduleName],
+  );
+  if (cycle !== null) {
+    fail(`Business Module dependency graph must be acyclic: ${cycle.join(" -> ")}.`);
   }
 }
 

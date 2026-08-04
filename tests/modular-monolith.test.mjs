@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import {
   mkdtemp,
   readFile,
-  readdir,
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,30 +14,10 @@ import {
   generateModularMonolithPreset,
 } from "../eng/modular-monolith-preset.mjs";
 import { runModularMonolithCli } from "../eng/generate-modular-monolith.mjs";
+import { listFiles } from "../eng/list-files.mjs";
 
 async function createTemporaryDirectory(prefix = "martix-modular-monolith-") {
   return mkdtemp(join(tmpdir(), prefix));
-}
-
-async function listFiles(root) {
-  const files = [];
-
-  async function visit(directory, relativeDirectory = "") {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const relativePath = relativeDirectory
-        ? join(relativeDirectory, entry.name)
-        : entry.name;
-      const absolutePath = join(directory, entry.name);
-      if (entry.isDirectory()) {
-        await visit(absolutePath, relativePath);
-      } else {
-        files.push(relativePath.replaceAll("\\", "/"));
-      }
-    }
-  }
-
-  await visit(root);
-  return files.sort();
 }
 
 test("the modular monolith preset requires a genuine Business Module", () => {
