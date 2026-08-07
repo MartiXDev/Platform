@@ -238,11 +238,23 @@ function requireNonEmptyString(value, label) {
   return value.trim();
 }
 
+function rejectCSharpKeyword(value, label) {
+  if (CSHARP_KEYWORDS.has(value.toLowerCase())) {
+    fail(`${label} cannot be a C# keyword.`);
+  }
+}
+
 function normalizeApplicationName(value) {
   const applicationName = requireNonEmptyString(value, "An application name");
   if (!APPLICATION_NAME_PATTERN.test(applicationName)) {
     fail(
       "The application name must contain only dot-separated .NET identifier segments.",
+    );
+  }
+  for (const segment of applicationName.split(".")) {
+    rejectCSharpKeyword(
+      segment,
+      `The application name segment "${segment}"`,
     );
   }
 
@@ -256,9 +268,7 @@ function normalizeModuleName(value, label) {
       `${label} must be one .NET identifier segment without dots or separators.`,
     );
   }
-  if (CSHARP_KEYWORDS.has(moduleName.toLowerCase())) {
-    fail(`${label} cannot be a C# keyword.`);
-  }
+  rejectCSharpKeyword(moduleName, label);
   if (PLACEHOLDER_MODULE_NAMES.has(moduleName.toLowerCase())) {
     fail(`${label} "${moduleName}" is a placeholder and cannot be generated.`);
   }

@@ -436,6 +436,275 @@ function modularMonolithExpectedFiles(manifest) {
   return files.sort();
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractProjectReferences(projectSource) {
+  return [
+    ...projectSource.matchAll(
+      /<ProjectReference\b[^>]*\bInclude="([^"]+)"[^>]*\/?>/g,
+    ),
+  ].map((match) => match[1].replaceAll("\\", "/"));
+}
+
+function validateProjectReferences(projectSource, expected, path) {
+  const actualReferences = extractProjectReferences(projectSource).sort();
+  const expectedReferences = [...expected].sort();
+  if (JSON.stringify(actualReferences) !== JSON.stringify(expectedReferences)) {
+    fail(
+      `Invalid Modular Monolith project references at ${path}: expected ${
+        expectedReferences.join(", ") || "none"
+      }; received ${actualReferences.join(", ") || "none"}.`,
+    );
+  }
+}
+
+function validateExecutableProject(projectSource, path, label) {
+  if (!/<OutputType>\s*Exe\s*<\/OutputType>/.test(projectSource)) {
+    fail(`${label} project must be an executable: ${path}.`);
+  }
+}
+
+function moduleProjectName(manifest, module, path) {
+  const projectPrefix = "src/";
+  if (!module.project.startsWith(projectPrefix)) {
+    fail(
+      `Invalid Modular Monolith module project at ${path}.project: expected a src/ path.`,
+    );
+  }
+
+  const projectName = module.project.slice(projectPrefix.length);
+  const expectedProjectName = `${manifest.repository.name}.${module.name}`;
+  if (projectName !== expectedProjectName || projectName.includes("/")) {
+    fail(
+      `Invalid Modular Monolith module project at ${path}.project: expected ${expectedProjectName}.`,
+    );
+  }
+
+  if (module.contractsNamespace !== `${projectName}.Contracts`) {
+    fail(
+      `Invalid Modular Monolith Contracts namespace at ${path}.contractsNamespace: expected ${projectName}.Contracts.`,
+    );
+  }
+
+  return projectName;
+}
+
+function validateContractsOnlyReferences(module, modules, source) {
+  for (const provider of modules) {
+    if (provider.name === module.name) {
+      continue;
+    }
+
+    const providerNamespace = provider.project.slice("src/".length);
+    const namespacePattern = new RegExp(
+      `\\b${escapeRegExp(providerNamespace)}(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?![A-Za-z0-9_])`,
+      "g",
+    );
+    const allowedNamespace = module.dependencies.includes(provider.name)
+      ? provider.contractsNamespace
+      : null;
+
+    for (const match of source.matchAll(namespacePattern)) {
+      const reference = match[0];
+      const referencesAllowedNamespace =
+        allowedNamespace !== null &&
+        (reference === allowedNamespace ||
+          reference.startsWith(`${allowedNamespace}.`));
+      if (!referencesAllowedNamespace) {
+        fail(
+          `Business Module ${module.name} may consume only another module's Contracts namespace; found ${reference} in its source.`,
+        );
+      }
+    }
+  }
+}
+
+async function validateModularMonolithComposition(
+  solutionRoot,
+  actualFiles,
+  manifest,
+) {
+  const applicationName = manifest.repository.name;
+  const modules = manifest.modules;
+  const moduleProjectNames = new Map();
+  for (const [index, module] of modules.entries()) {
+    moduleProjectNames.set(
+      module.name,
+      moduleProjectName(
+        manifest,
+        module,
+        `modular-monolith.modules[${index}]`,
+      ),
+    );
+  }
+
+  const readSolutionFile = (relativePath) =>
+    readFile(resolve(solutionRoot, relativePath), "utf8");
+  const moduleProjectReference = (projectName) =>
+    `../${projectName}/${projectName}.csproj`;
+  const allModuleProjectReferences = modules.map(({ name }) =>
+    moduleProjectReference(moduleProjectNames.get(name)),
+  );
+  const dependencyProjectReferences = (module) =>
+    module.dependencies.map(
+      (dependency) =>
+        moduleProjectReference(moduleProjectNames.get(dependency)),
+    );
+
+  const apiProjectPath = `src/${applicationName}.Api/${applicationName}.Api.csproj`;
+  const apiProject = await readSolutionFile(apiProjectPath);
+  validateProjectReferences(
+    apiProject,
+    allModuleProjectReferences,
+    apiProjectPath,
+  );
+  validateExecutableProject(apiProject, apiProjectPath, "Modular Monolith API");
+  const apiSource = await readSolutionFile(
+    `src/${applicationName}.Api/Program.cs`,
+  );
+  for (const module of modules) {
+    if (!apiSource.includes(`${module.name}Module.AddServices(services);`)) {
+      fail(
+        `API composition is missing ${module.name}Module.AddServices(services).`,
+      );
+    }
+    if (!apiSource.includes(`${module.name}Module.MapEndpoints(app);`)) {
+      fail(
+        `API composition is missing ${module.name}Module.MapEndpoints(app).`,
+      );
+    }
+  }
+
+  const migratorProjectPath = `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`;
+  const migratorProject = await readSolutionFile(migratorProjectPath);
+  validateProjectReferences(
+    migratorProject,
+    allModuleProjectReferences,
+    migratorProjectPath,
+  );
+  validateExecutableProject(
+    migratorProject,
+    migratorProjectPath,
+    "Modular Monolith Migrator",
+  );
+  const migratorSource = await readSolutionFile(
+    `src/${applicationName}.Migrator/Program.cs`,
+  );
+  for (const module of modules) {
+    if (!migratorSource.includes(`${module.name}Module.MigrationIdentity,`)) {
+      fail(
+        `Migrator composition is missing ${module.name}Module.MigrationIdentity.`,
+      );
+    }
+  }
+
+  const testProjectPath = `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`;
+  const testProject = await readSolutionFile(testProjectPath);
+  validateProjectReferences(
+    testProject,
+    [
+      `../../src/${applicationName}.Api/${applicationName}.Api.csproj`,
+      `../../src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
+      ...modules.map(
+        (module) =>
+          `../../${module.project}/${moduleProjectNames.get(module.name)}.csproj`,
+      ),
+    ],
+    testProjectPath,
+  );
+  validateExecutableProject(
+    testProject,
+    testProjectPath,
+    "Modular Monolith test",
+  );
+  if (!/<PackageReference\b[^>]*\bInclude="TUnit"/.test(testProject)) {
+    fail(`Modular Monolith test project must reference TUnit: ${testProjectPath}.`);
+  }
+  const testSource = await readSolutionFile(
+    `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
+  );
+  if (!/\[Test\]/.test(testSource) || !/await\s+Assert\.That/.test(testSource)) {
+    fail(
+      "Modular Monolith acceptance tests must use TUnit tests with awaited assertions.",
+    );
+  }
+
+  for (const module of modules) {
+    const projectName = moduleProjectNames.get(module.name);
+    const projectPath = `${module.project}/${projectName}.csproj`;
+    const project = await readSolutionFile(projectPath);
+    validateProjectReferences(
+      project,
+      dependencyProjectReferences(module),
+      projectPath,
+    );
+
+    const sourcePaths = actualFiles.filter(
+      (file) => file.startsWith(`${module.project}/`) && file.endsWith(".cs"),
+    );
+    const source = (
+      await Promise.all(sourcePaths.map((file) => readSolutionFile(file)))
+    ).join("\n");
+    validateContractsOnlyReferences(module, modules, source);
+
+    const contractsPath = `${module.project}/Contracts/ModuleContracts/I${module.name}Status.cs`;
+    const contractsSource = await readSolutionFile(contractsPath);
+    if (
+      !new RegExp(
+        `namespace\\s+${escapeRegExp(
+          module.contractsNamespace,
+        )}\\.ModuleContracts\\s*;`,
+      ).test(contractsSource)
+    ) {
+      fail(
+        `Business Module ${module.name} must declare its public Contracts namespace in ${contractsPath}.`,
+      );
+    }
+
+    const compositionPath = `${module.project}/${module.name}Module.cs`;
+    const compositionSource = await readSolutionFile(compositionPath);
+    if (
+      !new RegExp(
+        `public\\s+static\\s+class\\s+${escapeRegExp(module.name)}Module`,
+      ).test(compositionSource) ||
+      !/AddServices\s*\(/.test(compositionSource) ||
+      !/MapEndpoints\s*\(/.test(compositionSource)
+    ) {
+      fail(
+        `Business Module ${module.name} must expose explicit composition in ${compositionPath}.`,
+      );
+    }
+
+    const domainSource = await readSolutionFile(
+      `${module.project}/Domain/${module.name}Aggregate.cs`,
+    );
+    const featureSource = await readSolutionFile(
+      `${module.project}/Features/Status/${module.name}Status.cs`,
+    );
+    if (
+      !new RegExp(
+        `internal\\s+sealed\\s+class\\s+${escapeRegExp(module.name)}Aggregate`,
+      ).test(domainSource) ||
+      !new RegExp(
+        `internal\\s+sealed\\s+class\\s+${escapeRegExp(
+          module.name,
+        )}StatusOperation`,
+      ).test(featureSource) ||
+      !new RegExp(
+        `internal\\s+static\\s+class\\s+${escapeRegExp(
+          module.name,
+        )}StatusEndpoint`,
+      ).test(featureSource)
+    ) {
+      fail(
+        `Business Module ${module.name} must keep Domain and feature slices internal.`,
+      );
+    }
+  }
+}
+
 async function validateModularMonolithSolution(rootDir, manifest) {
   const solutionRoot = resolve(rootDir, MODULAR_MONOLITH_SOLUTION_ROOT);
   const actualFiles = await listFiles(solutionRoot);
@@ -465,6 +734,8 @@ async function validateModularMonolithSolution(rootDir, manifest) {
       "Modular Monolith Generated Solution contains discovery, mediator, shared-contract, or incompatible test-runner residue.",
     );
   }
+
+  await validateModularMonolithComposition(solutionRoot, actualFiles, manifest);
 }
 
 function validateQualityGatePolicy(policy) {
