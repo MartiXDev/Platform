@@ -31,6 +31,15 @@ async function createTemporaryBootstrapRoot() {
   return temporaryRoot;
 }
 
+async function withTemporaryBootstrapRoot(callback) {
+  const temporaryRoot = await createTemporaryBootstrapRoot();
+  try {
+    return await callback(temporaryRoot);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
 function modularMonolithFixturePath(rootDir, ...segments) {
   return join(
     rootDir,
@@ -76,8 +85,7 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
 });
 
 test("modular monolith verification rejects cross-module implementation references", async () => {
-  const temporaryRoot = await createTemporaryBootstrapRoot();
-  try {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const billingFeaturePath = modularMonolithFixturePath(
       temporaryRoot,
       "src",
@@ -96,14 +104,11 @@ test("modular monolith verification rejects cross-module implementation referenc
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /may consume only .*Contracts/i,
     );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
+  });
 });
 
 test("modular monolith verification rejects undeclared cross-module references", async () => {
-  const temporaryRoot = await createTemporaryBootstrapRoot();
-  try {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const ordersFeaturePath = modularMonolithFixturePath(
       temporaryRoot,
       "src",
@@ -122,14 +127,11 @@ test("modular monolith verification rejects undeclared cross-module references",
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /may consume only .*Contracts/i,
     );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
+  });
 });
 
 test("modular monolith verification requires public module Contracts", async () => {
-  const temporaryRoot = await createTemporaryBootstrapRoot();
-  try {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const contractsPath = modularMonolithFixturePath(
       temporaryRoot,
       "src",
@@ -148,14 +150,35 @@ test("modular monolith verification requires public module Contracts", async () 
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /must expose public Contracts declarations/i,
     );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
+  });
+});
+
+test("modular monolith verification requires public module composition members", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const compositionPath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Billing",
+      "BillingModule.cs",
+    );
+    const composition = await readFile(compositionPath, "utf8");
+    await writeFile(
+      compositionPath,
+      composition.replace(
+        "public static void AddServices",
+        "internal static void AddServices",
+      ),
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /must expose explicit composition/i,
+    );
+  });
 });
 
 test("modular monolith verification restricts module test visibility", async () => {
-  const temporaryRoot = await createTemporaryBootstrapRoot();
-  try {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const projectPath = modularMonolithFixturePath(
       temporaryRoot,
       "src",
@@ -169,7 +192,7 @@ test("modular monolith verification restricts module test visibility", async () 
         '<InternalsVisibleTo Include="MartiX.TemplateTestApp.Tests" />',
         [
           '<InternalsVisibleTo Include="MartiX.TemplateTestApp.Tests" />',
-          '<InternalsVisibleTo Include="Unexpected.Consumer" />',
+          "<InternalsVisibleTo Include='Unexpected.Consumer' />",
         ].join("\n    "),
       ),
     );
@@ -178,14 +201,11 @@ test("modular monolith verification restricts module test visibility", async () 
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /test visibility/i,
     );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
+  });
 });
 
 test("modular monolith verification keeps non-Contracts types internal", async () => {
-  const temporaryRoot = await createTemporaryBootstrapRoot();
-  try {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const featurePath = modularMonolithFixturePath(
       temporaryRoot,
       "src",
@@ -204,9 +224,7 @@ test("modular monolith verification keeps non-Contracts types internal", async (
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /must keep non-Contracts types internal/i,
     );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
+  });
 });
 
 test("modular monolith verification requires executable API and Migrator projects", async () => {

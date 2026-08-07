@@ -17,6 +17,11 @@ const GENERATED_SOLUTION_ROOT = `tests/fixtures/${GENERATED_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_SOLUTION_NAME = "ModularMonolithGeneratedSolution";
 const MODULAR_MONOLITH_SOLUTION_ROOT =
   `tests/fixtures/${MODULAR_MONOLITH_SOLUTION_NAME}`;
+const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
+  "AddServices",
+  "MapEndpoints",
+  "MigrationIdentity",
+];
 const MANIFEST_PRESETS = new Set(["api", "modular-monolith", "full-stack"]);
 const BOOTSTRAP_GATE_IDS = [
   "bootstrap.manifest",
@@ -440,44 +445,56 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function extractMsbuildItemIncludes(projectSource, itemName) {
+  const itemPattern = new RegExp(
+    `<${escapeRegExp(
+      itemName,
+    )}\\b[^>]*\\bInclude\\s*=\\s*(?:"([^"]+)"|'([^']+)')[^>]*\\/?>`,
+    "g",
+  );
+  return [...projectSource.matchAll(itemPattern)].map(
+    (match) => match[1] ?? match[2],
+  );
+}
+
 function extractProjectReferences(projectSource) {
-  return [
-    ...projectSource.matchAll(
-      /<ProjectReference\b[^>]*\bInclude="([^"]+)"[^>]*\/?>/g,
-    ),
-  ].map((match) => match[1].replaceAll("\\", "/"));
+  return extractMsbuildItemIncludes(projectSource, "ProjectReference").map(
+    (reference) => reference.replaceAll("\\", "/"),
+  );
+}
+
+function validateExactValues(actual, expected, path, description) {
+  const actualValues = [...actual].sort();
+  const expectedValues = [...expected].sort();
+  if (JSON.stringify(actualValues) !== JSON.stringify(expectedValues)) {
+    fail(
+      `Invalid Modular Monolith ${description} at ${path}: expected ${
+        expectedValues.join(", ") || "none"
+      }; received ${actualValues.join(", ") || "none"}.`,
+    );
+  }
 }
 
 function validateProjectReferences(projectSource, expected, path) {
-  const actualReferences = extractProjectReferences(projectSource).sort();
-  const expectedReferences = [...expected].sort();
-  if (JSON.stringify(actualReferences) !== JSON.stringify(expectedReferences)) {
-    fail(
-      `Invalid Modular Monolith project references at ${path}: expected ${
-        expectedReferences.join(", ") || "none"
-      }; received ${actualReferences.join(", ") || "none"}.`,
-    );
-  }
+  validateExactValues(
+    extractProjectReferences(projectSource),
+    expected,
+    path,
+    "project references",
+  );
 }
 
 function extractInternalsVisibleTo(projectSource) {
-  return [
-    ...projectSource.matchAll(
-      /<InternalsVisibleTo\b[^>]*\bInclude\s*=\s*"([^"]+)"[^>]*\/?>/g,
-    ),
-  ].map((match) => match[1]);
+  return extractMsbuildItemIncludes(projectSource, "InternalsVisibleTo");
 }
 
 function validateInternalsVisibleTo(projectSource, expected, path) {
-  const actual = extractInternalsVisibleTo(projectSource).sort();
-  const required = [...expected].sort();
-  if (JSON.stringify(actual) !== JSON.stringify(required)) {
-    fail(
-      `Invalid Modular Monolith test visibility at ${path}: expected ${
-        required.join(", ") || "none"
-      }; received ${actual.join(", ") || "none"}.`,
-    );
-  }
+  validateExactValues(
+    extractInternalsVisibleTo(projectSource),
+    expected,
+    path,
+    "test visibility",
+  );
 }
 
 function extractPublicTypeNames(source) {
@@ -495,15 +512,23 @@ function validatePublicContracts(module, contractsSource, path) {
   const expectedDeclarations = [
     `I${module.name}Status`,
     `${module.name}StatusResponse`,
-  ];
+  ].sort();
   if (
     JSON.stringify(actualDeclarations) !==
-    JSON.stringify(expectedDeclarations.sort())
+    JSON.stringify(expectedDeclarations)
   ) {
     fail(
       `Business Module ${module.name} must expose public Contracts declarations in ${path}.`,
     );
   }
+}
+
+function hasPublicStaticMember(source, memberName) {
+  return new RegExp(
+    `\\bpublic\\s+static\\b[^;{}\\r\\n]*\\b${escapeRegExp(
+      memberName,
+    )}\\s*(?:\\(|\\{|=>|=)`,
+  ).test(source);
 }
 
 function validateInternalModuleSource(module, source, path) {
@@ -732,8 +757,9 @@ async function validateModularMonolithComposition(
       !new RegExp(
         `public\\s+static\\s+class\\s+${escapeRegExp(module.name)}Module`,
       ).test(compositionSource) ||
-      !/AddServices\s*\(/.test(compositionSource) ||
-      !/MapEndpoints\s*\(/.test(compositionSource)
+      !MODULAR_MONOLITH_COMPOSITION_MEMBERS.every((member) =>
+        hasPublicStaticMember(compositionSource, member),
+      )
     ) {
       fail(
         `Business Module ${module.name} must expose explicit composition in ${compositionPath}.`,
