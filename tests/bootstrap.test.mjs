@@ -64,6 +64,31 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
 });
 
+test("modular monolith verification rejects cross-module implementation references", async () => {
+  const temporaryRoot = await createTemporaryBootstrapRoot();
+  const billingFeaturePath = join(
+    temporaryRoot,
+    "tests",
+    "fixtures",
+    "ModularMonolithGeneratedSolution",
+    "src",
+    "MartiX.TemplateTestApp.Billing",
+    "Features",
+    "Status",
+    "BillingStatus.cs",
+  );
+  const billingFeature = await readFile(billingFeaturePath, "utf8");
+  await writeFile(
+    billingFeaturePath,
+    `${billingFeature}\nusing MartiX.TemplateTestApp.Orders.Domain;\n`,
+  );
+
+  await assert.rejects(
+    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+    /may consume only .*Contracts/i,
+  );
+});
+
 test("unknown verification cadences fail before reading repository inputs", async () => {
   await assert.rejects(
     () => verifyBootstrap({ cadence: "unsupported", rootDir: repositoryRoot }),

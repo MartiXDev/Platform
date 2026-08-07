@@ -151,6 +151,13 @@ test("invalid module identity, provider, and graph selections fail before writin
       ],
       [
         {
+          applicationName: "Class.App",
+          businessModules: ["Orders"],
+        },
+        /C# keyword/i,
+      ],
+      [
+        {
           applicationName: "MartiX.Planner",
           businessModules: ["Orders", "Billing"],
           moduleDependencies: { Orders: ["Billing"], Billing: ["Orders"] },

@@ -245,6 +245,11 @@ function normalizeApplicationName(value) {
       "The application name must contain only dot-separated .NET identifier segments.",
     );
   }
+  for (const segment of applicationName.split(".")) {
+    if (CSHARP_KEYWORDS.has(segment.toLowerCase())) {
+      fail(`The application name segment "${segment}" cannot be a C# keyword.`);
+    }
+  }
 
   return applicationName;
 }
