@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  rm,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +29,16 @@ async function createTemporaryBootstrapRoot() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-platform-"));
   await copyBootstrapInputs(temporaryRoot);
   return temporaryRoot;
+}
+
+function modularMonolithFixturePath(rootDir, ...segments) {
+  return join(
+    rootDir,
+    "tests",
+    "fixtures",
+    "ModularMonolithGeneratedSolution",
+    ...segments,
+  );
 }
 
 test("fast cadence verifies the repository bootstrap contract", async () => {
@@ -66,27 +77,100 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
 
 test("modular monolith verification rejects cross-module implementation references", async () => {
   const temporaryRoot = await createTemporaryBootstrapRoot();
-  const billingFeaturePath = join(
-    temporaryRoot,
-    "tests",
-    "fixtures",
-    "ModularMonolithGeneratedSolution",
-    "src",
-    "MartiX.TemplateTestApp.Billing",
-    "Features",
-    "Status",
-    "BillingStatus.cs",
-  );
-  const billingFeature = await readFile(billingFeaturePath, "utf8");
-  await writeFile(
-    billingFeaturePath,
-    `${billingFeature}\nusing MartiX.TemplateTestApp.Orders.Domain;\n`,
-  );
+  try {
+    const billingFeaturePath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Billing",
+      "Features",
+      "Status",
+      "BillingStatus.cs",
+    );
+    const billingFeature = await readFile(billingFeaturePath, "utf8");
+    await writeFile(
+      billingFeaturePath,
+      `${billingFeature}\nusing MartiX.TemplateTestApp.Orders.Domain;\n`,
+    );
 
-  await assert.rejects(
-    () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
-    /may consume only .*Contracts/i,
-  );
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /may consume only .*Contracts/i,
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("modular monolith verification rejects undeclared cross-module references", async () => {
+  const temporaryRoot = await createTemporaryBootstrapRoot();
+  try {
+    const ordersFeaturePath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Orders",
+      "Features",
+      "Status",
+      "OrdersStatus.cs",
+    );
+    const ordersFeature = await readFile(ordersFeaturePath, "utf8");
+    await writeFile(
+      ordersFeaturePath,
+      `${ordersFeature}\nusing MartiX.TemplateTestApp.Billing.Domain;\n`,
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /may consume only .*Contracts/i,
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("modular monolith verification requires executable API and Migrator projects", async () => {
+  const projects = [
+    {
+      path: [
+        "src",
+        "MartiX.TemplateTestApp.Api",
+        "MartiX.TemplateTestApp.Api.csproj",
+      ],
+      error: /Modular Monolith API project must be an executable/i,
+    },
+    {
+      path: [
+        "src",
+        "MartiX.TemplateTestApp.Migrator",
+        "MartiX.TemplateTestApp.Migrator.csproj",
+      ],
+      error: /Modular Monolith Migrator project must be an executable/i,
+    },
+  ];
+
+  for (const { path: relativePath, error } of projects) {
+    const temporaryRoot = await createTemporaryBootstrapRoot();
+    try {
+      const projectPath = modularMonolithFixturePath(
+        temporaryRoot,
+        ...relativePath,
+      );
+      const project = await readFile(projectPath, "utf8");
+      await writeFile(
+        projectPath,
+        project.replace(
+          /<OutputType>\s*Exe\s*<\/OutputType>/,
+          "<OutputType>Library</OutputType>",
+        ),
+      );
+
+      await assert.rejects(
+        () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+        error,
+      );
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
 });
 
 test("unknown verification cadences fail before reading repository inputs", async () => {

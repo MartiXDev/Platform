@@ -460,6 +460,12 @@ function validateProjectReferences(projectSource, expected, path) {
   }
 }
 
+function validateExecutableProject(projectSource, path, label) {
+  if (!/<OutputType>\s*Exe\s*<\/OutputType>/.test(projectSource)) {
+    fail(`${label} project must be an executable: ${path}.`);
+  }
+}
+
 function moduleProjectName(manifest, module, path) {
   const projectPrefix = "src/";
   if (!module.project.startsWith(projectPrefix)) {
@@ -485,22 +491,32 @@ function moduleProjectName(manifest, module, path) {
   return projectName;
 }
 
-function validateContractsOnlyReferences(module, provider, source) {
-  const providerNamespace = provider.project.slice("src/".length);
-  const namespacePattern = new RegExp(
-    `\\b${escapeRegExp(providerNamespace)}(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?![A-Za-z0-9_])`,
-    "g",
-  );
-  const allowedNamespace = provider.contractsNamespace;
-  for (const match of source.matchAll(namespacePattern)) {
-    const reference = match[0];
-    if (
-      reference !== allowedNamespace &&
-      !reference.startsWith(`${allowedNamespace}.`)
-    ) {
-      fail(
-        `Business Module ${module.name} may consume only another module's Contracts namespace; found ${reference} in its source.`,
-      );
+function validateContractsOnlyReferences(module, modules, source) {
+  for (const provider of modules) {
+    if (provider.name === module.name) {
+      continue;
+    }
+
+    const providerNamespace = provider.project.slice("src/".length);
+    const namespacePattern = new RegExp(
+      `\\b${escapeRegExp(providerNamespace)}(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?![A-Za-z0-9_])`,
+      "g",
+    );
+    const allowedNamespace = module.dependencies.includes(provider.name)
+      ? provider.contractsNamespace
+      : null;
+
+    for (const match of source.matchAll(namespacePattern)) {
+      const reference = match[0];
+      const referencesAllowedNamespace =
+        allowedNamespace !== null &&
+        (reference === allowedNamespace ||
+          reference.startsWith(`${allowedNamespace}.`));
+      if (!referencesAllowedNamespace) {
+        fail(
+          `Business Module ${module.name} may consume only another module's Contracts namespace; found ${reference} in its source.`,
+        );
+      }
     }
   }
 }
@@ -526,27 +542,25 @@ async function validateModularMonolithComposition(
 
   const readSolutionFile = (relativePath) =>
     readFile(resolve(solutionRoot, relativePath), "utf8");
-  const moduleByName = new Map(modules.map((module) => [module.name, module]));
-  const moduleReferences = (module) =>
+  const moduleProjectReference = (projectName) =>
+    `../${projectName}/${projectName}.csproj`;
+  const allModuleProjectReferences = modules.map(({ name }) =>
+    moduleProjectReference(moduleProjectNames.get(name)),
+  );
+  const dependencyProjectReferences = (module) =>
     module.dependencies.map(
       (dependency) =>
-        `../${moduleProjectNames.get(dependency)}/${moduleProjectNames.get(
-          dependency,
-        )}.csproj`,
+        moduleProjectReference(moduleProjectNames.get(dependency)),
     );
 
   const apiProjectPath = `src/${applicationName}.Api/${applicationName}.Api.csproj`;
   const apiProject = await readSolutionFile(apiProjectPath);
   validateProjectReferences(
     apiProject,
-    modules.map(
-      (module) =>
-        `../${moduleProjectNames.get(module.name)}/${moduleProjectNames.get(
-          module.name,
-        )}.csproj`,
-    ),
+    allModuleProjectReferences,
     apiProjectPath,
   );
+  validateExecutableProject(apiProject, apiProjectPath, "Modular Monolith API");
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
   );
@@ -567,13 +581,13 @@ async function validateModularMonolithComposition(
   const migratorProject = await readSolutionFile(migratorProjectPath);
   validateProjectReferences(
     migratorProject,
-    modules.map(
-      (module) =>
-        `../${moduleProjectNames.get(module.name)}/${moduleProjectNames.get(
-          module.name,
-        )}.csproj`,
-    ),
+    allModuleProjectReferences,
     migratorProjectPath,
+  );
+  validateExecutableProject(
+    migratorProject,
+    migratorProjectPath,
+    "Modular Monolith Migrator",
   );
   const migratorSource = await readSolutionFile(
     `src/${applicationName}.Migrator/Program.cs`,
@@ -600,9 +614,11 @@ async function validateModularMonolithComposition(
     ],
     testProjectPath,
   );
-  if (!/<OutputType>\s*Exe\s*<\/OutputType>/.test(testProject)) {
-    fail(`Modular Monolith test project must be an executable: ${testProjectPath}.`);
-  }
+  validateExecutableProject(
+    testProject,
+    testProjectPath,
+    "Modular Monolith test",
+  );
   if (!/<PackageReference\b[^>]*\bInclude="TUnit"/.test(testProject)) {
     fail(`Modular Monolith test project must reference TUnit: ${testProjectPath}.`);
   }
@@ -619,7 +635,11 @@ async function validateModularMonolithComposition(
     const projectName = moduleProjectNames.get(module.name);
     const projectPath = `${module.project}/${projectName}.csproj`;
     const project = await readSolutionFile(projectPath);
-    validateProjectReferences(project, moduleReferences(module), projectPath);
+    validateProjectReferences(
+      project,
+      dependencyProjectReferences(module),
+      projectPath,
+    );
 
     const sourcePaths = actualFiles.filter(
       (file) => file.startsWith(`${module.project}/`) && file.endsWith(".cs"),
@@ -627,13 +647,7 @@ async function validateModularMonolithComposition(
     const source = (
       await Promise.all(sourcePaths.map((file) => readSolutionFile(file)))
     ).join("\n");
-    for (const providerName of module.dependencies) {
-      validateContractsOnlyReferences(
-        module,
-        moduleByName.get(providerName),
-        source,
-      );
-    }
+    validateContractsOnlyReferences(module, modules, source);
 
     const contractsPath = `${module.project}/Contracts/ModuleContracts/I${module.name}Status.cs`;
     const contractsSource = await readSolutionFile(contractsPath);
