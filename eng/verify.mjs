@@ -460,6 +460,60 @@ function validateProjectReferences(projectSource, expected, path) {
   }
 }
 
+function extractInternalsVisibleTo(projectSource) {
+  return [
+    ...projectSource.matchAll(
+      /<InternalsVisibleTo\b[^>]*\bInclude\s*=\s*"([^"]+)"[^>]*\/?>/g,
+    ),
+  ].map((match) => match[1]);
+}
+
+function validateInternalsVisibleTo(projectSource, expected, path) {
+  const actual = extractInternalsVisibleTo(projectSource).sort();
+  const required = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(required)) {
+    fail(
+      `Invalid Modular Monolith test visibility at ${path}: expected ${
+        required.join(", ") || "none"
+      }; received ${actual.join(", ") || "none"}.`,
+    );
+  }
+}
+
+function extractPublicTypeNames(source) {
+  return [
+    ...source.matchAll(
+      /\bpublic\s+(?:(?:abstract|file|partial|readonly|ref|sealed|static)\s+)*(?:class|delegate|enum|interface|record|struct)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+    ),
+  ]
+    .map((match) => match[1])
+    .sort();
+}
+
+function validatePublicContracts(module, contractsSource, path) {
+  const actualDeclarations = extractPublicTypeNames(contractsSource);
+  const expectedDeclarations = [
+    `I${module.name}Status`,
+    `${module.name}StatusResponse`,
+  ];
+  if (
+    JSON.stringify(actualDeclarations) !==
+    JSON.stringify(expectedDeclarations.sort())
+  ) {
+    fail(
+      `Business Module ${module.name} must expose public Contracts declarations in ${path}.`,
+    );
+  }
+}
+
+function validateInternalModuleSource(module, source, path) {
+  if (extractPublicTypeNames(source).length > 0) {
+    fail(
+      `Business Module ${module.name} must keep non-Contracts types internal: ${path}.`,
+    );
+  }
+}
+
 function validateExecutableProject(projectSource, path, label) {
   if (!/<OutputType>\s*Exe\s*<\/OutputType>/.test(projectSource)) {
     fail(`${label} project must be an executable: ${path}.`);
@@ -561,6 +615,7 @@ async function validateModularMonolithComposition(
     apiProjectPath,
   );
   validateExecutableProject(apiProject, apiProjectPath, "Modular Monolith API");
+  validateInternalsVisibleTo(apiProject, [], apiProjectPath);
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
   );
@@ -589,6 +644,7 @@ async function validateModularMonolithComposition(
     migratorProjectPath,
     "Modular Monolith Migrator",
   );
+  validateInternalsVisibleTo(migratorProject, [], migratorProjectPath);
   const migratorSource = await readSolutionFile(
     `src/${applicationName}.Migrator/Program.cs`,
   );
@@ -619,6 +675,7 @@ async function validateModularMonolithComposition(
     testProjectPath,
     "Modular Monolith test",
   );
+  validateInternalsVisibleTo(testProject, [], testProjectPath);
   if (!/<PackageReference\b[^>]*\bInclude="TUnit"/.test(testProject)) {
     fail(`Modular Monolith test project must reference TUnit: ${testProjectPath}.`);
   }
@@ -638,6 +695,11 @@ async function validateModularMonolithComposition(
     validateProjectReferences(
       project,
       dependencyProjectReferences(module),
+      projectPath,
+    );
+    validateInternalsVisibleTo(
+      project,
+      [`${applicationName}.Tests`],
       projectPath,
     );
 
@@ -662,6 +724,7 @@ async function validateModularMonolithComposition(
         `Business Module ${module.name} must declare its public Contracts namespace in ${contractsPath}.`,
       );
     }
+    validatePublicContracts(module, contractsSource, contractsPath);
 
     const compositionPath = `${module.project}/${module.name}Module.cs`;
     const compositionSource = await readSolutionFile(compositionPath);
@@ -674,6 +737,14 @@ async function validateModularMonolithComposition(
     ) {
       fail(
         `Business Module ${module.name} must expose explicit composition in ${compositionPath}.`,
+      );
+    }
+    if (
+      JSON.stringify(extractPublicTypeNames(compositionSource)) !==
+      JSON.stringify([`${module.name}Module`])
+    ) {
+      fail(
+        `Business Module ${module.name} must keep its composition public surface explicit in ${compositionPath}.`,
       );
     }
 
@@ -702,6 +773,16 @@ async function validateModularMonolithComposition(
         `Business Module ${module.name} must keep Domain and feature slices internal.`,
       );
     }
+    validateInternalModuleSource(
+      module,
+      domainSource,
+      `${module.project}/Domain/${module.name}Aggregate.cs`,
+    );
+    validateInternalModuleSource(
+      module,
+      featureSource,
+      `${module.project}/Features/Status/${module.name}Status.cs`,
+    );
   }
 }
 

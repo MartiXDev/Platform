@@ -127,6 +127,88 @@ test("modular monolith verification rejects undeclared cross-module references",
   }
 });
 
+test("modular monolith verification requires public module Contracts", async () => {
+  const temporaryRoot = await createTemporaryBootstrapRoot();
+  try {
+    const contractsPath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Billing",
+      "Contracts",
+      "ModuleContracts",
+      "IBillingStatus.cs",
+    );
+    const contracts = await readFile(contractsPath, "utf8");
+    await writeFile(
+      contractsPath,
+      contracts.replace("public interface", "internal interface"),
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /must expose public Contracts declarations/i,
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("modular monolith verification restricts module test visibility", async () => {
+  const temporaryRoot = await createTemporaryBootstrapRoot();
+  try {
+    const projectPath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Billing",
+      "MartiX.TemplateTestApp.Billing.csproj",
+    );
+    const project = await readFile(projectPath, "utf8");
+    await writeFile(
+      projectPath,
+      project.replace(
+        '<InternalsVisibleTo Include="MartiX.TemplateTestApp.Tests" />',
+        [
+          '<InternalsVisibleTo Include="MartiX.TemplateTestApp.Tests" />',
+          '<InternalsVisibleTo Include="Unexpected.Consumer" />',
+        ].join("\n    "),
+      ),
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /test visibility/i,
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("modular monolith verification keeps non-Contracts types internal", async () => {
+  const temporaryRoot = await createTemporaryBootstrapRoot();
+  try {
+    const featurePath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Billing",
+      "Features",
+      "Status",
+      "BillingStatus.cs",
+    );
+    const feature = await readFile(featurePath, "utf8");
+    await writeFile(
+      featurePath,
+      `${feature}\npublic sealed class LeakedBillingType { }\n`,
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /must keep non-Contracts types internal/i,
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test("modular monolith verification requires executable API and Migrator projects", async () => {
   const projects = [
     {
