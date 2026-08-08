@@ -47,6 +47,70 @@ public sealed class ModularMonolithCompositionTests
             .IsEqualTo("Billing");
     }
 
+    [Test]
+    public async Task The_generated_host_exposes_minimal_health_and_security_headers()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        foreach (var path in new[] { "/alive", "/ready" })
+        {
+            using var response = await host.Client.GetAsync(path);
+            using var document = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync());
+
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(document.RootElement.GetProperty("status").GetString())
+                .IsEqualTo("ok");
+            await Assert.That(document.RootElement.EnumerateObject().Count())
+                .IsEqualTo(1);
+        }
+
+        using var healthResponse = await host.Client.GetAsync("/health");
+        await Assert.That(
+                healthResponse.Headers.GetValues("X-Content-Type-Options").Single())
+            .IsEqualTo("nosniff");
+        await Assert.That(healthResponse.Headers.Contains("Server")).IsFalse();
+    }
+
+    [Test]
+    public async Task Production_startup_rejects_missing_trust_configuration()
+    {
+        var builder = WebApplication.CreateBuilder(
+            new WebApplicationOptions
+            {
+                EnvironmentName = Environments.Production,
+            });
+        var rejected = false;
+        try
+        {
+            ApiComposition.ConfigureBuilder(builder);
+        }
+        catch (InvalidOperationException)
+        {
+            rejected = true;
+        }
+
+        await Assert.That(rejected).IsTrue();
+    }
+
+    [Test]
+    public async Task Unannotated_endpoints_fail_closed_with_safe_authorization_errors()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync("/test/protected");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(response.Content.Headers.ContentType?.MediaType)
+            .IsEqualTo("application/problem+json");
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+        await Assert.That(document.RootElement.GetProperty("detail").GetString())
+            .IsEqualTo("Authentication is required.");
+    }
+
     [Test, NotInParallel("modular-monolith-alpha-database")]
     public async Task Real_provider_transaction_and_crash_redelivery_are_idempotent()
     {
@@ -273,12 +337,18 @@ public sealed class ModularMonolithCompositionTests
                 Environment.GetEnvironmentVariable(
                     "MARTIX_MODULAR_MONOLITH_DATABASE")
                 ?? "Host=localhost;Database=martix_test";
+            ApiComposition.ConfigureBuilder(builder);
             ApiComposition.ConfigureServices(
                 builder.Services,
-                builder.Configuration);
+                builder.Configuration,
+                builder.Environment);
 
             var app = builder.Build();
             ApiComposition.Configure(app);
+            app.MapGet(
+                    "/test/protected",
+                    static () => Results.Ok(new { Status = "protected" }))
+                .WithName("ConformanceProtected");
             await app.StartAsync();
 
             return new ApiHost(app, app.GetTestClient());

@@ -10,7 +10,7 @@
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
 [`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
 and [`martix.platform.json`](../../martix.platform.json).
-They define four cadences and four required bootstrap gates while keeping
+They define four cadences and five required bootstrap gates while keeping
 `supportClaims` empty:
 
 - `fast`

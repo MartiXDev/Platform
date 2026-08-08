@@ -170,6 +170,7 @@ test("generation writes only the selected API composition and manifest", async (
       "contracts/openapi-v1.json",
       "martix.platform.json",
       "src/Contoso.Inventory.Api/Contoso.Inventory.Api.csproj",
+      "src/Contoso.Inventory.Api/Infrastructure/Host/HostSecurity.cs",
       "src/Contoso.Inventory.Api/Orders/Orders.cs",
       "src/Contoso.Inventory.Api/Program.cs",
       "src/Contoso.Inventory.Client/Contoso.Inventory.Client.cs",
@@ -206,10 +207,48 @@ test("generation writes only the selected API composition and manifest", async (
       "utf8",
     );
     assert.match(apiSource, /using MartiX\.Platform\.Results;/);
+    assert.match(apiSource, /HostSecurity\.ValidateStartup/);
+    assert.match(apiSource, /app\.UseForwardedHeaders\(\)/);
+    assert.match(apiSource, /app\.UseRateLimiter\(\)/);
+    assert.match(apiSource, /app\.UseAuthorization\(\)/);
     assert.match(
       apiSource,
       /\.ProducesMartiXProblemDetails\(ErrorKind\.Unexpected\)/,
     );
+    const hostSource = await readFile(
+      join(
+        firstRoot,
+        "generated",
+        "src",
+        "Contoso.Inventory.Api",
+        "Infrastructure",
+        "Host",
+        "HostSecurity.cs",
+      ),
+      "utf8",
+    );
+    assert.match(hostSource, /RequireAuthenticatedUser/);
+    assert.match(hostSource, /SecurityAuditEvent\.Create/);
+    assert.match(hostSource, /ActivitySource/);
+    assert.match(hostSource, /IMeterFactory/);
+    assert.match(hostSource, /Microsoft\.Extensions\.Compliance\.Classification/);
+    assert.match(hostSource, /Microsoft\.Extensions\.Compliance\.Redaction/);
+    assert.match(hostSource, /ErasingRedactor/);
+    assert.match(hostSource, /AddOpenTelemetry/);
+    assert.match(hostSource, /AddAspNetCoreInstrumentation/);
+    assert.match(hostSource, /AddHttpClientInstrumentation/);
+    assert.match(hostSource, /FixedWindowRateLimiterOptions/);
+    assert.match(hostSource, /CreateChained/);
+    assert.match(hostSource, /MaxRequestHeadersTotalSize/);
+    assert.match(hostSource, /MultipartBodyLengthLimit/);
+    assert.match(hostSource, /AddMeter\(/);
+    assert.match(hostSource, /"System\.Runtime"/);
+    assert.match(hostSource, /SecurityAuditSink : BackgroundService/);
+    assert.match(hostSource, /GetHostAddressesAsync/);
+    assert.match(hostSource, /ConnectCallback/);
+    assert.match(hostSource, /UseProxy = false/);
+    assert.match(hostSource, /application\/problem\+json/);
+    assert.match(hostSource, /KnownProxies/);
     const ordersSource = await readFile(
       join(
         firstRoot,

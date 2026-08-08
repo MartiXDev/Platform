@@ -31,6 +31,14 @@ test("the Kernel candidate retains packed-consumer and artifact evidence", async
     join(repositoryRoot, "tests", "Compatibility", "MartiX.Platform.public-api.txt"),
     "utf8",
   );
+  const actorSnapshot = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "ActorSnapshot.cs"),
+    "utf8",
+  );
+  const auditEvent = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "SecurityAuditEvent.cs"),
+    "utf8",
+  );
 
   assert.equal(packageEvidence.packageId, "MartiX.Platform");
   assert.equal(packageEvidence.targetFramework, "net10.0");
@@ -39,6 +47,11 @@ test("the Kernel candidate retains packed-consumer and artifact evidence", async
   assert.doesNotMatch(project, /<ProjectReference/);
   assert.match(publicApi, /MartiX\.Platform\.Results\.Result<T>/);
   assert.match(publicApi, /MartiX\.Platform\.Results\.ErrorKind/);
+  assert.match(actorSnapshot, /public sealed class ActorSnapshot/);
+  assert.match(actorSnapshot, /public static ActorSnapshot Anonymous\(\)/);
+  assert.match(auditEvent, /SecurityAuditEventId EventId/);
+  assert.match(auditEvent, /SecurityAuditOutcome Outcome/);
+  assert.doesNotMatch(auditEvent, /Dictionary<|IDictionary</);
 });
 
 test("the packed Kernel consumer requires the analyzer build asset", async () => {

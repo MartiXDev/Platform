@@ -55,7 +55,7 @@ tests/
   <name>.Tests/
 ```
 
-Its manifest records the `api` Preset, the six Platform baseline Capabilities,
+Its manifest records the `api` Preset, the fourteen Platform baseline Capabilities,
 the canonical origin, and the Platform and manifest contract versions. The API
 composition root explicitly registers the Kernel adapter, OpenAPI contract,
 exception handling, and health endpoint. The generated test-owned conformance

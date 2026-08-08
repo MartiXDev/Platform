@@ -27,3 +27,61 @@ MartiX.Platform.Results.Result<T>
   bool IsFailure { get; }
   T Value { get; }
   IReadOnlyList<Error> Errors { get; }
+MartiX.Platform.Security.ActorId
+  static ActorId New()
+  static ActorId Create(Guid value)
+  Guid Value { get; }
+MartiX.Platform.Security.ActorKind
+  Anonymous = 0
+  Human = 1
+  Service = 2
+  Background = 3
+MartiX.Platform.Security.ActorSnapshot
+  static ActorSnapshot Create(ActorKind kind, ActorId? id, bool isAuthenticated, string? displayName = null, bool isImpersonating = false)
+  static ActorSnapshot Anonymous()
+  static ActorSnapshot Human(ActorId id, string? displayName = null, bool isImpersonating = false)
+  static ActorSnapshot Service(ActorId id, string? displayName = null)
+  static ActorSnapshot Background(ActorId? id = null, string? displayName = null)
+  ActorKind Kind { get; }
+  ActorId? Id { get; }
+  bool IsAuthenticated { get; }
+  string? DisplayName { get; }
+  bool IsImpersonating { get; }
+MartiX.Platform.Security.SecurityAuditEvent
+  static SecurityAuditEvent Create(string name, int version, DateTimeOffset occurredAtUtc, ActorSnapshot initiatingActor, string action, SecurityAuditOutcome outcome, string source, string? reason = null, SecurityAuditTarget? target = null, ActorSnapshot? effectiveActor = null, SecurityAuditOrigin? origin = null, string? traceIdentity = null, SecurityAuditEventId? eventId = null)
+  SecurityAuditEventId EventId { get; }
+  string Name { get; }
+  int Version { get; }
+  DateTimeOffset OccurredAtUtc { get; }
+  ActorSnapshot InitiatingActor { get; }
+  ActorSnapshot? EffectiveActor { get; }
+  string Action { get; }
+  SecurityAuditTarget? Target { get; }
+  SecurityAuditOutcome Outcome { get; }
+  string? Reason { get; }
+  string Source { get; }
+  SecurityAuditOrigin? Origin { get; }
+  string? TraceIdentity { get; }
+MartiX.Platform.Security.SecurityAuditEventId
+  static SecurityAuditEventId New()
+  static SecurityAuditEventId Create(Guid value)
+  Guid Value { get; }
+MartiX.Platform.Security.SecurityAuditOutcome
+  Succeeded = 0
+  Denied = 1
+  Failed = 2
+MartiX.Platform.Security.SecurityAuditDataClassification
+  Public = 0
+  Internal = 1
+  Personal = 2
+  Confidential = 3
+  Secret = 4
+MartiX.Platform.Security.SecurityAuditTarget
+  static SecurityAuditTarget Create(string resourceType, string identifier, SecurityAuditDataClassification classification = Internal)
+  string ResourceType { get; }
+  string Identifier { get; }
+  SecurityAuditDataClassification Classification { get; }
+MartiX.Platform.Security.SecurityAuditOrigin
+  static SecurityAuditOrigin Create(string channel, SecurityAuditDataClassification classification = Internal)
+  string Channel { get; }
+  SecurityAuditDataClassification Classification { get; }

@@ -16,5 +16,11 @@
     <PackageReference Include="MartiX.Platform.Analyzers" Version="$(MartiXPlatformVersion)" PrivateAssets="all" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+    <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" Version="10.0.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
   </ItemGroup>
+
 </Project>

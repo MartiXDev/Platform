@@ -39,6 +39,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.governance",
   "bootstrap.generated-solution",
   "bootstrap.modular-monolith",
+  "bootstrap.host-baseline",
   "bootstrap.secret-free",
 ];
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
@@ -84,6 +85,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Program.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/Host/HostSecurity.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/contracts/openapi-v1.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Client/MartiX.TemplateTestApp.Client.csproj`,
@@ -447,6 +449,7 @@ function modularMonolithExpectedFiles(manifest) {
     "martix.platform.json",
     "contracts/openapi-v1.json",
     `src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
     `src/${applicationName}.Api/Program.cs`,
     `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
     `src/${applicationName}.Client/${applicationName}.Client.csproj`,
@@ -711,6 +714,9 @@ async function validateModularMonolithComposition(
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
   );
+  const apiHostSource = await readSolutionFile(
+    `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
+  );
   const clientProjectPath = `src/${applicationName}.Client/${applicationName}.Client.csproj`;
   const clientProject = await readSolutionFile(clientProjectPath);
   const clientSourcePath = `src/${applicationName}.Client/${applicationName}.Client.cs`;
@@ -752,6 +758,42 @@ async function validateModularMonolithComposition(
   if (
     !apiSource.includes('MapGroup("/api/v1")') ||
     !apiSource.includes('WithGroupName("v1")') ||
+    !apiSource.includes("HostSecurity.ValidateStartup") ||
+    !apiSource.includes("app.UseForwardedHeaders();") ||
+    !apiSource.includes("app.UseRateLimiter();") ||
+    !apiSource.includes("app.UseAuthorization();") ||
+    !apiHostSource.includes("RequireAuthenticatedUser") ||
+    !apiHostSource.includes("SecurityAuditEvent.Create") ||
+    !apiHostSource.includes("ActivitySource") ||
+    !apiHostSource.includes("IMeterFactory") ||
+    !apiHostSource.includes("Microsoft.Extensions.Compliance.Classification") ||
+    !apiHostSource.includes("Microsoft.Extensions.Compliance.Redaction") ||
+    !apiHostSource.includes("ErasingRedactor") ||
+    !apiHostSource.includes("AddOpenTelemetry") ||
+    !apiHostSource.includes("AddAspNetCoreInstrumentation") ||
+    !apiHostSource.includes("AddHttpClientInstrumentation") ||
+    !apiHostSource.includes("FixedWindowRateLimiterOptions") ||
+    !apiHostSource.includes("CreateChained") ||
+    !apiHostSource.includes("MaxRequestHeadersTotalSize") ||
+    !apiHostSource.includes("MultipartBodyLengthLimit") ||
+    !apiHostSource.includes("AddMeter(") ||
+    !apiHostSource.includes('"System.Runtime"') ||
+    !apiHostSource.includes("SecurityAuditSink : BackgroundService") ||
+    !apiHostSource.includes("SetFallbackRedactor") ||
+    !apiHostSource.includes("GetHostAddressesAsync") ||
+    !apiHostSource.includes("ConnectCallback") ||
+    !apiHostSource.includes("UseProxy = false") ||
+    ![
+      "Microsoft.Extensions.Compliance.Abstractions",
+      "Microsoft.Extensions.Compliance.Redaction",
+      "OpenTelemetry.Extensions.Hosting",
+      "OpenTelemetry.Instrumentation.AspNetCore",
+      "OpenTelemetry.Instrumentation.Http",
+    ].every((packageId) =>
+      apiProject.includes(`PackageReference Include="${packageId}"`),
+    ) ||
+    !apiHostSource.includes("KnownProxies") ||
+    !apiHostSource.includes("SafeOutboundHandler") ||
     !apiSource.includes("ReliableEventsComposition.AddServices(services);") ||
     !apiReliableEventsSource.includes("ReliableEventsDispatcher") ||
     !apiReliableEventsSource.includes("ClaimAsync") ||

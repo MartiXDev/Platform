@@ -10,6 +10,11 @@ import {
   renderCSharpClientProject,
   renderOpenApiContract,
 } from "./openapi-client.mjs";
+import {
+  HOST_BASELINE_CAPABILITIES,
+  HOST_BASELINE_SOURCE_PATH,
+  renderHostSecurityFile,
+} from "./host-baseline.mjs";
 
 export const API_PRESET = "api";
 export const API_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -25,6 +30,12 @@ export const API_VERIFICATION_CADENCES = Object.freeze([
   "release-candidate",
 ]);
 export const API_CAPABILITY_MATRIX = Object.freeze([
+  ...HOST_BASELINE_CAPABILITIES.map((id) =>
+    Object.freeze({
+      id,
+      classification: "required",
+      provider: null,
+    })),
   Object.freeze({
     id: "kernel.result-error",
     classification: "required",
@@ -89,6 +100,26 @@ const API_PACKAGE_REFERENCES = Object.freeze([
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
   Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
+  Object.freeze({
+    id: "Microsoft.Extensions.Compliance.Abstractions",
+    version: "10.0.0",
+  }),
+  Object.freeze({
+    id: "Microsoft.Extensions.Compliance.Redaction",
+    version: "10.0.0",
+  }),
+  Object.freeze({
+    id: "OpenTelemetry.Extensions.Hosting",
+    version: "1.17.0",
+  }),
+  Object.freeze({
+    id: "OpenTelemetry.Instrumentation.AspNetCore",
+    version: "1.17.0",
+  }),
+  Object.freeze({
+    id: "OpenTelemetry.Instrumentation.Http",
+    version: "1.17.0",
+  }),
 ]);
 const API_TEST_PACKAGE_REFERENCES = Object.freeze([
   ...API_APPLICATION_PACKAGE_REFERENCES,
@@ -453,16 +484,24 @@ ${renderPackageReferences(packageReferences, plan.packageReferences)}
 }
 
 function apiProgramFile(plan) {
-  return `using ${plan.applicationName}.Api.Orders;
+ return `using ${plan.applicationName}.Api.Infrastructure.Host;
+using ${plan.applicationName}.Api.Orders;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
-ApiComposition.ConfigureServices(builder.Services);
+ApiComposition.ConfigureBuilder(builder);
+ApiComposition.ConfigureServices(
+    builder.Services,
+    builder.Configuration,
+    builder.Environment);
 
 var app = builder.Build();
 ApiComposition.Configure(app);
@@ -470,27 +509,69 @@ app.Run();
 
 public static class ApiComposition
 {
-    public static void ConfigureServices(IServiceCollection services)
+    public static void ConfigureBuilder(WebApplicationBuilder builder)
+    {
+        HostSecurity.ValidateStartup(
+            builder.Configuration,
+            builder.Environment);
+        HostSecurity.ConfigureBuilder(builder);
+    }
+
+    public static void ConfigureServices(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         services.AddMartiXProblemDetails();
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
+        HostSecurity.AddServices(services, configuration, environment);
         services.AddSingleton<OrderStore>();
     }
 
     public static void Configure(WebApplication app)
     {
+        app.UseForwardedHeaders();
         app.UseExceptionHandler();
-        app.MapOpenApi();
+        if (app.Environment.IsProduction())
+        {
+            app.UseHsts();
+            app.UseHttpsRedirection();
+        }
+        app.UseMiddleware<HostHeaderPolicyMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+        app.UseCors(HostSecurity.CorsPolicyName);
+        app.UseRateLimiter();
+        app.UseAntiforgery();
+        app.UseAuthorization();
+        app.MapOpenApi().AllowAnonymous();
+        app.MapHealthChecks(
+                "/alive",
+                new HealthCheckOptions
+                {
+                    Predicate = HostSecurity.IsLive,
+                    ResponseWriter = HostSecurity.WriteHealthResponseAsync,
+                })
+            .AllowAnonymous();
+        app.MapHealthChecks(
+                "/ready",
+                new HealthCheckOptions
+                {
+                    Predicate = HostSecurity.IsReady,
+                    ResponseWriter = HostSecurity.WriteHealthResponseAsync,
+                })
+            .AllowAnonymous();
         app.MapGet(
                 "/health",
                 static () => TypedResults.Ok(new HealthResponse("ok")))
             .WithName("Health")
+            .AllowAnonymous()
             .Produces<HealthResponse>(StatusCodes.Status200OK)
             .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
         var versionOne = app
             .MapGroup("/api/v1")
             .WithGroupName("v1");
+        versionOne.AllowAnonymous();
         OrdersEndpoints.Map(versionOne);
     }
 }
@@ -1127,6 +1208,79 @@ public sealed class ApiContractTests
     }
 
     [Test]
+    public async Task Liveness_and_readiness_are_minimal_and_cancellable()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        foreach (var path in new[] { "/alive", "/ready" })
+        {
+            using var response = await host.Client.GetAsync(path);
+            using var document = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync());
+
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(document.RootElement.GetProperty("status").GetString())
+                .IsEqualTo("ok");
+            await Assert.That(document.RootElement.EnumerateObject().Count())
+                .IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task Security_headers_are_present_without_echoing_request_data()
+    {
+        await using var host = await ApiHost.StartAsync();
+        using var response = await host.Client.GetAsync("/health");
+
+        await Assert.That(response.Headers.Contains("X-Content-Type-Options"))
+            .IsTrue();
+        await Assert.That(response.Headers.GetValues("X-Content-Type-Options").Single())
+            .IsEqualTo("nosniff");
+        await Assert.That(response.Headers.Contains("Content-Security-Policy"))
+            .IsTrue();
+        await Assert.That(response.Headers.Contains("Server")).IsFalse();
+    }
+
+    [Test]
+    public async Task Production_startup_rejects_missing_trust_configuration()
+    {
+        var builder = WebApplication.CreateBuilder(
+            new WebApplicationOptions
+            {
+                EnvironmentName = Environments.Production,
+            });
+        var rejected = false;
+        try
+        {
+            ApiComposition.ConfigureBuilder(builder);
+        }
+        catch (InvalidOperationException)
+        {
+            rejected = true;
+        }
+
+        await Assert.That(rejected).IsTrue();
+    }
+
+    [Test]
+    public async Task Unannotated_endpoints_fail_closed_with_safe_authorization_errors()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync("/test/protected");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(response.Content.Headers.ContentType?.MediaType)
+            .IsEqualTo("application/problem+json");
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+        await Assert.That(document.RootElement.GetProperty("detail").GetString())
+            .IsEqualTo("Authentication is required.");
+    }
+
+    [Test]
     public async Task The_generated_client_consumes_versioned_success_and_problem_contracts()
     {
         await using var host = await ApiHost.StartAsync();
@@ -1259,7 +1413,11 @@ public sealed class ApiContractTests
                     EnvironmentName = Environments.Development,
                 });
             builder.WebHost.UseTestServer();
-            ApiComposition.ConfigureServices(builder.Services);
+            ApiComposition.ConfigureBuilder(builder);
+            ApiComposition.ConfigureServices(
+                builder.Services,
+                builder.Configuration,
+                builder.Environment);
 
             var app = builder.Build();
             ApiComposition.Configure(app);
@@ -1278,6 +1436,7 @@ public sealed class ApiContractTests
         private static void MapConformanceEndpoints(WebApplication app)
         {
             var test = app.MapGroup("/test");
+            test.AllowAnonymous();
             test.MapGet(
                     "/failures/{id:int}",
                     static Results<Ok<ProbeResponse>, ProblemHttpResult> (
@@ -1306,6 +1465,10 @@ public sealed class ApiContractTests
                     StatusCodes.Status500InternalServerError,
                     "application/problem+json")
                 .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+            app.MapGet(
+                    "/test/protected",
+                    static () => TypedResults.Ok(new ProbeResponse("protected")))
+                .WithName("ConformanceProtected");
         }
 
         private static Results<Ok<ProbeResponse>, ProblemHttpResult> MapResult(
@@ -1392,8 +1555,11 @@ This solution was generated by the \`martix-app\` Template System.
 - Capability Providers: none
 
 The API composition root owns service registration, middleware ordering, OpenAPI
-mapping, and the health endpoint. Storage, user-interface projects, Business
-Modules, and provider-specific infrastructure are not generated.
+mapping, the secure host baseline, and health/readiness endpoints. Production
+requires explicit \`Host:Security\` HTTPS, public-origin, host, and trusted
+forwarder configuration; unsafe production configuration fails before the host
+starts serving traffic. Storage, user-interface projects, Business Modules, and
+provider-specific infrastructure are not generated.
 
 The generated source is application-owned. Review \`martix.platform.json\` for
 the exact origin and resolved composition.
@@ -1437,6 +1603,10 @@ function createFiles(plan, manifest) {
       apiProjectFile(plan),
     ],
     [`src/${projectNames.api}/Program.cs`, apiProgramFile(plan)],
+    [
+      `src/${projectNames.api}/${HOST_BASELINE_SOURCE_PATH}`,
+      renderHostSecurityFile(plan.applicationName),
+    ],
     [`src/${projectNames.api}/Orders/Orders.cs`, ordersFile(plan)],
     [
       `src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj`,

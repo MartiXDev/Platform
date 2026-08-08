@@ -551,7 +551,7 @@ test("generation emits only executable, module, and consolidated test boundaries
     });
 
     assert.deepEqual(first.files, second.files);
-    assert.equal(first.files.length, 37);
+    assert.equal(first.files.length, 38);
     assert.deepEqual(
       await listFiles(join(firstRoot, "generated")),
       first.files,
@@ -608,6 +608,33 @@ test("generation emits only executable, module, and consolidated test boundaries
     );
     assert.match(apiSource, /OrdersModule\.AddServices\(services, configuration\)/);
     assert.match(apiSource, /BillingModule\.MapEndpoints\(versionOne\)/);
+    assert.match(apiSource, /HostSecurity\.ValidateStartup/);
+    assert.match(apiSource, /app\.UseForwardedHeaders\(\)/);
+    assert.match(apiSource, /app\.UseAuthorization\(\)/);
+    const hostSource = await readFile(
+      join(
+        firstRoot,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "Host",
+        "HostSecurity.cs",
+      ),
+      "utf8",
+    );
+    assert.match(hostSource, /SecurityAuditEvent\.Create/);
+    assert.match(hostSource, /HostTelemetry/);
+    assert.match(hostSource, /AddOpenTelemetry/);
+    assert.match(hostSource, /FixedWindowRateLimiterOptions/);
+    assert.match(hostSource, /CreateChained/);
+    assert.match(hostSource, /MaxRequestHeadersTotalSize/);
+    assert.match(hostSource, /MultipartBodyLengthLimit/);
+    assert.match(hostSource, /"System\.Runtime"/);
+    assert.match(hostSource, /SecurityAuditSink : BackgroundService/);
+    assert.match(hostSource, /SafeOutboundHandler/);
+    assert.match(hostSource, /GetHostAddressesAsync/);
+    assert.match(hostSource, /ConnectCallback/);
     assert.doesNotMatch(apiSource, /Assembly\.|GetTypes|MediatR|IModule/);
 
     const generatedText = source.join("\n");

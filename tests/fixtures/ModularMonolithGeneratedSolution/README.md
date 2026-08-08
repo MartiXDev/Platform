@@ -33,6 +33,9 @@ portable schema/table naming, migrations, and snapshot under
 Business endpoints use the explicit `/api/v1` route group. The authoritative
 OpenAPI 3.1 contract is `contracts/openapi-v1.json`, and the standalone
 `MartiX.TemplateTestApp.Client` project is generated only from that contract.
+The API composition root also owns the secure host baseline: production requires
+explicit HTTPS, public-origin, host, and trusted-forwarder configuration, while
+`/alive` and `/ready` remain minimal, anonymous, bounded probes.
 
 The generated source is application-owned. Review `martix.platform.json` for
 the exact origin, provider, module list, and dependency graph.

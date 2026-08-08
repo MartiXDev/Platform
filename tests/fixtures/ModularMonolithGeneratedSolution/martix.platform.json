@@ -17,6 +17,26 @@
   "preset": "modular-monolith",
   "capabilities": [
     {
+      "id": "host.security",
+      "state": "selected"
+    },
+    {
+      "id": "host.authorization",
+      "state": "selected"
+    },
+    {
+      "id": "host.observability",
+      "state": "selected"
+    },
+    {
+      "id": "host.health-readiness",
+      "state": "selected"
+    },
+    {
+      "id": "host.overload-resilience",
+      "state": "selected"
+    },
+    {
       "id": "kernel.result-error",
       "state": "selected"
     },
