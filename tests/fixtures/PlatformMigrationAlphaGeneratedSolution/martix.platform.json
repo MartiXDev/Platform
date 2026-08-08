@@ -1,0 +1,59 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.1.0-preview.1",
+  "platformContractVersion": "0.1.0-preview.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "MartiX.AlphaRehearsal",
+    "product": "MartiX Alpha Rehearsal",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "modular-monolith",
+  "capabilities": [
+    {
+      "id": "kernel.result-error",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.business-modules",
+      "state": "selected"
+    }
+  ],
+  "providers": [
+    {
+      "id": "postgresql",
+      "capability": "relational-persistence",
+      "state": "selected"
+    }
+  ],
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  },
+  "modules": [
+    {
+      "name": "Orders",
+      "project": "src/MartiX.AlphaRehearsal.Orders",
+      "contractsNamespace": "MartiX.AlphaRehearsal.Orders.Contracts",
+      "dependencies": []
+    }
+  ]
+}
