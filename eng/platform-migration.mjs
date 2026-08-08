@@ -64,6 +64,7 @@ const REQUIRED_MANIFEST_PROPERTIES = Object.freeze([
   "security",
   "verification",
 ]);
+const OWNER_MIGRATION_ID = "MXM-ALPHA-BETA-OWNER";
 const OWNER_COHORTS = Object.freeze([
   Object.freeze({
     sourceVersion: PLATFORM_MIGRATION_SOURCE_VERSION,
@@ -87,7 +88,7 @@ const BASE_STEP_DEFINITIONS = Object.freeze([
       "Upgrade every exact first-party Platform package input to the target candidate.",
   }),
   Object.freeze({
-    id: "MXM-ALPHA-BETA-OWNER",
+    id: OWNER_MIGRATION_ID,
     kind: "csharp-owner-rename",
     recovery: "source-revert",
     reason:
@@ -230,9 +231,10 @@ async function runGit(rootDir, argumentsList) {
     });
     return result.stdout;
   } catch (error) {
-    const detail = typeof error.stderr === "string" ? error.stderr.trim() : "";
+    const failureCode =
+      error?.code === undefined ? "" : ` (${String(error.code)})`;
     throw new PlatformMigrationError(
-      `git ${argumentsList.join(" ")} failed${detail ? `: ${detail}` : "."}`,
+      `git ${argumentsList.join(" ")} failed${failureCode}.`,
       { cause: error },
     );
   }
@@ -400,6 +402,25 @@ function validateManifest(manifest) {
   return manifest;
 }
 
+function resolvePackageVersion(
+  declaredVersion,
+  platformProperties,
+  path,
+  packageId,
+) {
+  if (declaredVersion !== "$(MartiXPlatformVersion)") {
+    return declaredVersion;
+  }
+
+  if (platformProperties.length !== 1) {
+    fail(
+      `${path} must declare exactly one MartiXPlatformVersion for ${packageId}.`,
+    );
+  }
+
+  return platformProperties[0].value;
+}
+
 function findElementValues(contents, elementName) {
   const values = [];
   const opening = `<${elementName}>`;
@@ -530,14 +551,12 @@ function inspectPackages(files, expectedVersion) {
       if (!declaredVersion) {
         fail(`First-party package ${id} in ${path} has no exact Version.`);
       }
-      const version =
-        declaredVersion === "$(MartiXPlatformVersion)"
-          ? platformProperties.length === 1
-            ? platformProperties[0].value
-            : fail(
-                `${path} must declare exactly one MartiXPlatformVersion for ${id}.`,
-              )
-          : declaredVersion;
+      const version = resolvePackageVersion(
+        declaredVersion,
+        platformProperties,
+        path,
+        id,
+      );
       const record = packages.get(id) ?? {
         id,
         versions: new Set(),
@@ -891,7 +910,7 @@ function transformManifest(contents, sourceVersion, targetVersion, ownerDefiniti
   transformed.appliedMigrations = [
     ...transformed.appliedMigrations,
     {
-      id: "MXM-ALPHA-BETA-OWNER",
+      id: OWNER_MIGRATION_ID,
       status: "rehearsed",
       from: sourceVersion,
       to: targetVersion,
@@ -909,7 +928,7 @@ function isTextPath(path) {
 }
 
 async function createTransformedFiles(context, ownerDefinition, targetVersion) {
-  const after = new Map();
+  const transformedFiles = new Map();
   const pathMap = new Map();
   for (const [path, contents] of context.snapshot.files.entries()) {
     let transformed = contents;
@@ -973,7 +992,7 @@ async function createTransformedFiles(context, ownerDefinition, targetVersion) {
       ownerDefinition.sourceOwner,
       ownerDefinition.targetOwner,
     );
-    if (after.has(targetPath)) {
+    if (transformedFiles.has(targetPath)) {
       throw new MigrationConflictError({
         id: "MXM-OWNER-PATH-COLLISION",
         path,
@@ -982,20 +1001,20 @@ async function createTransformedFiles(context, ownerDefinition, targetVersion) {
           "resolve the application-owned path collision in a reviewed source change",
       });
     }
-    after.set(targetPath, transformed);
+    transformedFiles.set(targetPath, transformed);
     pathMap.set(path, targetPath);
   }
-  return { after, pathMap };
+  return { files: transformedFiles, pathMap };
 }
 
-function createChanges(before, after, pathMap) {
+function createChanges(sourceFiles, transformedFiles, pathMap) {
   const changes = [];
   for (const [path, targetPath] of [...pathMap.entries()].sort(([left], [right]) =>
     left.localeCompare(right),
   )) {
-    const beforeContents = before.get(path);
-    const afterContents = after.get(targetPath);
-    if (!afterContents) {
+    const sourceContents = sourceFiles.get(path);
+    const transformedContents = transformedFiles.get(targetPath);
+    if (transformedContents === undefined) {
       fail(`Migration transform lost expected output for ${path}.`);
     }
     if (path !== targetPath) {
@@ -1003,17 +1022,17 @@ function createChanges(before, after, pathMap) {
         operation: "move",
         path,
         targetPath,
-        beforeDigest: sha256(beforeContents),
-        afterDigest: sha256(afterContents),
+        beforeDigest: sha256(sourceContents),
+        afterDigest: sha256(transformedContents),
       });
     }
-    if (!beforeContents.equals(afterContents)) {
+    if (!sourceContents.equals(transformedContents)) {
       changes.push({
         operation: "edit",
         path: targetPath,
         ...(path === targetPath ? {} : { sourcePath: path }),
-        beforeDigest: sha256(beforeContents),
-        afterDigest: sha256(afterContents),
+        beforeDigest: sha256(sourceContents),
+        afterDigest: sha256(transformedContents),
       });
     }
   }
@@ -1045,7 +1064,7 @@ async function verifyTargetFiles(rootDir, targetVersion) {
     fail("Target manifest owner is not an admitted migration target.");
   }
   const migration = manifest.appliedMigrations.find(
-    (candidate) => candidate.id === "MXM-ALPHA-BETA-OWNER",
+    (candidate) => candidate.id === OWNER_MIGRATION_ID,
   );
   if (
     !isRecord(migration) ||
@@ -1085,15 +1104,18 @@ async function verifyTargetFiles(rootDir, targetVersion) {
   };
 }
 
-async function materializeFileMap(rootDir, before, after) {
+async function materializeFileMap(rootDir, expectedFiles, desiredFiles) {
   const affectedPaths = new Set();
-  for (const path of before.keys()) {
-    if (!after.has(path) || !before.get(path).equals(after.get(path))) {
+  for (const path of expectedFiles.keys()) {
+    if (
+      !desiredFiles.has(path) ||
+      !expectedFiles.get(path).equals(desiredFiles.get(path))
+    ) {
       affectedPaths.add(path);
     }
   }
-  for (const path of after.keys()) {
-    if (!before.has(path)) {
+  for (const path of desiredFiles.keys()) {
+    if (!expectedFiles.has(path)) {
       affectedPaths.add(path);
     }
   }
@@ -1110,15 +1132,13 @@ async function materializeFileMap(rootDir, before, after) {
     } catch (error) {
       if (error?.code === "ENOENT") {
         snapshots.set(path, undefined);
-      } else if (error instanceof PlatformMigrationError) {
-        throw error;
       } else {
         throw error;
       }
     }
   }
-  for (const path of after.keys()) {
-    if (!before.has(path) && snapshots.get(path) !== undefined) {
+  for (const path of desiredFiles.keys()) {
+    if (!expectedFiles.has(path) && snapshots.get(path) !== undefined) {
       fail(
         `Migration target path already exists outside the accepted source snapshot: ${path}.`,
       );
@@ -1127,10 +1147,10 @@ async function materializeFileMap(rootDir, before, after) {
 
   const temporaryFiles = [];
   try {
-    for (const [path, contents] of after.entries()) {
+    for (const [path, contents] of desiredFiles.entries()) {
       if (
-        before.has(path) &&
-        before.get(path).equals(contents)
+        expectedFiles.has(path) &&
+        expectedFiles.get(path).equals(contents)
       ) {
         continue;
       }
@@ -1141,8 +1161,8 @@ async function materializeFileMap(rootDir, before, after) {
       await writeFile(temporaryPath, contents);
       await rename(temporaryPath, absolutePath);
     }
-    for (const path of before.keys()) {
-      if (!after.has(path)) {
+    for (const path of expectedFiles.keys()) {
+      if (!desiredFiles.has(path)) {
         await rm(join(rootDir, path), { force: true });
       }
     }
@@ -1178,7 +1198,11 @@ async function materializeFileMap(rootDir, before, after) {
   }
 }
 
-async function createSimulationWorktree(context, after, targetVersion) {
+async function createSimulationWorktree(
+  context,
+  transformedFiles,
+  targetVersion,
+) {
   const worktreeParent = await mkdtemp(
     join(tmpdir(), "martix-platform-migration-worktree-"),
   );
@@ -1191,19 +1215,15 @@ async function createSimulationWorktree(context, after, targetVersion) {
     context.repositoryState.commit,
   ]);
   try {
-    await materializeFileMap(worktree, context.snapshot.files, after);
+    await materializeFileMap(
+      worktree,
+      context.snapshot.files,
+      transformedFiles,
+    );
     const verification = await verifyTargetFiles(worktree, targetVersion);
     return {
       output: verification.output,
-      verificationDigest: sha256(
-        canonicalJson({
-          status: verification.status,
-          rehearsal: verification.rehearsal,
-          maturity: verification.maturity,
-          manifest: verification.manifest,
-          packages: verification.packages,
-        }),
-      ),
+      verificationDigest: createVerificationDigest(verification),
     };
   } finally {
     await runGit(context.repository, ["worktree", "remove", "--force", worktree]);
@@ -1265,6 +1285,18 @@ function maturityRecord() {
     boundary:
       "Migration rehearsal evidence does not make a prerelease alpha fixture retroactively supported.",
   };
+}
+
+function createVerificationDigest(verification) {
+  return sha256(
+    canonicalJson({
+      status: verification.status,
+      rehearsal: verification.rehearsal,
+      maturity: verification.maturity,
+      manifest: verification.manifest,
+      packages: verification.packages,
+    }),
+  );
 }
 
 export async function inspectMigration({ rootDir = process.cwd() } = {}) {
@@ -1337,13 +1369,13 @@ export async function createMigrationPlan({
     );
     const simulation = await createSimulationWorktree(
       context,
-      transformed.after,
+      transformed.files,
       exactTargetVersion,
     );
     const body = createPlanBody(context, exactTargetVersion, steps, "ready", {
       changes: createChanges(
         context.snapshot.files,
-        transformed.after,
+        transformed.files,
         transformed.pathMap,
       ),
       output: simulation.output,
@@ -1441,7 +1473,7 @@ export async function applyMigration({
     context.ownerDefinition,
     plan.target.platformVersion,
   );
-  const output = digestFileMap(transformed.after);
+  const output = digestFileMap(transformed.files);
   if (output.digest !== plan.output.digest) {
     fail(
       "Migration plan is stale: compiled transformation output no longer matches the accepted digest.",
@@ -1450,7 +1482,7 @@ export async function applyMigration({
   await materializeFileMap(
     context.repository,
     context.snapshot.files,
-    transformed.after,
+    transformed.files,
   );
   try {
     const verification = await verifyTargetFiles(
@@ -1461,20 +1493,12 @@ export async function applyMigration({
       status: "applied",
       planDigest: plan.planDigest,
       outputDigest: verification.output.digest,
-      verificationDigest: sha256(
-        canonicalJson({
-          status: verification.status,
-          rehearsal: verification.rehearsal,
-          maturity: verification.maturity,
-          manifest: verification.manifest,
-          packages: verification.packages,
-        }),
-      ),
+      verificationDigest: createVerificationDigest(verification),
     };
   } catch (error) {
     await materializeFileMap(
       context.repository,
-      transformed.after,
+      transformed.files,
       context.snapshot.files,
     );
     throw error;
@@ -1512,10 +1536,12 @@ function parseCliArguments(argumentsList) {
     }
     const separator = argument.indexOf("=");
     const name = separator === -1 ? argument : argument.slice(0, separator);
-    const value =
-      separator === -1
-        ? argumentsList[cursor++]
-        : argument.slice(separator + 1);
+    let value;
+    if (separator === -1) {
+      value = argumentsList[cursor++];
+    } else {
+      value = argument.slice(separator + 1);
+    }
     if (value === undefined || value.startsWith("--")) {
       fail(`Migration option ${name} requires a value.`);
     }
@@ -1546,10 +1572,10 @@ export async function runPlatformMigrationCli(
   if (parsed.help || parsed.command === undefined) {
     console.log(
       [
-        "Usage: node eng/migrate.mjs migrate inspect --root <repository>",
-        "       node eng/migrate.mjs migrate plan --to <exact-version> --output <plan-file>",
-        "       node eng/migrate.mjs migrate apply --plan <plan-file> --root <repository>",
-        "       node eng/migrate.mjs migrate verify --root <repository>",
+        "Usage: node eng/platform-migration.mjs migrate inspect --root <repository>",
+        "       node eng/platform-migration.mjs migrate plan --to <exact-version> --output <plan-file>",
+        "       node eng/platform-migration.mjs migrate apply --plan <plan-file> --root <repository>",
+        "       node eng/platform-migration.mjs migrate verify --root <repository>",
       ].join("\n"),
     );
     return { status: "help" };
