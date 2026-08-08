@@ -113,6 +113,7 @@ test("the EF Core package exposes only the admitted persistence policy surface",
   assert.match(records, /TryFailAfterAttemptLimit/);
   assert.match(records, /Publisher/);
   assert.match(records, /payload length does not match/i);
+  assert.match(reliableModelBuilder, /^using System\.Linq;$/m);
   assert.match(reliableModelBuilder, /HasReliableEventsOutbox/);
   assert.match(reliableModelBuilder, /HasReliableEventsInbox/);
   assert.match(captureInterceptor, /SaveChangesInterceptor/);
@@ -137,6 +138,7 @@ test("the EF Core package exposes only the admitted persistence policy surface",
   assert.match(options, /AutomaticAttemptLimit = 10/);
   assert.match(options, /LeaseDuration = TimeSpan\.FromSeconds\(60\)/);
   assert.match(options, /InboxReceiptRetention/);
+  assert.match(diagnostics, /^using System;$/m);
   assert.match(diagnostics, /duplicate-suppressed/);
   assert.match(diagnostics, /CreatePendingGauge/);
   assert.match(retention, /CleanupAsync/);
