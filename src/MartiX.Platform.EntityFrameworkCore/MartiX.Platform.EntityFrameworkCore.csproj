@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>MartiX.Platform.EntityFrameworkCore</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>MartiXDev</Authors>
+    <Description>EF Core persistence primitives for MartiX Platform generated solutions.</Description>
+    <PackageTags>MartiX;Platform;EntityFrameworkCore;Persistence</PackageTags>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/MartiXDev/Platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <MartiXPlatformVersion>0.1.0-preview.1</MartiXPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MartiX.Platform" Version="$(MartiXPlatformVersion)" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+  </ItemGroup>
+</Project>

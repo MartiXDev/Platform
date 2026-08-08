@@ -14,6 +14,10 @@
     <PackageReference Include="MartiX.Platform" Version="$(MartiXPlatformVersion)" />
     <PackageReference Include="MartiX.Platform.AspNetCore" Version="$(MartiXPlatformVersion)" />
     <PackageReference Include="MartiX.Platform.Analyzers" Version="$(MartiXPlatformVersion)" PrivateAssets="all" />
+    <PackageReference Include="MartiX.Platform.EntityFrameworkCore" Version="$(MartiXPlatformVersion)" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

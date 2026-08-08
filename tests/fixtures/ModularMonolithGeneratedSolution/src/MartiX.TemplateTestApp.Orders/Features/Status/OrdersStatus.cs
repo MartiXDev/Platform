@@ -1,9 +1,12 @@
 
 using MartiX.TemplateTestApp.Orders.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Orders.Domain;
+using MartiX.TemplateTestApp.Orders.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.Specifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 
 namespace MartiX.TemplateTestApp.Orders.Features.Status;
 
@@ -20,6 +23,27 @@ internal sealed class OrdersStatusOperation : IOrdersStatus
             new OrdersStatusResponse(
                 aggregate.Name,
                 Array.Empty<string>()));
+    }
+}
+
+internal sealed class OrdersPersistenceQuery
+{
+    private readonly OrdersDbContext dbContext;
+
+    public OrdersPersistenceQuery(OrdersDbContext dbContext)
+    {
+        this.dbContext = dbContext;
+    }
+
+    public Task<OrdersAggregate?> FindAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return new Specification<OrdersAggregate>(
+                aggregate => aggregate.Id == id)
+            .Apply(dbContext.Aggregates)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
     }
 }
 

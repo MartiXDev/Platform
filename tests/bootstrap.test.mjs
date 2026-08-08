@@ -227,6 +227,64 @@ test("modular monolith verification keeps non-Contracts types internal", async (
   });
 });
 
+test("modular monolith verification keeps migration execution out of the API", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const apiPath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Api",
+      "Program.cs",
+    );
+    const api = await readFile(apiPath, "utf8");
+    await writeFile(apiPath, `${api}\napp.Services.GetRequiredService<object>().Migrate();\n`);
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /API composition must not migrate/i,
+    );
+  });
+});
+
+test("modular monolith verification rejects repository persistence wrappers", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const featurePath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Orders",
+      "Features",
+      "Status",
+      "OrdersStatus.cs",
+    );
+    const feature = await readFile(featurePath, "utf8");
+    await writeFile(
+      featurePath,
+      `${feature}\ninternal interface IRepository<TEntity> { }\n`,
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /must not introduce repository/i,
+    );
+  });
+});
+
+test("modular monolith verification rejects a provider manifest that disagrees with generated code", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const manifestPath = modularMonolithFixturePath(
+      temporaryRoot,
+      "martix.platform.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.providers[0].id = "sqlserver";
+    await writeFile(manifestPath, JSON.stringify(manifest));
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /must select one provider/i,
+    );
+  });
+});
+
 test("modular monolith verification requires executable API and Migrator projects", async () => {
   const projects = [
     {

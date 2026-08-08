@@ -20,7 +20,15 @@ Run the one-shot migration boundary before serving traffic:
 
 ```text
 dotnet run --project src/MartiX.TemplateTestApp.Migrator -- validate
+dotnet run --project src/MartiX.TemplateTestApp.Migrator -- script
+dotnet run --project src/MartiX.TemplateTestApp.Migrator -- apply
 ```
+
+The API runtime uses external `ConnectionStrings:Database` configuration.
+Migration operations use `ConnectionStrings:MigrationDatabase`; no migration
+or startup seeding runs in the API process. Each module owns its EF Core context,
+portable schema/table naming, migrations, and snapshot under
+`Infrastructure/Persistence`.
 
 The generated source is application-owned. Review `martix.platform.json` for
 the exact origin, provider, module list, and dependency graph.

@@ -1,9 +1,12 @@
 using OrdersStatus = MartiX.TemplateTestApp.Orders.Contracts.ModuleContracts.IOrdersStatus;
 using MartiX.TemplateTestApp.Billing.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Billing.Domain;
+using MartiX.TemplateTestApp.Billing.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.Specifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 
 namespace MartiX.TemplateTestApp.Billing.Features.Status;
 
@@ -23,6 +26,27 @@ internal sealed class BillingStatusOperation : IBillingStatus
         var dependencies = new List<string>();
         dependencies.Add((await ordersStatus.GetStatusAsync(cancellationToken)).Module);
         return new BillingStatusResponse(aggregate.Name, dependencies);
+    }
+}
+
+internal sealed class BillingPersistenceQuery
+{
+    private readonly BillingDbContext dbContext;
+
+    public BillingPersistenceQuery(BillingDbContext dbContext)
+    {
+        this.dbContext = dbContext;
+    }
+
+    public Task<BillingAggregate?> FindAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return new Specification<BillingAggregate>(
+                aggregate => aggregate.Id == id)
+            .Apply(dbContext.Aggregates)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
     }
 }
 

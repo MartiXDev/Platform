@@ -79,11 +79,19 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Contracts/ModuleContracts/IOrdersStatus.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Domain/OrdersAggregate.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Features/Status/OrdersStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/OrdersDbContext.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/OrdersPersistenceModel.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/Migrations/20260101000000_InitialOrders.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/Migrations/OrdersDbContextModelSnapshot.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/BillingModule.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Contracts/ModuleContracts/IBillingStatus.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Domain/BillingAggregate.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Features/Status/BillingStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/BillingDbContext.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/BillingPersistenceModel.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/Migrations/20260101000000_InitialBilling.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/Migrations/BillingDbContextModelSnapshot.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/MartiX.TemplateTestApp.Tests.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/ModularMonolithCompositionTests.cs`,
 ];
@@ -435,6 +443,10 @@ function modularMonolithExpectedFiles(manifest) {
       `${project}/Contracts/ModuleContracts/I${module.name}Status.cs`,
       `${project}/Domain/${module.name}Aggregate.cs`,
       `${project}/Features/Status/${module.name}Status.cs`,
+      `${project}/Infrastructure/Persistence/${module.name}DbContext.cs`,
+      `${project}/Infrastructure/Persistence/${module.name}PersistenceModel.cs`,
+      `${project}/Infrastructure/Persistence/Migrations/20260101000000_Initial${module.name}.cs`,
+      `${project}/Infrastructure/Persistence/Migrations/${module.name}DbContextModelSnapshot.cs`,
     );
   }
 
@@ -607,6 +619,18 @@ async function validateModularMonolithComposition(
 ) {
   const applicationName = manifest.repository.name;
   const modules = manifest.modules;
+  const relationalProviders = manifest.providers
+    .filter((provider) => provider?.capability === "relational-persistence")
+    .map((provider) => provider?.id);
+  if (
+    relationalProviders.length !== 1 ||
+    !["postgresql", "sqlserver"].includes(relationalProviders[0])
+  ) {
+    fail(
+      "Modular Monolith manifest must select exactly one supported relational provider.",
+    );
+  }
+  const relationalProvider = relationalProviders[0];
   const moduleProjectNames = new Map();
   for (const [index, module] of modules.entries()) {
     moduleProjectNames.set(
@@ -645,9 +669,9 @@ async function validateModularMonolithComposition(
     `src/${applicationName}.Api/Program.cs`,
   );
   for (const module of modules) {
-    if (!apiSource.includes(`${module.name}Module.AddServices(services);`)) {
+    if (!apiSource.includes(`${module.name}Module.AddServices(services, configuration);`)) {
       fail(
-        `API composition is missing ${module.name}Module.AddServices(services).`,
+        `API composition is missing ${module.name}Module.AddServices(services, configuration).`,
       );
     }
     if (!apiSource.includes(`${module.name}Module.MapEndpoints(app);`)) {
@@ -655,6 +679,9 @@ async function validateModularMonolithComposition(
         `API composition is missing ${module.name}Module.MapEndpoints(app).`,
       );
     }
+  }
+  if (/\b(?:Migrate|EnsureCreated|UseSeeding|HasData)(?:Async)?\s*\(/.test(apiSource)) {
+    fail("Modular Monolith API composition must not migrate, create, or seed the database.");
   }
 
   const migratorProjectPath = `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`;
@@ -673,10 +700,26 @@ async function validateModularMonolithComposition(
   const migratorSource = await readSolutionFile(
     `src/${applicationName}.Migrator/Program.cs`,
   );
+  if (
+    !/operation\s+is\s+not\s+\("validate"\s+or\s+"script"\s+or\s+"apply"\)/.test(
+      migratorSource,
+    )
+  ) {
+    fail(
+      "Modular Monolith Migrator must expose exactly validate, script, and apply operations.",
+    );
+  }
   for (const module of modules) {
-    if (!migratorSource.includes(`${module.name}Module.MigrationIdentity,`)) {
+    if (
+      !migratorSource.includes(
+        `${module.name}Module.AddMigrationServices(builder.Services, builder.Configuration);`,
+      ) ||
+      !migratorSource.includes(
+        `await ${module.name}Module.ExecuteMigrationAsync(`,
+      )
+    ) {
       fail(
-        `Migrator composition is missing ${module.name}Module.MigrationIdentity.`,
+        `Migrator composition is missing the privileged persistence boundary for ${module.name}.`,
       );
     }
   }
@@ -780,6 +823,33 @@ async function validateModularMonolithComposition(
     const featureSource = await readSolutionFile(
       `${module.project}/Features/Status/${module.name}Status.cs`,
     );
+    const persistenceContextPath = `${module.project}/Infrastructure/Persistence/${module.name}DbContext.cs`;
+    const persistenceModelPath = `${module.project}/Infrastructure/Persistence/${module.name}PersistenceModel.cs`;
+    const migrationPath = `${module.project}/Infrastructure/Persistence/Migrations/20260101000000_Initial${module.name}.cs`;
+    const snapshotPath = `${module.project}/Infrastructure/Persistence/Migrations/${module.name}DbContextModelSnapshot.cs`;
+    const persistenceContextSource = await readSolutionFile(
+      persistenceContextPath,
+    );
+    const persistenceModelSource = await readSolutionFile(persistenceModelPath);
+    const migrationSource = await readSolutionFile(migrationPath);
+    const snapshotSource = await readSolutionFile(snapshotPath);
+    const persistenceSource = [
+      compositionSource,
+      domainSource,
+      featureSource,
+      persistenceContextSource,
+      persistenceModelSource,
+      migrationSource,
+      snapshotSource,
+    ].join("\n");
+    const schema = module.name
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .toLowerCase();
+    const table = `${schema}_aggregate`;
+    const providerApi =
+      relationalProvider === "postgresql" ? "UseNpgsql" : "UseSqlServer";
+    const otherProviderApi =
+      relationalProvider === "postgresql" ? "UseSqlServer" : "UseNpgsql";
     if (
       !new RegExp(
         `internal\\s+sealed\\s+class\\s+${escapeRegExp(module.name)}Aggregate`,
@@ -799,6 +869,89 @@ async function validateModularMonolithComposition(
         `Business Module ${module.name} must keep Domain and feature slices internal.`,
       );
     }
+    if (
+      !new RegExp(
+        `internal\\s+sealed\\s+class\\s+${escapeRegExp(
+          module.name,
+        )}DbContext\\s*:\\s*DbContext`,
+      ).test(persistenceContextSource) ||
+      !persistenceContextSource.includes(`HasDefaultSchema("${schema}")`) ||
+      !persistenceContextSource.includes(
+        `DbSet<${module.name}Aggregate>`,
+      )
+    ) {
+      fail(
+        `Business Module ${module.name} must own an internal relational DbContext in ${persistenceContextPath}.`,
+      );
+    }
+    if (
+      !persistenceModelSource.includes(`ToTable("${table}", "${schema}")`) ||
+      !persistenceModelSource.includes("HasEntityTimestamps()") ||
+      !persistenceModelSource.includes(`HasColumnName("concurrency_token")`) ||
+      !persistenceModelSource.includes("IsConcurrencyToken()")
+    ) {
+      fail(
+        `Business Module ${module.name} must use explicit portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
+      );
+    }
+    if (
+      !compositionSource.includes(`${providerApi}(`) ||
+      compositionSource.includes(`${otherProviderApi}(`) ||
+      !compositionSource.includes(
+        `MigrationsHistoryTable("__ef_migrations_history", "${schema}")`,
+      ) ||
+      !compositionSource.includes(
+        "public static void AddMigrationServices",
+      )
+    ) {
+      fail(
+        `Business Module ${module.name} must select one provider and compose its migration history explicitly.`,
+      );
+    }
+    if (
+      !migrationSource.includes(
+        `[Migration("20260101000000_Initial${module.name}")]`,
+      ) ||
+      !migrationSource.includes(`EnsureSchema(name: "${schema}")`) ||
+      !migrationSource.includes(`name: "${table}"`) ||
+      !migrationSource.includes('created_at = table.Column') ||
+      !migrationSource.includes('updated_at = table.Column') ||
+      !snapshotSource.includes(
+        `internal partial class ${module.name}DbContextModelSnapshot : ModelSnapshot`,
+      ) ||
+      !snapshotSource.includes(`HasDefaultSchema("${schema}")`)
+    ) {
+      fail(
+        `Business Module ${module.name} must include deterministic migrations and a matching snapshot.`,
+      );
+    }
+    if (
+      !domainSource.includes("IHasEntityTimestamps") ||
+      !domainSource.includes("DateTimeOffset") ||
+      !domainSource.includes("ConcurrencyToken") ||
+      !featureSource.includes(`${module.name}DbContext`) ||
+      !featureSource.includes("AsNoTracking()") ||
+      !featureSource.includes(`Specification<${module.name}Aggregate>`)
+    ) {
+      fail(
+        `Business Module ${module.name} must expose direct DbContext persistence operations with UTC timestamps and opt-in concurrency.`,
+      );
+    }
+    if (
+      !compositionSource.includes("GetPendingMigrationsAsync") ||
+      !compositionSource.includes("GenerateScript(") ||
+      !compositionSource.includes("MigrationsSqlGenerationOptions.Idempotent") ||
+      !compositionSource.includes("MigrateAsync")
+    ) {
+      fail(
+        `Business Module ${module.name} migration composition must implement validate, script, and apply.`,
+      );
+    }
+    if (/\b(?:IUnitOfWork|UnitOfWork|IRepository|Repository)\b/.test(persistenceSource)) {
+      fail(
+        `Business Module ${module.name} must not introduce repository or unit-of-work persistence abstractions.`,
+      );
+    }
     validateInternalModuleSource(
       module,
       domainSource,
@@ -809,6 +962,14 @@ async function validateModularMonolithComposition(
       featureSource,
       `${module.project}/Features/Status/${module.name}Status.cs`,
     );
+    for (const [source, path] of [
+      [persistenceContextSource, persistenceContextPath],
+      [persistenceModelSource, persistenceModelPath],
+      [migrationSource, migrationPath],
+      [snapshotSource, snapshotPath],
+    ]) {
+      validateInternalModuleSource(module, source, path);
+    }
   }
 }
 

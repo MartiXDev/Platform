@@ -71,7 +71,11 @@ public sealed class ModularMonolithCompositionTests
                     EnvironmentName = Environments.Development,
                 });
             builder.WebHost.UseTestServer();
-            ApiComposition.ConfigureServices(builder.Services);
+            builder.Configuration["ConnectionStrings:Database"] =
+                "Host=localhost;Database=martix_test";
+            ApiComposition.ConfigureServices(
+                builder.Services,
+                builder.Configuration);
 
             var app = builder.Build();
             ApiComposition.Configure(app);

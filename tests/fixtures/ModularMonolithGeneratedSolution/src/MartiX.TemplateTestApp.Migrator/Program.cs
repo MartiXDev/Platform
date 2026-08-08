@@ -1,5 +1,8 @@
 using MartiX.TemplateTestApp.Orders;
 using MartiX.TemplateTestApp.Billing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
 var operation = args.FirstOrDefault()?.ToLowerInvariant() ?? "validate";
 if (operation is not ("validate" or "script" or "apply"))
 {
@@ -8,12 +11,20 @@ if (operation is not ("validate" or "script" or "apply"))
     return 2;
 }
 
-var migrationIdentities = new[]
-{
-    OrdersModule.MigrationIdentity,
-    BillingModule.MigrationIdentity,
-};
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddLogging();
+OrdersModule.AddMigrationServices(builder.Services, builder.Configuration);
+BillingModule.AddMigrationServices(builder.Services, builder.Configuration);
+using var host = builder.Build();
 
 Console.WriteLine(
-    $"{operation}: {string.Join(", ", migrationIdentities)}");
+    await OrdersModule.ExecuteMigrationAsync(
+        host.Services,
+        operation,
+        CancellationToken.None));
+Console.WriteLine(
+    await BillingModule.ExecuteMigrationAsync(
+        host.Services,
+        operation,
+        CancellationToken.None));
 return 0;

@@ -11,5 +11,12 @@
   <ItemGroup>
     <ProjectReference Include="../MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj" />
     <ProjectReference Include="../MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

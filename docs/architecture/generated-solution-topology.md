@@ -141,12 +141,20 @@ the default and SQL Server is an equally verified choice.
 
 Application Operations use their module's concrete `DbContext` directly. The
 EF Core Platform package supplies only deep reusable policy such as immutable
-query Specifications, Entity Capabilities, and portable database naming. It
-does not own application Entities, repositories, units of work, module
-migrations, or provider selection.
+query Specifications, UTC entity timestamps, concurrency tokens, and portable
+database naming. The generated module owns an internal context, explicit model,
+lowercase
+`snake_case` schema/table identifiers, migration, and model snapshot under
+`Infrastructure/Persistence`. It does not own application Entities in the
+Platform package, repositories, units of work, module migrations, or provider
+selection. Specifications are sealed read-query descriptions; applying one
+returns `IQueryable` and leaves asynchronous materialization to the operation.
 
 The Migrator is the only production schema-change path and runs before traffic.
-The API never calls `Migrate`, `EnsureCreated`, or implicit startup seeding.
+It composes each module sequentially with separate `MigrationDatabase`
+configuration and exposes exactly `validate`, `script`, and `apply`. The API
+uses its normal `Database` configuration for runtime access but never calls
+`Migrate`, `EnsureCreated`, or implicit startup seeding.
 The lean `api` Preset keeps its optional context and migrations in the API
 project while still using a separate Migrator when persistence is selected.
 

@@ -55,6 +55,10 @@
     {
       "id": "modular-monolith.one-shot-migrator",
       "state": "selected"
+    },
+    {
+      "id": "modular-monolith.relational-persistence",
+      "state": "selected"
     }
   ],
   "providers": [

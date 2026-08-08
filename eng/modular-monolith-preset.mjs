@@ -71,6 +71,11 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
     classification: "required",
     provider: null,
   }),
+  Object.freeze({
+    id: "modular-monolith.relational-persistence",
+    classification: "required",
+    provider: "relational",
+  }),
 ]);
 
 export const MODULAR_MONOLITH_BASELINE_CAPABILITIES = Object.freeze(
@@ -91,6 +96,31 @@ const PLATFORM_PACKAGE_REFERENCES = Object.freeze([
     version: MODULAR_MONOLITH_PLATFORM_VERSION,
   }),
 ]);
+const ENTITY_FRAMEWORK_PACKAGE_REFERENCES = Object.freeze([
+  Object.freeze({
+    id: "MartiX.Platform.EntityFrameworkCore",
+    version: MODULAR_MONOLITH_PLATFORM_VERSION,
+  }),
+  Object.freeze({
+    id: "Microsoft.EntityFrameworkCore",
+    version: "10.0.10",
+  }),
+  Object.freeze({
+    id: "Microsoft.EntityFrameworkCore.Design",
+    version: "10.0.10",
+    privateAssets: true,
+  }),
+]);
+const RELATIONAL_PROVIDER_PACKAGE_REFERENCES = Object.freeze({
+  postgresql: Object.freeze({
+    id: "Npgsql.EntityFrameworkCore.PostgreSQL",
+    version: "10.0.0",
+  }),
+  sqlserver: Object.freeze({
+    id: "Microsoft.EntityFrameworkCore.SqlServer",
+    version: "10.0.10",
+  }),
+});
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
   Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
@@ -544,9 +574,11 @@ function createPlan(
     ],
     persistence: selections.persistence,
     relationalProvider: selections.relationalProvider,
-    packageReferences: PLATFORM_PACKAGE_REFERENCES.map((reference) => ({
-      ...reference,
-    })),
+    packageReferences: [
+      ...PLATFORM_PACKAGE_REFERENCES,
+      ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
+      RELATIONAL_PROVIDER_PACKAGE_REFERENCES[selections.relationalProvider],
+    ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
       `src/${projectNames.migrator}/${projectNames.migrator}.csproj`,
@@ -594,9 +626,11 @@ function renderPackageReferences(references, platformReferences) {
     platformReferences.map(({ id }) => id),
   );
   return references
-    .map(({ id, version }) => {
+    .map(({ id, version, privateAssets: referencePrivateAssets }) => {
       const privateAssets =
-        id === ANALYZER_PACKAGE_ID ? ' PrivateAssets="all"' : "";
+        id === ANALYZER_PACKAGE_ID || referencePrivateAssets
+          ? ' PrivateAssets="all"'
+          : "";
       const renderedVersion = platformPackageIds.has(id)
         ? "$(MartiXPlatformVersion)"
         : version;
@@ -618,6 +652,42 @@ function platformPackageReferences() {
   );
 }
 
+function persistencePackageReferences(plan) {
+  const providerReference =
+    RELATIONAL_PROVIDER_PACKAGE_REFERENCES[plan.relationalProvider];
+  return renderPackageReferences(
+    [
+      ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
+      providerReference,
+    ],
+    [
+      ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES.filter(
+        ({ id }) => id === "MartiX.Platform.EntityFrameworkCore",
+      ),
+    ],
+  );
+}
+
+function migratorPackageReferences(plan) {
+  const providerReference =
+    RELATIONAL_PROVIDER_PACKAGE_REFERENCES[plan.relationalProvider];
+  return renderPackageReferences(
+    [
+      Object.freeze({
+        id: "Microsoft.EntityFrameworkCore",
+        version: "10.0.10",
+      }),
+      Object.freeze({
+        id: "Microsoft.EntityFrameworkCore.Design",
+        version: "10.0.10",
+        privateAssets: true,
+      }),
+      providerReference,
+    ],
+    [],
+  );
+}
+
 function moduleNamespace(plan, moduleName) {
   return `${plan.applicationName}.${moduleName}`;
 }
@@ -632,6 +702,12 @@ function modulePath(plan, moduleName) {
 
 function routeName(moduleName) {
   return moduleName.toLowerCase();
+}
+
+function databaseIdentifier(value) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase();
 }
 
 function modulePlan(plan, moduleName) {
@@ -679,6 +755,11 @@ function migratorProjectFile(plan) {
 
   <ItemGroup>
 ${projectReferences(moduleReferences)}
+${migratorPackageReferences(plan)}
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>
 `;
@@ -704,6 +785,7 @@ function moduleProjectFile(plan, moduleName) {
   <ItemGroup>
 ${projectReferences(moduleReferences)}
 ${platformPackageReferences()}
+${persistencePackageReferences(plan)}
   </ItemGroup>
 
   <ItemGroup>
@@ -750,7 +832,10 @@ function apiProgramFile(plan) {
     .map((module) => `using ${moduleNamespace(plan, module.name)};`)
     .join("\n");
   const serviceComposition = plan.businessModules
-    .map((module) => `        ${module.name}Module.AddServices(services);`)
+    .map(
+      (module) =>
+        `        ${module.name}Module.AddServices(services, configuration);`,
+    )
     .join("\n");
   const endpointComposition = plan.businessModules
     .map((module) => `        ${module.name}Module.MapEndpoints(app);`)
@@ -762,10 +847,11 @@ using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
-ApiComposition.ConfigureServices(builder.Services);
+ApiComposition.ConfigureServices(builder.Services, builder.Configuration);
 
 var app = builder.Build();
 ApiComposition.Configure(app);
@@ -773,7 +859,9 @@ app.Run();
 
 public static class ApiComposition
 {
-    public static void ConfigureServices(IServiceCollection services)
+    public static void ConfigureServices(
+        IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddMartiXProblemDetails();
         services.AddOpenApi(static options =>
@@ -816,11 +904,211 @@ public sealed record ${moduleName}StatusResponse(
 }
 
 function moduleDomainFile(plan, moduleName) {
-  return `namespace ${moduleNamespace(plan, moduleName)}.Domain;
+  return `using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
 
-internal sealed class ${moduleName}Aggregate
+namespace ${moduleNamespace(plan, moduleName)}.Domain;
+
+internal sealed class ${moduleName}Aggregate :
+    IHasEntityTimestamps,
+    IHasConcurrencyToken
 {
-    public string Name => "${moduleName}";
+    public Guid Id { get; private set; } = Guid.NewGuid();
+
+    public string Name { get; private set; } = "${moduleName}";
+
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    public Guid ConcurrencyToken { get; private set; } = Guid.NewGuid();
+}
+`;
+}
+
+function modulePersistenceContextFile(plan, moduleName) {
+  const schema = databaseIdentifier(moduleName);
+  return `using ${moduleNamespace(plan, moduleName)}.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+
+internal sealed class ${moduleName}DbContext : DbContext
+{
+    public ${moduleName}DbContext(
+        DbContextOptions<${moduleName}DbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<${moduleName}Aggregate> Aggregates => Set<${moduleName}Aggregate>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("${schema}");
+        ${moduleName}PersistenceModel.Configure(modelBuilder);
+    }
+}
+`;
+}
+
+function modulePersistenceModelFile(plan, moduleName) {
+  const schema = databaseIdentifier(moduleName);
+  return `using ${moduleNamespace(plan, moduleName)}.Domain;
+using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using Microsoft.EntityFrameworkCore;
+
+namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+
+internal static class ${moduleName}PersistenceModel
+{
+    public static void Configure(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<${moduleName}Aggregate>(entity =>
+        {
+            entity.ToTable("${schema}_aggregate", "${schema}");
+            entity.HasKey(aggregate => aggregate.Id)
+                .HasName("pk_${schema}_aggregate");
+            entity.Property(aggregate => aggregate.Id)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+            entity.Property(aggregate => aggregate.Name)
+                .HasColumnName("name")
+                .HasMaxLength(200)
+                .IsRequired();
+            entity.HasEntityTimestamps();
+            entity.Property(aggregate => aggregate.ConcurrencyToken)
+                .HasColumnName("concurrency_token")
+                .IsConcurrencyToken()
+                .IsRequired();
+            entity.HasIndex(aggregate => aggregate.Name)
+                .HasDatabaseName("ix_${schema}_aggregate_name")
+                .IsUnique();
+        });
+    }
+}
+`;
+}
+
+function moduleMigrationFile(plan, moduleName) {
+  const schema = databaseIdentifier(moduleName);
+  const providerTypes =
+    plan.relationalProvider === "postgresql"
+      ? {
+          identifier: "uuid",
+          timestamp: "timestamp with time zone",
+          text: "text",
+        }
+      : {
+          identifier: "uniqueidentifier",
+          timestamp: "datetimeoffset",
+          text: "nvarchar(200)",
+        };
+  return `using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence.Migrations;
+
+[DbContext(typeof(${moduleName}DbContext))]
+[Migration("20260101000000_Initial${moduleName}")]
+internal partial class Initial${moduleName} : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.EnsureSchema(name: "${schema}");
+        migrationBuilder.CreateTable(
+            name: "${schema}_aggregate",
+            schema: "${schema}",
+            columns: table => new
+            {
+                id = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: false),
+                name = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                created_at = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: false),
+                updated_at = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: false),
+                concurrency_token = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey(
+                    "pk_${schema}_aggregate",
+                    x => x.id);
+            });
+
+        migrationBuilder.CreateIndex(
+            name: "ix_${schema}_aggregate_name",
+            schema: "${schema}",
+            table: "${schema}_aggregate",
+            column: "name",
+            unique: true);
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(
+            name: "${schema}_aggregate",
+            schema: "${schema}");
+    }
+}
+`;
+}
+
+function moduleMigrationSnapshotFile(plan, moduleName) {
+  const schema = databaseIdentifier(moduleName);
+  return `using ${moduleNamespace(plan, moduleName)}.Domain;
+using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence.Migrations;
+
+[DbContext(typeof(${moduleName}DbContext))]
+internal partial class ${moduleName}DbContextModelSnapshot : ModelSnapshot
+{
+    protected override void BuildModel(ModelBuilder modelBuilder)
+    {
+        modelBuilder
+            .HasDefaultSchema("${schema}")
+            .HasAnnotation("ProductVersion", "10.0.10");
+
+        modelBuilder.Entity<${moduleName}Aggregate>(entity =>
+        {
+            entity.Property<Guid>("Id")
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+            entity.Property<Guid>("ConcurrencyToken")
+                .HasColumnName("concurrency_token")
+                .IsConcurrencyToken()
+                .IsRequired();
+            entity.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnName("created_at")
+                .IsRequired();
+            entity.Property<string>("Name")
+                .HasColumnName("name")
+                .HasMaxLength(200)
+                .IsRequired();
+            entity.Property<DateTimeOffset>("UpdatedAt")
+                .HasColumnName("updated_at")
+                .IsRequired();
+            entity.HasKey("Id")
+                .HasName("pk_${schema}_aggregate");
+            entity.HasIndex("Name")
+                .IsUnique()
+                .HasDatabaseName("ix_${schema}_aggregate_name");
+            entity.ToTable("${schema}_aggregate", "${schema}");
+        });
+    }
 }
 `;
 }
@@ -892,13 +1180,37 @@ ${operationMethod}
   return `${providerUsings}
 using ${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts;
 using ${moduleNamespace(plan, moduleName)}.Domain;
+using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.Specifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 
 namespace ${moduleNamespace(plan, moduleName)}.Features.Status;
 
 ${operationClass}
+internal sealed class ${moduleName}PersistenceQuery
+{
+    private readonly ${moduleName}DbContext dbContext;
+
+    public ${moduleName}PersistenceQuery(${moduleName}DbContext dbContext)
+    {
+        this.dbContext = dbContext;
+    }
+
+    public Task<${moduleName}Aggregate?> FindAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return new Specification<${moduleName}Aggregate>(
+                aggregate => aggregate.Id == id)
+            .Apply(dbContext.Aggregates)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+}
+
 internal static class ${moduleName}StatusEndpoint
 {
     public static void Map(IEndpointRouteBuilder endpoints)
@@ -920,8 +1232,22 @@ internal static class ${moduleName}StatusEndpoint
 }
 
 function moduleCompositionFile(plan, moduleName) {
+  const schema = databaseIdentifier(moduleName);
+  const providerRegistration =
+    plan.relationalProvider === "postgresql"
+      ? `                options.UseNpgsql(
+                  connectionString,
+                  providerOptions => providerOptions.MigrationsHistoryTable("__ef_migrations_history", "${schema}"));`
+      : `                options.UseSqlServer(
+                  connectionString,
+                  providerOptions => providerOptions.MigrationsHistoryTable("__ef_migrations_history", "${schema}"));`;
   return `using ${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts;
 using ${moduleNamespace(plan, moduleName)}.Features.Status;
+using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -929,9 +1255,19 @@ namespace ${moduleNamespace(plan, moduleName)};
 
 public static class ${moduleName}Module
 {
-    public static void AddServices(IServiceCollection services)
+    public static void AddServices(
+        IServiceCollection services,
+        IConfiguration configuration)
     {
+        AddPersistence(services, configuration, "Database");
         services.AddSingleton<I${moduleName}Status, ${moduleName}StatusOperation>();
+    }
+
+    public static void AddMigrationServices(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        AddPersistence(services, configuration, "MigrationDatabase");
     }
 
     public static void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -939,7 +1275,71 @@ public static class ${moduleName}Module
         ${moduleName}StatusEndpoint.Map(endpoints);
     }
 
+    public static async Task<string> ExecuteMigrationAsync(
+        IServiceProvider services,
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<${moduleName}DbContext>();
+        return operation switch
+        {
+            "validate" => await ValidateAsync(dbContext, cancellationToken),
+            "script" => dbContext.Database.GenerateScript(
+                options: MigrationsSqlGenerationOptions.Idempotent),
+            "apply" => await ApplyAsync(dbContext, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+    }
+
     public static string MigrationIdentity => "${moduleName}";
+
+    private static void AddPersistence(
+        IServiceCollection services,
+        IConfiguration configuration,
+        string connectionName)
+    {
+        var connectionString = configuration.GetConnectionString(connectionName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"Connection string '{connectionName}' is required.");
+        }
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddDbContext<${moduleName}DbContext>(
+            (serviceProvider, options) =>
+            {
+${providerRegistration}
+                options.AddInterceptors(
+                    new EntityTimestampsSaveChangesInterceptor(
+                        serviceProvider.GetRequiredService<TimeProvider>()));
+            });
+    }
+
+    private static async Task<string> ValidateAsync(
+        ${moduleName}DbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var pending = (await dbContext.Database
+                .GetPendingMigrationsAsync(cancellationToken))
+            .ToArray();
+        if (pending.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"${moduleName} has pending migrations: {string.Join(", ", pending)}");
+        }
+
+        return "validated: ${moduleName}";
+    }
+
+    private static async Task<string> ApplyAsync(
+        ${moduleName}DbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.MigrateAsync(cancellationToken);
+        return "applied: ${moduleName}";
+    }
 }
 `;
 }
@@ -948,10 +1348,26 @@ function migratorProgramFile(plan) {
   const moduleUsings = plan.businessModules
     .map((module) => `using ${moduleNamespace(plan, module.name)};`)
     .join("\n");
-  const identities = plan.businessModules
-    .map((module) => `    ${module.name}Module.MigrationIdentity,`)
+  const registrations = plan.businessModules
+    .map(
+      (module) =>
+        `${module.name}Module.AddMigrationServices(builder.Services, builder.Configuration);`,
+    )
+    .join("\n");
+  const executions = plan.businessModules
+    .map(
+      (module) =>
+        `Console.WriteLine(
+    await ${module.name}Module.ExecuteMigrationAsync(
+        host.Services,
+        operation,
+        CancellationToken.None));`,
+    )
     .join("\n");
   return `${moduleUsings}
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
 var operation = args.FirstOrDefault()?.ToLowerInvariant() ?? "validate";
 if (operation is not ("validate" or "script" or "apply"))
 {
@@ -960,13 +1376,12 @@ if (operation is not ("validate" or "script" or "apply"))
     return 2;
 }
 
-var migrationIdentities = new[]
-{
-${identities}
-};
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddLogging();
+${registrations}
+using var host = builder.Build();
 
-Console.WriteLine(
-    $"{operation}: {string.Join(", ", migrationIdentities)}");
+${executions}
 return 0;
 `;
 }
@@ -1053,7 +1468,11 @@ ${moduleAssertions}
                     EnvironmentName = Environments.Development,
                 });
             builder.WebHost.UseTestServer();
-            ApiComposition.ConfigureServices(builder.Services);
+            builder.Configuration["ConnectionStrings:Database"] =
+                "Host=localhost;Database=martix_test";
+            ApiComposition.ConfigureServices(
+                builder.Services,
+                builder.Configuration);
 
             var app = builder.Build();
             ApiComposition.Configure(app);
@@ -1153,7 +1572,15 @@ Run the one-shot migration boundary before serving traffic:
 
 \`\`\`text
 dotnet run --project src/${plan.applicationName}.Migrator -- validate
+dotnet run --project src/${plan.applicationName}.Migrator -- script
+dotnet run --project src/${plan.applicationName}.Migrator -- apply
 \`\`\`
+
+The API runtime uses external \`ConnectionStrings:Database\` configuration.
+Migration operations use \`ConnectionStrings:MigrationDatabase\`; no migration
+or startup seeding runs in the API process. Each module owns its EF Core context,
+portable schema/table naming, migrations, and snapshot under
+\`Infrastructure/Persistence\`.
 
 The generated source is application-owned. Review \`martix.platform.json\` for
 the exact origin, provider, module list, and dependency graph.
@@ -1171,7 +1598,9 @@ function agentsFile(plan) {
 
 Keep module registration, endpoint mapping, Contracts, and dependency direction
 explicit. A Business Module may consume only another module's Contracts
-namespace, never its Domain, Features, or Infrastructure.
+namespace, never its Domain, Features, or Infrastructure. It owns direct
+DbContext operations, persistence mappings, migrations, and migration history;
+do not add repositories or \`IUnitOfWork\`.
 `;
 }
 
@@ -1238,6 +1667,22 @@ function createFiles(plan, manifest) {
     files.set(
       `${root}/Domain/${module.name}Aggregate.cs`,
       moduleDomainFile(plan, module.name),
+    );
+    files.set(
+      `${root}/Infrastructure/Persistence/${module.name}DbContext.cs`,
+      modulePersistenceContextFile(plan, module.name),
+    );
+    files.set(
+      `${root}/Infrastructure/Persistence/${module.name}PersistenceModel.cs`,
+      modulePersistenceModelFile(plan, module.name),
+    );
+    files.set(
+      `${root}/Infrastructure/Persistence/Migrations/20260101000000_Initial${module.name}.cs`,
+      moduleMigrationFile(plan, module.name),
+    );
+    files.set(
+      `${root}/Infrastructure/Persistence/Migrations/${module.name}DbContextModelSnapshot.cs`,
+      moduleMigrationSnapshotFile(plan, module.name),
     );
     files.set(
       `${root}/Features/Status/${module.name}Status.cs`,

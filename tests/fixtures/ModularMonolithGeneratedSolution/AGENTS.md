@@ -8,4 +8,6 @@
 
 Keep module registration, endpoint mapping, Contracts, and dependency direction
 explicit. A Business Module may consume only another module's Contracts
-namespace, never its Domain, Features, or Infrastructure.
+namespace, never its Domain, Features, or Infrastructure. It owns direct
+DbContext operations, persistence mappings, migrations, and migration history;
+do not add repositories or `IUnitOfWork`.

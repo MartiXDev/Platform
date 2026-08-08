@@ -5,10 +5,11 @@ using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
-ApiComposition.ConfigureServices(builder.Services);
+ApiComposition.ConfigureServices(builder.Services, builder.Configuration);
 
 var app = builder.Build();
 ApiComposition.Configure(app);
@@ -16,13 +17,15 @@ app.Run();
 
 public static class ApiComposition
 {
-    public static void ConfigureServices(IServiceCollection services)
+    public static void ConfigureServices(
+        IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddMartiXProblemDetails();
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
-        OrdersModule.AddServices(services);
-        BillingModule.AddServices(services);
+        OrdersModule.AddServices(services, configuration);
+        BillingModule.AddServices(services, configuration);
     }
 
     public static void Configure(WebApplication app)

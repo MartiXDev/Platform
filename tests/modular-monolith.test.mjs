@@ -97,6 +97,172 @@ test("the selected relational provider is recorded in the plan", () => {
   ]);
 });
 
+test("generation emits module-owned relational persistence for each provider", async () => {
+  const roots = await Promise.all([
+    createTemporaryDirectory(),
+    createTemporaryDirectory(),
+  ]);
+
+  try {
+    for (const [index, provider] of ["postgresql", "sqlserver"].entries()) {
+      const root = join(roots[index], "generated");
+      const result = await generateModularMonolithPreset({
+        applicationName: "MartiX.Planner",
+        businessModules: ["Orders", "Billing"],
+        moduleDependencies: { Billing: ["Orders"] },
+        relationalProvider: provider,
+        outputDirectory: root,
+      });
+
+      assert.equal(result.plan.relationalProvider, provider);
+      assert.ok(
+        result.files.includes(
+          "src/MartiX.Planner.Orders/Infrastructure/Persistence/OrdersDbContext.cs",
+        ),
+      );
+      assert.ok(
+        result.files.includes(
+          "src/MartiX.Planner.Billing/Infrastructure/Persistence/BillingDbContext.cs",
+        ),
+      );
+      assert.ok(
+        result.files.includes(
+          "src/MartiX.Planner.Orders/Infrastructure/Persistence/Migrations/20260101000000_InitialOrders.cs",
+        ),
+      );
+      assert.ok(
+        result.files.includes(
+          "src/MartiX.Planner.Billing/Infrastructure/Persistence/Migrations/20260101000000_InitialBilling.cs",
+        ),
+      );
+
+      const ordersContext = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Orders",
+          "Infrastructure",
+          "Persistence",
+          "OrdersDbContext.cs",
+        ),
+        "utf8",
+      );
+      const ordersModule = await readFile(
+        join(root, "src", "MartiX.Planner.Orders", "OrdersModule.cs"),
+        "utf8",
+      );
+      const migrator = await readFile(
+        join(root, "src", "MartiX.Planner.Migrator", "Program.cs"),
+        "utf8",
+      );
+      const migration = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Orders",
+          "Infrastructure",
+          "Persistence",
+          "Migrations",
+          "20260101000000_InitialOrders.cs",
+        ),
+        "utf8",
+      );
+      const api = await readFile(
+        join(root, "src", "MartiX.Planner.Api", "Program.cs"),
+        "utf8",
+      );
+
+      assert.match(ordersContext, /internal sealed class OrdersDbContext : DbContext/);
+      assert.match(ordersContext, /HasDefaultSchema\("orders"\)/);
+      assert.match(
+        ordersModule,
+        /MigrationsHistoryTable\("__ef_migrations_history", "orders"\)/,
+      );
+      const ordersModel = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Orders",
+          "Infrastructure",
+          "Persistence",
+          "OrdersPersistenceModel.cs",
+        ),
+        "utf8",
+      );
+      assert.match(ordersModel, /ToTable\("orders_aggregate", "orders"\)/);
+      assert.match(ordersModel, /HasEntityTimestamps\(\)/);
+      assert.match(ordersModel, /IsConcurrencyToken\(\)/);
+      assert.match(ordersModule, /AddDbContext<OrdersDbContext>/);
+      assert.match(
+        ordersModule,
+        provider === "postgresql" ? /UseNpgsql\(/ : /UseSqlServer\(/,
+      );
+      assert.doesNotMatch(
+        ordersModule,
+        provider === "postgresql" ? /UseSqlServer\(/ : /UseNpgsql\(/,
+      );
+      assert.match(
+        migration,
+        provider === "postgresql"
+          ? /type: "uuid"/
+          : /type: "uniqueidentifier"/,
+      );
+      assert.match(migrator, /validate/);
+      assert.match(migrator, /script/);
+      assert.match(migrator, /apply/);
+      assert.match(ordersModule, /MigrationsSqlGenerationOptions\.Idempotent/);
+      assert.doesNotMatch(api, /\.Migrate(?:Async)?\(|EnsureCreated|UseSeeding/);
+    }
+  } finally {
+    await Promise.all(
+      roots.map((root) => rm(root, { recursive: true, force: true })),
+    );
+  }
+});
+
+test("generated relational identifiers are deterministic lowercase snake_case", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const output = join(root, "generated");
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["SalesOrders"],
+      outputDirectory: output,
+    });
+
+    const model = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.SalesOrders",
+        "Infrastructure",
+        "Persistence",
+        "SalesOrdersPersistenceModel.cs",
+      ),
+      "utf8",
+    );
+    const migration = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.SalesOrders",
+        "Infrastructure",
+        "Persistence",
+        "Migrations",
+        "20260101000000_InitialSalesOrders.cs",
+      ),
+      "utf8",
+    );
+
+    assert.match(model, /ToTable\("sales_orders_aggregate", "sales_orders"\)/);
+    assert.match(migration, /pk_sales_orders_aggregate/);
+    assert.doesNotMatch(model, /ToTable\("[^"]*SalesOrders|ToTable\("[^"]*salesorders/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("the modular monolith CLI resolves repeated module and dependency options", async () => {
   const output = [];
   const originalLog = console.log;
@@ -213,7 +379,7 @@ test("generation emits only executable, module, and consolidated test boundaries
     });
 
     assert.deepEqual(first.files, second.files);
-    assert.equal(first.files.length, 21);
+    assert.equal(first.files.length, 29);
     assert.deepEqual(
       await listFiles(join(firstRoot, "generated")),
       first.files,
@@ -268,7 +434,7 @@ test("generation emits only executable, module, and consolidated test boundaries
       ),
       "utf8",
     );
-    assert.match(apiSource, /OrdersModule\.AddServices\(services\)/);
+    assert.match(apiSource, /OrdersModule\.AddServices\(services, configuration\)/);
     assert.match(apiSource, /BillingModule\.MapEndpoints\(app\)/);
     assert.doesNotMatch(apiSource, /Assembly\.|GetTypes|MediatR|IModule/);
 
