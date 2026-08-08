@@ -27,6 +27,8 @@ cadence is the required CI entry point; both invoke the same
 - `eng/generate-modular-monolith.mjs` generates the deterministic Modular
   Monolith composition slice; `npm run generate:app -- --preset
   modular-monolith ...` uses the shared Template System entry point.
+- `npm run migrate -- inspect|plan|apply|verify` runs the exact-version
+  Platform Migration rehearsal; plans are written outside the source repository.
 - `AGENTS.md` routes contributors and agents.
 - `CONTEXT.md` defines Platform vocabulary.
 - `PROVENANCE.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `LICENSE` define

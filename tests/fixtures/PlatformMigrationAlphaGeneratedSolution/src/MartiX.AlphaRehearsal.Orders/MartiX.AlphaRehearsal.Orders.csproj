@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>MartiX.AlphaRehearsal.Orders</RootNamespace>
+    <AssemblyName>MartiX.AlphaRehearsal.Orders</AssemblyName>
+    <MartiXPlatformVersion>0.1.0-preview.1</MartiXPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MartiX.Platform" Version="$(MartiXPlatformVersion)" />
+    <PackageReference Include="MartiX.Platform.EntityFrameworkCore" Version="$(MartiXPlatformVersion)" />
+  </ItemGroup>
+</Project>
