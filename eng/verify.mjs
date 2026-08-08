@@ -6,8 +6,10 @@ import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
 import {
+  FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
   MODULAR_MONOLITH_ALPHA_GATE_IDS,
   MODULAR_MONOLITH_ALPHA_PROVIDERS,
+  RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
 } from "./modular-monolith-alpha.mjs";
 
 const CADENCES = [
@@ -826,10 +828,12 @@ async function validateModularMonolithComposition(
       "DuplicateSuppressed",
       "RollbackAsync",
       "LeaseDuration",
+      "DbUpdateConcurrencyException",
+      "concurrencyConflictObserved",
     ].every((fragment) => testSource.includes(fragment))
   ) {
     fail(
-      "Modular Monolith acceptance tests must exercise real-provider rollback, lease expiry, and Inbox deduplication.",
+      "Modular Monolith acceptance tests must exercise real-provider rollback, concurrency conflict, lease expiry, and Inbox deduplication.",
     );
   }
 
@@ -992,6 +996,10 @@ async function validateModularMonolithComposition(
       "MigrateAsync",
       "ApplyAndValidateAsync",
     ].every((fragment) => compositionSource.includes(fragment));
+    const providerLeaseImplementation =
+      RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS[relationalProvider];
+    const forbiddenProviderLeaseImplementation =
+      FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS[relationalProvider];
     if (
       !new RegExp(
         `internal\\s+sealed\\s+class\\s+${escapeRegExp(module.name)}Aggregate`,
@@ -1036,10 +1044,12 @@ async function validateModularMonolithComposition(
       !hasExplicitConcurrencyMapping ||
       !persistenceModelSource.includes(
         `${module.name}ReliableEvents.Configure(modelBuilder)`,
-      )
+      ) ||
+      !compositionSource.includes(providerLeaseImplementation) ||
+      compositionSource.includes(forbiddenProviderLeaseImplementation)
     ) {
       fail(
-        `Business Module ${module.name} must use an explicit configuration with portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
+        `Business Module ${module.name} must select one provider-specific lease implementation and use portable relational naming with concurrency mapping in ${persistenceModelPath}.`,
       );
     }
     if (

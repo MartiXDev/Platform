@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
+  MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS,
   MODULAR_MONOLITH_ALPHA_GATE_IDS,
   MODULAR_MONOLITH_ALPHA_MATURITY,
   MODULAR_MONOLITH_ALPHA_PROVIDERS,
@@ -67,7 +68,7 @@ const alphaInput = {
       "modular-monolith/postgresql",
       "modular-monolith/sqlserver",
     ],
-    invalidSelections: ["mixed-relational-providers", "sqlite"],
+    invalidSelections: [...MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS],
   },
 };
 
@@ -160,4 +161,63 @@ test("generation omits a fake reliability test without a module consumer", async
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("generated provider evidence includes an optimistic concurrency conflict", async () => {
+  const root = await mkdtemp(join(tmpdir(), "martix-modular-monolith-alpha-"));
+
+  try {
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Alpha",
+      businessModules: ["Orders", "Billing"],
+      moduleDependencies: { Billing: ["Orders"] },
+      relationalProvider: "postgresql",
+      outputDirectory: root,
+    });
+    const testSource = await readFile(
+      join(
+        root,
+        "tests",
+        "MartiX.Alpha.Tests",
+        "ModularMonolithCompositionTests.cs",
+      ),
+      "utf8",
+    );
+
+    assert.match(testSource, /DbUpdateConcurrencyException/);
+    assert.match(testSource, /concurrencyConflictObserved/);
+    assert.match(testSource, /CreateAsyncScope\(\)/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("alpha evidence rejects package and compatibility omissions", () => {
+  assert.throws(
+    () =>
+      createModularMonolithAlphaEvidence({
+        ...alphaInput,
+        artifacts: [
+          ...alphaInput.artifacts,
+          {
+            id: "Unexpected.Package",
+            version: "0.1.0-preview.1",
+            digest: digest("e"),
+          },
+        ],
+      }),
+    /exactly 4 first-party artifacts|unexpected package/i,
+  );
+
+  assert.throws(
+    () =>
+      createModularMonolithAlphaEvidence({
+        ...alphaInput,
+        compatibility: {
+          ...alphaInput.compatibility,
+          invalidSelections: ["sqlite"],
+        },
+      }),
+    /mixed-relational-providers/i,
+  );
 });
