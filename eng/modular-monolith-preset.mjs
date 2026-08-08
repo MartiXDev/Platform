@@ -2279,6 +2279,18 @@ return 0;
 
 function testSourceFile(plan) {
   const firstModule = plan.businessModules[0];
+  const consumerModule = plan.businessModules.find((module) =>
+    module.dependencies.includes(firstModule.name),
+  );
+  const realEvidenceUsings =
+    consumerModule === undefined
+      ? ""
+      : `using ${moduleNamespace(plan, firstModule.name)};
+using ${moduleNamespace(plan, firstModule.name)}.Domain;
+using ${moduleNamespace(plan, firstModule.name)}.Infrastructure.Persistence;
+using ${moduleNamespace(plan, consumerModule.name)};
+using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
+`;
   const moduleUsings = plan.businessModules
     .map(
       (module) =>
@@ -2304,64 +2316,164 @@ function testSourceFile(plan) {
             .IsEqualTo(HttpStatusCode.OK);`,
     )
     .join("\n");
-  const crashRedeliveryScenario = `    [Test]
-    public async Task Consumer_crash_after_commit_before_ack_is_redelivered_once()
+ const crashRedeliveryScenario =
+   consumerModule === undefined
+     ? `    [Test]
+    public async Task The_generated_acceptance_boundary_is_executable()
     {
-        var probe = new CrashRedeliveryProbe();
+        await Assert.That(true).IsTrue();
+    }
+`
+     : `    [Test, NotInParallel("modular-monolith-alpha-database")]
+    public async Task Real_provider_transaction_and_crash_redelivery_are_idempotent()
+    {
+        await using var services = BuildEvidenceServices();
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        var options = new ReliableEventsOptions
+        {
+            AttemptTimeout = TimeSpan.FromMilliseconds(100),
+            LeaseDuration = TimeSpan.FromSeconds(6),
+            ShutdownBudget = TimeSpan.FromMilliseconds(100)
+        };
+        Guid messageId;
+        int inboxReceiptsBefore;
 
-        probe.Deliver(crashAfterConsumerCommit: true);
-        probe.Deliver(crashAfterConsumerCommit: false);
+        await using (var scope = services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<${firstModule.name}DbContext>();
+            var aggregate = await dbContext.Aggregates
+                .SingleOrDefaultAsync(candidate => candidate.Name == "${firstModule.name}");
+            if (aggregate is null)
+            {
+                aggregate = new ${firstModule.name}Aggregate();
+                dbContext.Aggregates.Add(aggregate);
+                await dbContext.SaveChangesAsync();
+            }
 
-        await Assert.That(probe.Deliveries).IsEqualTo(2);
-        await Assert.That(probe.BusinessEffects).IsEqualTo(1);
-        await Assert.That(probe.DuplicateSuppressed).IsEqualTo(1);
-        // The consumer commits before acknowledgement; the duplicate delivery
-        // therefore produces no duplicate business effect.
+            var originalToken = aggregate.ConcurrencyToken;
+            var rollbackToken = Guid.CreateVersion7();
+            await using (var transaction = await dbContext.Database.BeginTransactionAsync())
+            {
+                aggregate.RecordSubmitted(rollbackToken);
+                await dbContext.SaveChangesAsync();
+                await transaction.RollbackAsync();
+            }
+            dbContext.ChangeTracker.Clear();
+            aggregate = await dbContext.Aggregates
+                .SingleAsync(candidate => candidate.Name == "${firstModule.name}");
+            await Assert.That(aggregate.ConcurrencyToken).IsEqualTo(originalToken);
+
+            aggregate.RaiseSubmitted(DateTimeOffset.UtcNow);
+            await dbContext.SaveChangesAsync();
+            messageId = await dbContext.OutboxMessages
+                .OrderByDescending(message => message.CapturedAtUtc)
+                .ThenByDescending(message => message.MessageId)
+                .Select(message => message.MessageId)
+                .FirstAsync();
+
+            var billingDbContext = scope.ServiceProvider
+                .GetRequiredService<${consumerModule.name}DbContext>();
+            inboxReceiptsBefore = await billingDbContext.InboxReceipts.CountAsync();
+        }
+
+        var firstClaims = await ${firstModule.name}Module.ClaimReliableEventsAsync(
+            services,
+            10,
+            options,
+            timeProvider,
+            CancellationToken.None);
+        var firstDelivery = firstClaims.Single(delivery => delivery.MessageId == messageId);
+        var firstOutcome = await ${consumerModule.name}Module.DispatchReliableEventAsync(
+            services,
+            firstDelivery,
+            CancellationToken.None);
+
+        // The consumer commits before acknowledgement; redelivery has no
+        // duplicate business effect after the producer crash.
+        await Task.Delay(options.LeaseDuration + TimeSpan.FromMilliseconds(250));
+        var redeliveries = await ${firstModule.name}Module.ClaimReliableEventsAsync(
+            services,
+            10,
+            options,
+            timeProvider,
+            CancellationToken.None);
+        var secondDelivery = redeliveries.Single(delivery => delivery.MessageId == messageId);
+        var duplicateOutcome = await ${consumerModule.name}Module.DispatchReliableEventAsync(
+            services,
+            secondDelivery,
+            CancellationToken.None);
+        var acknowledged = await ${firstModule.name}Module.AcknowledgeReliableEventAsync(
+            services,
+            secondDelivery,
+            timeProvider,
+            CancellationToken.None);
+
+        await using (var scope = services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<${consumerModule.name}DbContext>();
+            var aggregate = await dbContext.Aggregates
+                .SingleAsync(candidate => candidate.Name == "${consumerModule.name}");
+            var inboxReceiptsAfter = await dbContext.InboxReceipts.CountAsync();
+
+            await Assert.That(firstOutcome)
+                .IsEqualTo(ReliableEventDeliveryOutcome.Acknowledged);
+            await Assert.That(duplicateOutcome)
+                .IsEqualTo(ReliableEventDeliveryOutcome.DuplicateSuppressed);
+            await Assert.That(firstDelivery.Attempt).IsEqualTo(1);
+            await Assert.That(secondDelivery.Attempt).IsEqualTo(2);
+            await Assert.That(acknowledged).IsTrue();
+            await Assert.That(inboxReceiptsAfter).IsEqualTo(inboxReceiptsBefore + 1);
+            await Assert.That(aggregate.ConcurrencyToken).IsEqualTo(messageId);
+        }
     }
 
-    private sealed class CrashRedeliveryProbe
+    private static ServiceProvider BuildEvidenceServices()
     {
-        private bool inboxReceiptCommitted;
-
-        public int Deliveries { get; private set; }
-
-        public int BusinessEffects { get; private set; }
-
-        public int DuplicateSuppressed { get; private set; }
-
-        public void Deliver(bool crashAfterConsumerCommit)
+        var connectionString = Environment.GetEnvironmentVariable(
+            "MARTIX_MODULAR_MONOLITH_DATABASE");
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
-            Deliveries++;
-            if (inboxReceiptCommitted)
-            {
-                DuplicateSuppressed++;
-                return;
-            }
-
-            BusinessEffects++;
-            inboxReceiptCommitted = true;
-            if (crashAfterConsumerCommit)
-            {
-                // The producer acknowledgement is intentionally lost after the
-                // consumer commits before acknowledgement.
-                return;
-            }
+            throw new InvalidOperationException(
+                "MARTIX_MODULAR_MONOLITH_DATABASE is required for provider evidence.");
         }
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Database"] = connectionString
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddReliableEvents();
+        ${plan.businessModules
+          .map(
+            (module) =>
+              `${module.name}Module.AddServices(services, configuration);`,
+          )
+          .join("\n        ")}
+        return services.BuildServiceProvider();
     }
 `;
 
   return `using System.Net;
 using System.Text.Json;
 ${moduleUsings}
+${realEvidenceUsings}
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 public sealed class ModularMonolithCompositionTests
 {
-    [Test]
+    [Test, NotInParallel("modular-monolith-alpha-database")]
     public async Task The_generated_host_composes_every_business_module()
     {
         await using var host = await ApiHost.StartAsync();
@@ -2406,7 +2518,9 @@ ${crashRedeliveryScenario}
                 });
             builder.WebHost.UseTestServer();
             builder.Configuration["ConnectionStrings:Database"] =
-                "Host=localhost;Database=martix_test";
+                Environment.GetEnvironmentVariable(
+                    "MARTIX_MODULAR_MONOLITH_DATABASE")
+                ?? "Host=localhost;Database=martix_test";
             ApiComposition.ConfigureServices(
                 builder.Services,
                 builder.Configuration);

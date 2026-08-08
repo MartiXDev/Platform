@@ -10,6 +10,7 @@
     "stage",
     "supportClaims",
     "cadences",
+    "profiles",
     "gates"
   ],
   "properties": {
@@ -33,6 +34,14 @@
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/cadence"
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/profile"
       }
     },
     "gates": {
@@ -98,13 +107,18 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^bootstrap\\.[a-z0-9-]+$"
+          "pattern": "^(?:bootstrap|modular-monolith)\\.[a-z0-9-]+$"
         },
         "family": {
           "enum": [
             "repository-integrity",
             "security-supply-chain",
-            "template-generation"
+            "template-generation",
+            "architecture",
+            "provider-integration",
+            "migration",
+            "reliability-operations",
+            "release-evidence"
           ]
         },
         "owner": {
@@ -127,6 +141,64 @@
           }
         },
         "purpose": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "maturity",
+        "preset",
+        "providers",
+        "cadences",
+        "gates",
+        "command"
+      ],
+      "properties": {
+        "id": {
+          "const": "modular-monolith-alpha"
+        },
+        "maturity": {
+          "const": "experimental"
+        },
+        "preset": {
+          "const": "modular-monolith"
+        },
+        "providers": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "postgresql",
+              "sqlserver"
+            ]
+          }
+        },
+        "cadences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "release-candidate"
+            ]
+          }
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^modular-monolith\\.[a-z0-9-]+$"
+          }
+        },
+        "command": {
           "type": "string",
           "minLength": 1
         }

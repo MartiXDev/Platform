@@ -31,6 +31,29 @@
       ]
     }
   ],
+  "profiles": [
+    {
+      "id": "modular-monolith-alpha",
+      "maturity": "experimental",
+      "preset": "modular-monolith",
+      "providers": [
+        "postgresql",
+        "sqlserver"
+      ],
+      "cadences": [
+        "release-candidate"
+      ],
+      "gates": [
+        "modular-monolith.generated-solution",
+        "modular-monolith.architecture",
+        "modular-monolith.provider-integration",
+        "modular-monolith.migration",
+        "modular-monolith.reliability",
+        "modular-monolith.release-evidence"
+      ],
+      "command": "npm run verify:modular-monolith-alpha"
+    }
+  ],
   "gates": [
     {
       "id": "bootstrap.manifest",
@@ -96,6 +119,66 @@
         "release-candidate"
       ],
       "purpose": "Bootstrap metadata declares external-only secret delivery and contains no secret values."
+    },
+    {
+      "id": "modular-monolith.generated-solution",
+      "family": "template-generation",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "Both named relational variants are generated deterministically from the exact alpha inputs."
+    },
+    {
+      "id": "modular-monolith.architecture",
+      "family": "architecture",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "Generated API, Migrator, Business Module, Contracts, persistence, and consolidated TUnit boundaries remain explicit."
+    },
+    {
+      "id": "modular-monolith.provider-integration",
+      "family": "provider-integration",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "PostgreSQL and SQL Server execute the selected provider APIs against real external databases without provider substitution."
+    },
+    {
+      "id": "modular-monolith.migration",
+      "family": "migration",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "Fresh, historical, idempotent, script, and migration-database separation evidence passes for each relational variant."
+    },
+    {
+      "id": "modular-monolith.reliability",
+      "family": "reliability-operations",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "Real-provider transaction rollback, leased queue expiry, crash redelivery, and transactional Inbox deduplication prove one durable business effect."
+    },
+    {
+      "id": "modular-monolith.release-evidence",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "Immutable candidate evidence records exact artifacts, manifests, gates, compatibility coordinates, and Experimental maturity without Supported claims."
     }
   ]
 }

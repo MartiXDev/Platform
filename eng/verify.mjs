@@ -35,6 +35,15 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.secret-free",
 ];
+const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
+const MODULAR_MONOLITH_ALPHA_GATE_IDS = [
+  "modular-monolith.generated-solution",
+  "modular-monolith.architecture",
+  "modular-monolith.provider-integration",
+  "modular-monolith.migration",
+  "modular-monolith.reliability",
+  "modular-monolith.release-evidence",
+];
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
   "kind",
@@ -798,6 +807,35 @@ async function validateModularMonolithComposition(
       "Modular Monolith acceptance tests must use TUnit tests with awaited assertions.",
     );
   }
+  if (testSource.includes("CrashRedeliveryProbe")) {
+    fail(
+      "Modular Monolith acceptance tests must not substitute an in-memory crash probe for provider evidence.",
+    );
+  }
+  const hasModuleConsumer = modules.some((module) =>
+    module.dependencies.some((dependency) =>
+      modules.some(
+        (candidate) =>
+          candidate.name === dependency &&
+          candidate.name !== module.name,
+      ),
+    ),
+  );
+  if (
+    hasModuleConsumer &&
+    ![
+      "Real_provider_transaction_and_crash_redelivery_are_idempotent",
+      "MARTIX_MODULAR_MONOLITH_DATABASE",
+      "InboxReceipts",
+      "DuplicateSuppressed",
+      "RollbackAsync",
+      "LeaseDuration",
+    ].every((fragment) => testSource.includes(fragment))
+  ) {
+    fail(
+      "Modular Monolith acceptance tests must exercise real-provider rollback, lease expiry, and Inbox deduplication.",
+    );
+  }
 
   for (const module of modules) {
     const projectName = moduleProjectNames.get(module.name);
@@ -1152,6 +1190,32 @@ function validateQualityGatePolicy(policy) {
     fail("Bootstrap quality policy must not make a Supported Capability claim.");
   }
 
+  requireArray(policy.profiles, "eng/quality-gates.json.profiles");
+  const alphaProfiles = policy.profiles.filter(
+    (profile) => profile?.id === MODULAR_MONOLITH_ALPHA_PROFILE_ID,
+  );
+  if (alphaProfiles.length !== 1) {
+    fail(
+      `Quality policy must declare exactly one ${MODULAR_MONOLITH_ALPHA_PROFILE_ID} profile.`,
+    );
+  }
+  const alphaProfile = alphaProfiles[0];
+  if (
+    alphaProfile.maturity !== "experimental" ||
+    alphaProfile.preset !== "modular-monolith" ||
+    JSON.stringify(alphaProfile.providers) !==
+      JSON.stringify(["postgresql", "sqlserver"]) ||
+    JSON.stringify(alphaProfile.cadences) !==
+      JSON.stringify(["release-candidate"]) ||
+    JSON.stringify(alphaProfile.gates) !==
+      JSON.stringify(MODULAR_MONOLITH_ALPHA_GATE_IDS) ||
+    alphaProfile.command !== "npm run verify:modular-monolith-alpha"
+  ) {
+    fail(
+      `${MODULAR_MONOLITH_ALPHA_PROFILE_ID} quality profile is not the declared Experimental provider matrix.`,
+    );
+  }
+
   requireArray(policy.cadences, "eng/quality-gates.json.cadences");
   const declaredCadences = policy.cadences.map((cadence) => cadence?.id);
   if (
@@ -1168,7 +1232,10 @@ function validateQualityGatePolicy(policy) {
   for (const gate of policy.gates) {
     requireRecord(gate, "eng/quality-gates.json.gates[]");
     requireString(gate.id, "eng/quality-gates.json.gates[].id");
-    if (!BOOTSTRAP_GATE_IDS.includes(gate.id)) {
+    if (
+      !BOOTSTRAP_GATE_IDS.includes(gate.id) &&
+      !MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id)
+    ) {
       fail(`Unsupported bootstrap quality gate: ${gate.id}`);
     }
     requireString(gate.family, `gate ${gate.id}.family`);
@@ -1191,11 +1258,43 @@ function validateQualityGatePolicy(policy) {
     }
   }
 
-  for (const cadence of CADENCES) {
-    for (const gate of policy.gates) {
-      if (!gate.cadences.includes(cadence)) {
-        fail(`Required gate ${gate.id} is not declared for cadence ${cadence}.`);
+  for (const requiredGate of MODULAR_MONOLITH_ALPHA_GATE_IDS) {
+    if (!gateIds.has(requiredGate)) {
+      fail(`Missing required Modular Monolith alpha quality gate: ${requiredGate}`);
+    }
+  }
+
+  for (const gate of policy.gates) {
+    if (BOOTSTRAP_GATE_IDS.includes(gate.id)) {
+      for (const cadence of CADENCES) {
+        if (!gate.cadences.includes(cadence)) {
+          fail(`Required gate ${gate.id} is not declared for cadence ${cadence}.`);
+        }
       }
+    } else if (
+      JSON.stringify(gate.cadences) !== JSON.stringify(["release-candidate"])
+    ) {
+      fail(
+        `Modular Monolith alpha gate ${gate.id} must run on release-candidate.`,
+      );
+    }
+  }
+
+  for (const gateId of alphaProfile.gates) {
+    if (!gateIds.has(gateId)) {
+      fail(
+        `Quality profile ${MODULAR_MONOLITH_ALPHA_PROFILE_ID} references an unknown gate: ${gateId}.`,
+      );
+    }
+  }
+  for (const gate of policy.gates) {
+    if (
+      MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) &&
+      !alphaProfile.gates.includes(gate.id)
+    ) {
+      fail(
+        `Modular Monolith alpha gate ${gate.id} is not selected by its quality profile.`,
+      );
     }
   }
 }
@@ -1307,7 +1406,11 @@ export async function verifyBootstrap({
   await validateModularMonolithSolution(root, modularMonolithManifest);
 
   const gates = qualityPolicy.gates
-    .filter((gate) => gate.cadences.includes(cadence))
+    .filter(
+      (gate) =>
+        BOOTSTRAP_GATE_IDS.includes(gate.id) &&
+        gate.cadences.includes(cadence),
+    )
     .map((gate) => gate.id);
 
   if (!gates.includes("bootstrap.manifest")) {

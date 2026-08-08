@@ -36,6 +36,10 @@ cadence is the required CI entry point; both invoke the same
 - `tests/fixtures/ModularMonolithGeneratedSolution/` is the named composition
   acceptance seam with one API, one Migrator, two genuine modules, and one
   consolidated test project.
+- `npm run verify:modular-monolith-alpha` is the release-candidate-only
+  Experimental evidence path for synchronized PostgreSQL and SQL Server
+  variants; it requires external database inputs and does not create a
+  Supported Capability claim.
 
 Repository Bootstrap makes no Supported Capability claim. The empty
 `supportClaims` arrays are intentional and must remain empty until a later

@@ -216,6 +216,15 @@ consumer effect, loses acknowledgement, redelivers after lease expiry, and
 proves one durable effect through the Inbox Receipt. No EF Core InMemory result
 may substitute for provider evidence.
 
+The repository implementation uses the release-candidate-only
+`modular-monolith-alpha` Quality Profile and
+`npm run verify:modular-monolith-alpha`. It packs the four first-party
+artifacts once, restores each provider variant from an isolated feed, requires
+separate application and migration database inputs, and records exact
+candidate, manifest, gate, compatibility, and Experimental maturity evidence.
+The profile remains claim-free until the complete later Composed Quality Profile
+is satisfied.
+
 This alpha remains Experimental because full HTTP lifecycle, production host
 security/observability, identity-provider, UI, deployment, compatibility-
 migration, and release-trust profiles follow in later tracer bullets.

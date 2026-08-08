@@ -1,13 +1,15 @@
 # Quality and release architecture
 
-> Status: **Approved target with an Implemented bootstrap slice**. The current
-> repository exposes bootstrap gates and a JavaScript verification entrypoint;
-> the broader target contract is not yet a Supported Capability claim.
+> Status: **Approved target with implemented bootstrap and Experimental alpha
+> evidence**. The current repository exposes bootstrap gates plus the
+> claim-free Modular Monolith alpha profile; neither is a Supported Capability
+> claim.
 
 ## Current bootstrap evidence
 
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
-[`eng/verify.mjs`](../../eng/verify.mjs), and [`martix.platform.json`](../../martix.platform.json).
+[`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
+and [`martix.platform.json`](../../martix.platform.json).
 They define four cadences and four required bootstrap gates while keeping
 `supportClaims` empty:
 
@@ -23,6 +25,13 @@ npm run verify:fast
 npm run verify:pr
 npm run verify:api
 ```
+
+The `modular-monolith-alpha` profile is release-candidate-only and requires
+separate PostgreSQL and SQL Server application and migration database inputs.
+`npm run verify:modular-monolith-alpha` packs the first-party artifacts once,
+restores both generated variants from the isolated feed, runs migration and
+real-provider reliability evidence, and writes immutable Experimental candidate
+evidence. Its `supportClaims` remain empty.
 
 The target roadmap later calls for one .NET file-based Verification Entrypoint
 with the same cadence contract. Until that tracer is implemented, the
