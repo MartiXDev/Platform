@@ -1,5 +1,6 @@
 using MartiX.TemplateTestApp.Billing.Domain;
 using MartiX.TemplateTestApp.Billing.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -14,6 +15,8 @@ internal partial class BillingDbContextModelSnapshot : ModelSnapshot
         modelBuilder
             .HasDefaultSchema("billing")
             .HasAnnotation("ProductVersion", "10.0.10");
+
+        modelBuilder.HasReliableEvents("billing");
 
         modelBuilder.Entity<BillingAggregate>(entity =>
         {

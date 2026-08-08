@@ -1,5 +1,6 @@
 using MartiX.TemplateTestApp.Orders.Domain;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using MartiX.TemplateTestApp.Orders.Infrastructure.IntegrationEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -37,5 +38,6 @@ internal static class OrdersPersistenceModel
     public static void Configure(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new OrdersAggregateConfiguration());
+        OrdersReliableEvents.Configure(modelBuilder);
     }
 }

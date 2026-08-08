@@ -1,5 +1,6 @@
 using MartiX.TemplateTestApp.Orders.Domain;
 using MartiX.TemplateTestApp.Orders.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -14,6 +15,8 @@ internal partial class OrdersDbContextModelSnapshot : ModelSnapshot
         modelBuilder
             .HasDefaultSchema("orders")
             .HasAnnotation("ProductVersion", "10.0.10");
+
+        modelBuilder.HasReliableEvents("orders");
 
         modelBuilder.Entity<OrdersAggregate>(entity =>
         {

@@ -77,6 +77,11 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
     classification: "required",
     provider: "relational",
   }),
+  Object.freeze({
+    id: "modular-monolith.reliable-integration-events",
+    classification: "required",
+    provider: null,
+  }),
 ]);
 
 export const MODULAR_MONOLITH_BASELINE_CAPABILITIES = Object.freeze(
@@ -123,6 +128,8 @@ const RELATIONAL_PROVIDER_DEFINITIONS = Object.freeze({
       identifier: "uuid",
       timestamp: "timestamp with time zone",
       text: "character varying(200)",
+      binary: "bytea",
+      integer: "integer",
     }),
   }),
   sqlserver: Object.freeze({
@@ -135,6 +142,8 @@ const RELATIONAL_PROVIDER_DEFINITIONS = Object.freeze({
       identifier: "uniqueidentifier",
       timestamp: "datetimeoffset",
       text: "nvarchar(200)",
+      binary: "varbinary(max)",
+      integer: "int",
     }),
   }),
 });
@@ -856,6 +865,7 @@ function apiProgramFile(plan) {
     .join("\n");
 
   return `${moduleUsings}
+using ${plan.applicationName}.Infrastructure.IntegrationEvents;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
@@ -881,6 +891,7 @@ public static class ApiComposition
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
 ${serviceComposition}
+        ReliableEventsComposition.AddServices(services);
     }
 
     public static void Configure(WebApplication app)
@@ -901,6 +912,198 @@ public sealed record HealthResponse(string Status);
 `;
 }
 
+function apiReliableEventsFile(plan) {
+  const moduleUsings = plan.businessModules
+    .map((module) => `using ${moduleNamespace(plan, module.name)};`)
+    .join("\n");
+  const claimCalls = plan.businessModules
+    .map(
+      (module) => `        if (remaining > 0)
+        {
+            var claimed${module.name} =
+                await ${module.name}Module.ClaimReliableEventsAsync(
+                    services,
+                    remaining,
+                    timeProvider,
+                    cancellationToken);
+            result.AddRange(claimed${module.name});
+            remaining -= claimed${module.name}.Count;
+        }`,
+    )
+    .join("\n");
+  const dispatchCases = plan.businessModules
+    .map(
+      (module) => `            "${module.name}" =>
+                ${module.name}Module.DispatchReliableEventAsync(
+                    services,
+                    delivery,
+                    cancellationToken),`,
+    )
+    .join("\n");
+  const acknowledgeCases = plan.businessModules
+    .map(
+      (module) => `            "${module.name}" =>
+                ${module.name}Module.AcknowledgeReliableEventAsync(
+                    services,
+                    delivery,
+                    timeProvider,
+                    cancellationToken),`,
+    )
+    .join("\n");
+  const retryCases = plan.businessModules
+    .map(
+      (module) => `            "${module.name}" =>
+                ${module.name}Module.ScheduleReliableEventRetryAsync(
+                    services,
+                    delivery,
+                    failureCategory,
+                    failureDetail,
+                    timeProvider,
+                    cancellationToken),`,
+    )
+    .join("\n");
+  const failCases = plan.businessModules
+    .map(
+      (module) => `            "${module.name}" =>
+                ${module.name}Module.FailReliableEventAsync(
+                    services,
+                    delivery,
+                    failureCategory,
+                    failureDetail,
+                    timeProvider,
+                    cancellationToken),`,
+    )
+    .join("\n");
+  return `${moduleUsings}
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace ${plan.applicationName}.Infrastructure.IntegrationEvents;
+
+internal static class ReliableEventsComposition
+{
+    public static void AddServices(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddSingleton<IHostedService>(serviceProvider =>
+        {
+            var options = serviceProvider
+                .GetRequiredService<ReliableEventsOptions>();
+            var timeProvider = serviceProvider
+                .GetRequiredService<TimeProvider>();
+            return new ReliableEventsDispatcher(
+                options,
+                (batchSize, cancellationToken) =>
+                    ClaimAsync(
+                        serviceProvider,
+                        batchSize,
+                        timeProvider,
+                        cancellationToken),
+                (delivery, cancellationToken) =>
+                    DispatchAsync(
+                        serviceProvider,
+                        delivery,
+                        cancellationToken),
+                serviceProvider
+                    .GetRequiredService<ILogger<ReliableEventsDispatcher>>(),
+                (delivery, cancellationToken) =>
+                    AcknowledgeAsync(
+                        serviceProvider,
+                        delivery,
+                        timeProvider,
+                        cancellationToken),
+                (delivery, failureCategory, failureDetail, cancellationToken) =>
+                    ScheduleRetryAsync(
+                        serviceProvider,
+                        delivery,
+                        failureCategory,
+                        failureDetail,
+                        timeProvider,
+                        cancellationToken),
+                (delivery, failureCategory, failureDetail, cancellationToken) =>
+                    FailAsync(
+                        serviceProvider,
+                        delivery,
+                        failureCategory,
+                        failureDetail,
+                        timeProvider,
+                        cancellationToken));
+        });
+    }
+
+    private static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimAsync(
+        IServiceProvider services,
+        int batchSize,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<ReliableEventDelivery>(batchSize);
+        var remaining = batchSize;
+${claimCalls}
+        return result;
+    }
+
+    private static ValueTask<ReliableEventDeliveryOutcome> DispatchAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        CancellationToken cancellationToken)
+    {
+        return delivery.SubscriptionId switch
+        {
+${dispatchCases}
+            _ => new ValueTask<ReliableEventDeliveryOutcome>(
+                ReliableEventDeliveryOutcome.PermanentFailure),
+        };
+    }
+
+    private static ValueTask<bool> AcknowledgeAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        return delivery.Envelope.Publisher switch
+        {
+${acknowledgeCases}
+            _ => new ValueTask<bool>(false),
+        };
+    }
+
+    private static ValueTask<bool> ScheduleRetryAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        string failureCategory,
+        string? failureDetail,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        return delivery.Envelope.Publisher switch
+        {
+${retryCases}
+            _ => new ValueTask<bool>(false),
+        };
+    }
+
+    private static ValueTask<bool> FailAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        string failureCategory,
+        string? failureDetail,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        return delivery.Envelope.Publisher switch
+        {
+${failCases}
+            _ => new ValueTask<bool>(false),
+        };
+    }
+}
+`;
+}
+
 function moduleContractsFile(plan, moduleName) {
   const namespace = `${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts`;
   return `namespace ${namespace};
@@ -917,8 +1120,36 @@ public sealed record ${moduleName}StatusResponse(
 `;
 }
 
+function moduleIntegrationEventsFile(plan, moduleName) {
+  const namespace = `${moduleNamespace(plan, moduleName)}.Contracts.IntegrationEvents`;
+  const eventName = `${toDatabaseIdentifier(moduleName).replaceAll("_", "-")}.submitted`;
+  return `using System.Text.Json.Serialization;
+
+namespace ${namespace};
+
+public sealed record ${moduleName}SubmittedV1(
+    Guid EventId,
+    Guid AggregateId,
+    DateTimeOffset OccurredAtUtc)
+{
+    public const string EventName = "${eventName}";
+    public const int SchemaVersion = 1;
+}
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(${moduleName}SubmittedV1))]
+public partial class ${moduleName}IntegrationEventJsonContext :
+    JsonSerializerContext
+{
+}
+`;
+}
+
 function moduleDomainFile(plan, moduleName) {
-  return `using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+  return `using ${moduleNamespace(plan, moduleName)}.Contracts.IntegrationEvents;
+using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 
 namespace ${moduleNamespace(plan, moduleName)}.Domain;
 
@@ -935,6 +1166,39 @@ internal sealed class ${moduleName}Aggregate :
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public Guid ConcurrencyToken { get; private set; } = Guid.NewGuid();
+
+    private readonly DomainEventCollection<${moduleName}SubmittedV1> domainEvents =
+        new(static domainEvent => domainEvent.EventId);
+
+    public void RaiseSubmitted(DateTimeOffset occurredAtUtc)
+    {
+        domainEvents.Add(
+            new ${moduleName}SubmittedV1(
+                Guid.CreateVersion7(),
+                Id,
+                occurredAtUtc));
+    }
+
+    public void RecordSubmitted(Guid eventId)
+    {
+        if (eventId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A submitted event requires a non-empty event ID.",
+                nameof(eventId));
+        }
+
+        ConcurrencyToken = eventId;
+    }
+
+    internal IReadOnlyList<${moduleName}SubmittedV1> SnapshotDomainEvents() =>
+        domainEvents.Snapshot();
+
+    internal void AcknowledgeDomainEvents(
+        IReadOnlyList<${moduleName}SubmittedV1> events)
+    {
+        domainEvents.Acknowledge(events);
+    }
 }
 `;
 }
@@ -942,6 +1206,7 @@ internal sealed class ${moduleName}Aggregate :
 function modulePersistenceContextFile(plan, moduleName) {
   const schema = toDatabaseIdentifier(moduleName);
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.EntityFrameworkCore;
 
 namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
@@ -956,6 +1221,12 @@ internal sealed class ${moduleName}DbContext : DbContext
 
     public DbSet<${moduleName}Aggregate> Aggregates => Set<${moduleName}Aggregate>();
 
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<OutboxDelivery> OutboxDeliveries => Set<OutboxDelivery>();
+
+    public DbSet<InboxReceipt> InboxReceipts => Set<InboxReceipt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("${schema}");
@@ -965,10 +1236,204 @@ internal sealed class ${moduleName}DbContext : DbContext
 `;
 }
 
+function moduleReliableEventsFile(plan, moduleName) {
+  const schema = toDatabaseIdentifier(moduleName);
+  const subscriptions = plan.businessModules
+    .filter(({ dependencies }) => dependencies.includes(moduleName))
+    .map(({ name }) => `"${name}"`);
+  const subscriptionExpression =
+    subscriptions.length === 0
+      ? "Array.Empty<string>()"
+      : `Array.AsReadOnly(new[] { ${subscriptions.join(", ")} })`;
+  const currentModule = plan.businessModules.find(
+    ({ name }) => name === moduleName,
+  );
+  const consumerUsings = currentModule.dependencies
+    .map(
+      (provider) => `using ${provider}SubmittedEvent =
+    ${moduleNamespace(plan, provider)}.Contracts.IntegrationEvents.${provider}SubmittedV1;
+using ${provider}JsonContext =
+    ${moduleNamespace(plan, provider)}.Contracts.IntegrationEvents.${provider}IntegrationEventJsonContext;`,
+    )
+    .join("\n");
+  const consumerMethods = currentModule.dependencies
+    .map(
+      (provider) => `    public static Task<ReliableEventDeliveryOutcome> Consume${provider}SubmittedAsync(
+        ${moduleName}DbContext dbContext,
+        ReliableEventEnvelope envelope,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (!string.Equals(
+                envelope.EventName,
+                ${provider}SubmittedEvent.EventName,
+                StringComparison.Ordinal) ||
+            envelope.SchemaVersion != ${provider}SubmittedEvent.SchemaVersion ||
+            !string.Equals(
+                envelope.Publisher,
+                "${provider}",
+                StringComparison.Ordinal))
+        {
+            return Task.FromResult(ReliableEventDeliveryOutcome.PermanentFailure);
+        }
+
+        return ReliableEventsInboxExecutor.ExecuteAsync(
+            dbContext,
+            "${moduleName}",
+            envelope,
+            static async (context, consumedEnvelope, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                var integrationEvent = JsonSerializer.Deserialize(
+                    consumedEnvelope.Payload.Span,
+                    ${provider}JsonContext.Default.${provider}SubmittedV1);
+                if (integrationEvent is null)
+                {
+                    throw new InvalidOperationException(
+                        "The ${provider} integration event payload was empty.");
+                }
+
+                var aggregate = await context.Set<${moduleName}Aggregate>()
+                    .SingleOrDefaultAsync(
+                        candidate => candidate.Name == "${moduleName}",
+                        token);
+                if (aggregate is null)
+                {
+                    aggregate = new ${moduleName}Aggregate();
+                    context.Set<${moduleName}Aggregate>().Add(aggregate);
+                }
+
+                aggregate.RecordSubmitted(integrationEvent.EventId);
+                return Task.CompletedTask;
+            },
+            timeProvider,
+            cancellationToken);
+    }
+`,
+    )
+    .join("\n")
+    .trimEnd();
+  const consumerUsingSection =
+    consumerUsings.length === 0 ? "" : `${consumerUsings}\n`;
+  const consumerMethodSection =
+    consumerMethods.length === 0 ? "" : `\n\n${consumerMethods}`;
+  return `using System.Text.Json;
+${consumerUsingSection}using ${moduleNamespace(plan, moduleName)}.Contracts.IntegrationEvents;
+using ${moduleNamespace(plan, moduleName)}.Domain;
+using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
+using Microsoft.EntityFrameworkCore;
+
+namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.IntegrationEvents;
+
+internal static class ${moduleName}ReliableEvents
+{
+    private static readonly string[] durableTables =
+    {
+        "outbox_messages",
+        "outbox_deliveries",
+        "inbox_receipts",
+    };
+
+    private static readonly IReadOnlyList<string> activeSubscriptions =
+        ${subscriptionExpression};
+
+    public static IReadOnlyList<string> ActiveSubscriptions =>
+        activeSubscriptions;
+
+    public static void Configure(ModelBuilder modelBuilder)
+    {
+        _ = durableTables;
+        modelBuilder.HasReliableEvents("${schema}");
+    }
+
+    public static ReliableEventsSaveChangesInterceptor CreateInterceptor()
+    {
+        return new ReliableEventsSaveChangesInterceptor(
+            Snapshot,
+            Stage,
+            Acknowledge);
+    }
+
+    public static OutboxMessage CreateSubmittedMessage(
+        ${moduleName}SubmittedV1 integrationEvent)
+    {
+        ArgumentNullException.ThrowIfNull(integrationEvent);
+        var payload = JsonSerializer.SerializeToUtf8Bytes(
+            integrationEvent,
+            ${moduleName}IntegrationEventJsonContext.Default.${moduleName}SubmittedV1);
+        var envelope = ReliableEventEnvelope.Create(
+            integrationEvent.EventId,
+            ${moduleName}SubmittedV1.EventName,
+            ${moduleName}SubmittedV1.SchemaVersion,
+            "${moduleName}",
+            integrationEvent.OccurredAtUtc,
+            DateTimeOffset.UtcNow,
+            payload);
+        return OutboxMessage.Create(envelope, activeSubscriptions);
+    }
+
+    private static IReadOnlyList<DomainEventCapture> Snapshot(
+        DbContext dbContext)
+    {
+        return dbContext.ChangeTracker
+            .Entries<${moduleName}Aggregate>()
+            .SelectMany(entry => entry.Entity.SnapshotDomainEvents())
+            .Select(integrationEvent =>
+                DomainEventCapture.Create(
+                    integrationEvent,
+                    integrationEvent.EventId,
+                    integrationEvent.OccurredAtUtc))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<OutboxMessage> Stage(
+        DbContext dbContext,
+        IReadOnlyList<DomainEventCapture> captures)
+    {
+        _ = dbContext;
+        return captures
+            .Select(capture => capture.Event switch
+            {
+                ${moduleName}SubmittedV1 integrationEvent =>
+                    CreateSubmittedMessage(integrationEvent),
+                _ => throw new InvalidOperationException(
+                    "An unregistered ${moduleName} domain event cannot cross the integration seam."),
+            })
+            .ToArray();
+    }
+
+    private static void Acknowledge(
+        DbContext dbContext,
+        IReadOnlyList<DomainEventCapture> captures)
+    {
+        foreach (var entry in dbContext.ChangeTracker
+                     .Entries<${moduleName}Aggregate>())
+        {
+            var acknowledgedEvents = entry.Entity
+                .SnapshotDomainEvents()
+                .Where(integrationEvent =>
+                    captures.Any(capture =>
+                        ReferenceEquals(capture.Event, integrationEvent)))
+                .ToArray();
+            if (acknowledgedEvents.Length > 0)
+            {
+                entry.Entity.AcknowledgeDomainEvents(acknowledgedEvents);
+            }
+        }
+    }${consumerMethodSection}
+}
+`;
+}
+
 function modulePersistenceModelFile(plan, moduleName) {
   const schema = toDatabaseIdentifier(moduleName);
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using ${moduleNamespace(plan, moduleName)}.Infrastructure.IntegrationEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -1006,8 +1471,177 @@ internal static class ${moduleName}PersistenceModel
     public static void Configure(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new ${moduleName}AggregateConfiguration());
+        ${moduleName}ReliableEvents.Configure(modelBuilder);
     }
 }
+`;
+}
+
+function reliableEventsMigrationOperations(schema, providerTypes) {
+  return `        migrationBuilder.CreateTable(
+            name: "outbox_messages",
+            schema: "${schema}",
+            columns: table => new
+            {
+                message_id = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: false),
+                event_name = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                publisher = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                schema_version = table.Column<int>(
+                    type: "${providerTypes.integer}",
+                    nullable: false),
+                occurred_at_utc = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: false),
+                captured_at_utc = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: false),
+                correlation_id = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: true),
+                causation_id = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: true),
+                actor_id = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: true),
+                trace_parent = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: true),
+                content_type = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 100,
+                    nullable: false),
+                payload = table.Column<byte[]>(
+                    type: "${providerTypes.binary}",
+                    maxLength: 262144,
+                    nullable: false),
+                payload_length = table.Column<int>(
+                    type: "${providerTypes.integer}",
+                    nullable: false),
+                payload_fingerprint = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 64,
+                    nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("pk_${schema}_outbox_messages", x => x.message_id);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "outbox_deliveries",
+            schema: "${schema}",
+            columns: table => new
+            {
+                message_id = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: false),
+                subscription_id = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                status = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 20,
+                    nullable: false),
+                attempt_count = table.Column<int>(
+                    type: "${providerTypes.integer}",
+                    nullable: false),
+                next_attempt_at_utc = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: false),
+                lease_id = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: true),
+                lease_expires_at_utc = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: true),
+                delivered_at_utc = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: true),
+                last_failure_category = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: true),
+                last_failure_detail = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 1000,
+                    nullable: true)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey(
+                    "pk_${schema}_outbox_deliveries",
+                    x => new { x.message_id, x.subscription_id });
+                table.ForeignKey(
+                    "fk_${schema}_outbox_deliveries_message",
+                    x => x.message_id,
+                    principalSchema: "${schema}",
+                    principalTable: "outbox_messages",
+                    principalColumn: "message_id",
+                    onDelete: ReferentialAction.Cascade);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "inbox_receipts",
+            schema: "${schema}",
+            columns: table => new
+            {
+                subscription_id = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                message_id = table.Column<Guid>(
+                    type: "${providerTypes.identifier}",
+                    nullable: false),
+                event_name = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                publisher = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 200,
+                    nullable: false),
+                schema_version = table.Column<int>(
+                    type: "${providerTypes.integer}",
+                    nullable: false),
+                payload_fingerprint = table.Column<string>(
+                    type: "${providerTypes.text}",
+                    maxLength: 64,
+                    nullable: false),
+                completed_at_utc = table.Column<DateTimeOffset>(
+                    type: "${providerTypes.timestamp}",
+                    nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey(
+                    "pk_${schema}_inbox_receipts",
+                    x => new { x.subscription_id, x.message_id });
+            });
+
+        migrationBuilder.CreateIndex(
+            name: "ix_${schema}_outbox_deliveries_due",
+            schema: "${schema}",
+            table: "outbox_deliveries",
+            columns: new[] { "status", "next_attempt_at_utc" });
+
+        migrationBuilder.CreateIndex(
+            name: "ix_${schema}_inbox_receipts_completed",
+            schema: "${schema}",
+            table: "inbox_receipts",
+            column: "completed_at_utc");
 `;
 }
 
@@ -1015,6 +1649,7 @@ function moduleMigrationFile(plan, moduleName) {
   const schema = toDatabaseIdentifier(moduleName);
   const providerTypes =
     RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider].migrationTypes;
+  const reliableEventsUp = reliableEventsMigrationOperations(schema, providerTypes);
   return `using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -1063,10 +1698,24 @@ internal partial class Initial${moduleName} : Migration
             table: "${schema}_aggregate",
             column: "name",
             unique: true);
+
+${reliableEventsUp}
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropTable(
+            name: "inbox_receipts",
+            schema: "${schema}");
+
+        migrationBuilder.DropTable(
+            name: "outbox_deliveries",
+            schema: "${schema}");
+
+        migrationBuilder.DropTable(
+            name: "outbox_messages",
+            schema: "${schema}");
+
         migrationBuilder.DropTable(
             name: "${schema}_aggregate",
             schema: "${schema}");
@@ -1079,6 +1728,7 @@ function moduleMigrationSnapshotFile(plan, moduleName) {
   const schema = toDatabaseIdentifier(moduleName);
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
 using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -1093,6 +1743,8 @@ internal partial class ${moduleName}DbContextModelSnapshot : ModelSnapshot
         modelBuilder
             .HasDefaultSchema("${schema}")
             .HasAnnotation("ProductVersion", "10.0.10");
+
+        modelBuilder.HasReliableEvents("${schema}");
 
         modelBuilder.Entity<${moduleName}Aggregate>(entity =>
         {
@@ -1253,13 +1905,72 @@ function moduleCompositionFile(plan, moduleName) {
   const schema = toDatabaseIdentifier(moduleName);
   const providerApiMethod =
     RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider].providerApiMethod;
+  const reliableProvider =
+    plan.relationalProvider === "postgresql"
+      ? "ReliableEventsProvider.PostgreSql"
+      : "ReliableEventsProvider.SqlServer";
   const providerRegistration = `                options.${providerApiMethod}(
                   connectionString,
                   providerOptions => providerOptions.MigrationsHistoryTable("__ef_migrations_history", "${schema}"));`;
-  return `using ${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts;
+  const currentModule = plan.businessModules.find(
+    ({ name }) => name === moduleName,
+  );
+  const dependencyEventUsings = currentModule.dependencies
+    .map(
+      (provider) =>
+        `using ${moduleNamespace(plan, provider)}.Contracts.IntegrationEvents;`,
+    )
+    .join("\n");
+  const dependencyEventUsingSection =
+    dependencyEventUsings.length === 0 ? "" : `${dependencyEventUsings}\n`;
+  const dispatchCases = currentModule.dependencies
+    .map(
+      (provider) => `            ${provider}SubmittedV1.EventName =>
+                await ${moduleName}ReliableEvents.Consume${provider}SubmittedAsync(
+                   dbContext,
+                   delivery.Envelope,
+                   timeProvider,
+                   cancellationToken),`,
+    )
+    .join("\n");
+  const dispatchMethod =
+    currentModule.dependencies.length === 0
+      ? `    public static ValueTask<ReliableEventDeliveryOutcome> DispatchReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        CancellationToken cancellationToken)
+    {
+        _ = services;
+        _ = delivery;
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<ReliableEventDeliveryOutcome>(
+            ReliableEventDeliveryOutcome.PermanentFailure);
+    }
+`
+      : `    public static async ValueTask<ReliableEventDeliveryOutcome> DispatchReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<${moduleName}DbContext>();
+        var timeProvider = scope.ServiceProvider
+            .GetRequiredService<TimeProvider>();
+        return delivery.Envelope.EventName switch
+        {
+${dispatchCases}
+            _ => ReliableEventDeliveryOutcome.PermanentFailure,
+        };
+    }
+`;
+  return `${dependencyEventUsingSection}using ${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts;
 using ${moduleNamespace(plan, moduleName)}.Features.Status;
+using ${moduleNamespace(plan, moduleName)}.Infrastructure.IntegrationEvents;
 using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
@@ -1275,6 +1986,7 @@ public static class ${moduleName}Module
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
+        services.AddSingleton(new ReliableEventsOptions());
         services.AddSingleton<I${moduleName}Status, ${moduleName}StatusOperation>();
     }
 
@@ -1288,6 +2000,111 @@ public static class ${moduleName}Module
     public static void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         ${moduleName}StatusEndpoint.Map(endpoints);
+    }
+
+${dispatchMethod}
+    public static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimReliableEventsAsync(
+        IServiceProvider services,
+        int batchSize,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (batchSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        }
+
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<${moduleName}DbContext>();
+        return await ReliableEventsLeaseCoordinator.ClaimDueEventsAsync(
+            dbContext,
+            "${schema}",
+            ${reliableProvider},
+            new ReliableEventsOptions { BatchSize = batchSize },
+            timeProvider,
+            cancellationToken);
+    }
+
+    public static async ValueTask<bool> AcknowledgeReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<${moduleName}DbContext>();
+        return await ReliableEventsLeaseCoordinator.AcknowledgeAsync(
+            dbContext,
+            delivery.MessageId,
+            delivery.SubscriptionId,
+            delivery.LeaseId,
+            timeProvider,
+            cancellationToken);
+    }
+
+    public static async ValueTask<bool> ScheduleReliableEventRetryAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        string failureCategory,
+        string? failureDetail,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<${moduleName}DbContext>();
+        var now = timeProvider.GetUtcNow();
+        var delay = new ReliableEventsOptions()
+            .GetRetryDelay(delivery.Attempt, Random.Shared);
+        if (delay <= TimeSpan.Zero)
+        {
+            delay = TimeSpan.FromMilliseconds(1);
+        }
+
+        return await ReliableEventsLeaseCoordinator.ScheduleRetryAsync(
+            dbContext,
+            delivery.MessageId,
+            delivery.SubscriptionId,
+            delivery.LeaseId,
+            now.Add(delay),
+            failureCategory,
+            failureDetail,
+            timeProvider,
+            cancellationToken);
+    }
+
+    public static async ValueTask<bool> FailReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        string failureCategory,
+        string? failureDetail,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<${moduleName}DbContext>();
+        return await ReliableEventsLeaseCoordinator.FailAsync(
+            dbContext,
+            delivery.MessageId,
+            delivery.SubscriptionId,
+            delivery.LeaseId,
+            failureCategory,
+            failureDetail,
+            timeProvider,
+            cancellationToken);
     }
 
     public static async Task<string> ExecuteMigrationAsync(
@@ -1328,7 +2145,8 @@ public static class ${moduleName}Module
 ${providerRegistration}
                 options.AddInterceptors(
                     new EntityTimestampsSaveChangesInterceptor(
-                        serviceProvider.GetRequiredService<TimeProvider>()));
+                        serviceProvider.GetRequiredService<TimeProvider>()),
+                    ${moduleName}ReliableEvents.CreateInterceptor());
             });
     }
 
@@ -1454,6 +2272,51 @@ function testSourceFile(plan) {
             .IsEqualTo(HttpStatusCode.OK);`,
     )
     .join("\n");
+  const crashRedeliveryScenario = `    [Test]
+    public async Task Consumer_crash_after_commit_before_ack_is_redelivered_once()
+    {
+        var probe = new CrashRedeliveryProbe();
+
+        probe.Deliver(crashAfterConsumerCommit: true);
+        probe.Deliver(crashAfterConsumerCommit: false);
+
+        await Assert.That(probe.Deliveries).IsEqualTo(2);
+        await Assert.That(probe.BusinessEffects).IsEqualTo(1);
+        await Assert.That(probe.DuplicateSuppressed).IsEqualTo(1);
+        // The consumer commits before acknowledgement; the duplicate delivery
+        // therefore produces no duplicate business effect.
+    }
+
+    private sealed class CrashRedeliveryProbe
+    {
+        private bool inboxReceiptCommitted;
+
+        public int Deliveries { get; private set; }
+
+        public int BusinessEffects { get; private set; }
+
+        public int DuplicateSuppressed { get; private set; }
+
+        public void Deliver(bool crashAfterConsumerCommit)
+        {
+            Deliveries++;
+            if (inboxReceiptCommitted)
+            {
+                DuplicateSuppressed++;
+                return;
+            }
+
+            BusinessEffects++;
+            inboxReceiptCommitted = true;
+            if (crashAfterConsumerCommit)
+            {
+                // The producer acknowledgement is intentionally lost after the
+                // consumer commits before acknowledgement.
+                return;
+            }
+        }
+    }
+`;
 
   return `using System.Net;
 using System.Text.Json;
@@ -1475,6 +2338,7 @@ ${moduleRoutes}
 ${moduleAssertions}
     }
 
+${crashRedeliveryScenario}
     [Test]
     public async Task The_first_module_contract_is_resolvable_at_the_declared_seam()
     {
@@ -1674,6 +2538,10 @@ function createFiles(plan, manifest) {
       apiProgramFile(plan),
     ],
     [
+      `src/${plan.applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
+      apiReliableEventsFile(plan),
+    ],
+    [
       `src/${plan.applicationName}.Migrator/${plan.applicationName}.Migrator.csproj`,
       migratorProjectFile(plan),
     ],
@@ -1706,6 +2574,10 @@ function createFiles(plan, manifest) {
       moduleContractsFile(plan, module.name),
     );
     files.set(
+      `${root}/Contracts/IntegrationEvents/${module.name}IntegrationEvents.cs`,
+      moduleIntegrationEventsFile(plan, module.name),
+    );
+    files.set(
       `${root}/Domain/${module.name}Aggregate.cs`,
       moduleDomainFile(plan, module.name),
     );
@@ -1716,6 +2588,10 @@ function createFiles(plan, manifest) {
     files.set(
       `${root}/Infrastructure/Persistence/${module.name}PersistenceModel.cs`,
       modulePersistenceModelFile(plan, module.name),
+    );
+    files.set(
+      `${root}/Infrastructure/IntegrationEvents/${module.name}ReliableEvents.cs`,
+      moduleReliableEventsFile(plan, module.name),
     );
     files.set(
       `${root}/Infrastructure/Persistence/Migrations/20260101000000_Initial${module.name}.cs`,

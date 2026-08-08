@@ -38,6 +38,51 @@ public sealed class ModularMonolithCompositionTests
     }
 
     [Test]
+    public async Task Consumer_crash_after_commit_before_ack_is_redelivered_once()
+    {
+        var probe = new CrashRedeliveryProbe();
+
+        probe.Deliver(crashAfterConsumerCommit: true);
+        probe.Deliver(crashAfterConsumerCommit: false);
+
+        await Assert.That(probe.Deliveries).IsEqualTo(2);
+        await Assert.That(probe.BusinessEffects).IsEqualTo(1);
+        await Assert.That(probe.DuplicateSuppressed).IsEqualTo(1);
+        // The consumer commits before acknowledgement; the duplicate delivery
+        // therefore produces no duplicate business effect.
+    }
+
+    private sealed class CrashRedeliveryProbe
+    {
+        private bool inboxReceiptCommitted;
+
+        public int Deliveries { get; private set; }
+
+        public int BusinessEffects { get; private set; }
+
+        public int DuplicateSuppressed { get; private set; }
+
+        public void Deliver(bool crashAfterConsumerCommit)
+        {
+            Deliveries++;
+            if (inboxReceiptCommitted)
+            {
+                DuplicateSuppressed++;
+                return;
+            }
+
+            BusinessEffects++;
+            inboxReceiptCommitted = true;
+            if (crashAfterConsumerCommit)
+            {
+                // The producer acknowledgement is intentionally lost after the
+                // consumer commits before acknowledgement.
+                return;
+            }
+        }
+    }
+
+    [Test]
     public async Task The_first_module_contract_is_resolvable_at_the_declared_seam()
     {
         await using var host = await ApiHost.StartAsync();

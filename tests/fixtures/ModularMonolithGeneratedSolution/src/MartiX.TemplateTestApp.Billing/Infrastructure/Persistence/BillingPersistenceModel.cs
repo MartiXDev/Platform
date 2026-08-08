@@ -1,5 +1,6 @@
 using MartiX.TemplateTestApp.Billing.Domain;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using MartiX.TemplateTestApp.Billing.Infrastructure.IntegrationEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -37,5 +38,6 @@ internal static class BillingPersistenceModel
     public static void Configure(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new BillingAggregateConfiguration());
+        BillingReliableEvents.Configure(modelBuilder);
     }
 }

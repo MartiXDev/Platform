@@ -43,6 +43,11 @@ test("the modular monolith plan is deterministic and records the Contracts graph
   assert.equal(firstPlan.preset, "modular-monolith");
   assert.equal(firstPlan.platformContractVersion, MODULAR_MONOLITH_PLATFORM_VERSION);
   assert.deepEqual(firstPlan.baselineCapabilities, MODULAR_MONOLITH_BASELINE_CAPABILITIES);
+  assert.ok(
+    firstPlan.baselineCapabilities.includes(
+      "modular-monolith.reliable-integration-events",
+    ),
+  );
   assert.deepEqual(firstPlan.providers, [
     {
       id: "postgresql",
@@ -135,6 +140,16 @@ test("generation emits module-owned relational persistence for each provider", a
           "src/MartiX.Planner.Billing/Infrastructure/Persistence/Migrations/20260101000000_InitialBilling.cs",
         ),
       );
+      assert.ok(
+        result.files.includes(
+          "src/MartiX.Planner.Orders/Contracts/IntegrationEvents/OrdersIntegrationEvents.cs",
+        ),
+      );
+      assert.ok(
+        result.files.includes(
+          "src/MartiX.Planner.Orders/Infrastructure/IntegrationEvents/OrdersReliableEvents.cs",
+        ),
+      );
 
       const ordersContext = await readFile(
         join(
@@ -169,6 +184,50 @@ test("generation emits module-owned relational persistence for each provider", a
       );
       const api = await readFile(
         join(root, "src", "MartiX.Planner.Api", "Program.cs"),
+        "utf8",
+      );
+      const ordersEvents = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Orders",
+          "Contracts",
+          "IntegrationEvents",
+          "OrdersIntegrationEvents.cs",
+        ),
+        "utf8",
+      );
+      const ordersReliableEvents = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Orders",
+          "Infrastructure",
+          "IntegrationEvents",
+          "OrdersReliableEvents.cs",
+        ),
+        "utf8",
+      );
+      const billingReliableEvents = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Billing",
+          "Infrastructure",
+          "IntegrationEvents",
+          "BillingReliableEvents.cs",
+        ),
+        "utf8",
+      );
+      const reliableEventsComposition = await readFile(
+        join(
+          root,
+          "src",
+          "MartiX.Planner.Api",
+          "Infrastructure",
+          "IntegrationEvents",
+          "ReliableEventsComposition.cs",
+        ),
         "utf8",
       );
 
@@ -242,6 +301,21 @@ test("generation emits module-owned relational persistence for each provider", a
       assert.match(ordersModule, /MigrateAsync\(cancellationToken\)/);
       assert.match(ordersModule, /ApplyAndValidateAsync/);
       assert.doesNotMatch(api, /\.Migrate(?:Async)?\(|EnsureCreated|UseSeeding/);
+      assert.match(ordersEvents, /public sealed record OrdersSubmittedV1/);
+      assert.match(ordersEvents, /JsonSerializable/);
+      assert.match(ordersReliableEvents, /ReliableEventsSaveChangesInterceptor/);
+      assert.match(ordersReliableEvents, /ReliableEventEnvelope\.Create/);
+      assert.match(ordersReliableEvents, /OutboxMessage\.Create/);
+      assert.match(ordersReliableEvents, /outbox_messages|outbox_deliveries/i);
+      assert.match(billingReliableEvents, /ConsumeOrdersSubmittedAsync/);
+      assert.match(billingReliableEvents, /ReliableEventsInboxExecutor\.ExecuteAsync/);
+      assert.match(reliableEventsComposition, /ReliableEventsDispatcher/);
+      assert.match(reliableEventsComposition, /ClaimReliableEventsAsync/);
+      assert.match(reliableEventsComposition, /AcknowledgeReliableEventAsync/);
+      assert.doesNotMatch(
+        `${ordersEvents}\n${ordersReliableEvents}`,
+        /AssemblyQualifiedName|GetType\(\)|IIntegrationEventHandler|IOutboxStore/,
+      );
     }
   } finally {
     await Promise.all(
@@ -438,7 +512,7 @@ test("generation emits only executable, module, and consolidated test boundaries
     });
 
     assert.deepEqual(first.files, second.files);
-    assert.equal(first.files.length, 29);
+    assert.equal(first.files.length, 34);
     assert.deepEqual(
       await listFiles(join(firstRoot, "generated")),
       first.files,
@@ -501,6 +575,9 @@ test("generation emits only executable, module, and consolidated test boundaries
     assert.match(generatedText, /Contracts\.ModuleContracts/);
     assert.match(generatedText, /await Assert\.That/);
     assert.match(generatedText, /GetRequiredService<IOrdersStatus>/);
+    assert.match(generatedText, /inbox_receipts/);
+    assert.match(generatedText, /consumer commits before acknowledgement/i);
+    assert.match(generatedText, /duplicate.*business effect/i);
     assert.doesNotMatch(generatedText, /Shared\.Contracts|Microsoft\.NET\.Test\.Sdk/);
     assert.deepEqual(
       first.files.filter((file) => file.endsWith(".csproj")),

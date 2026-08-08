@@ -59,6 +59,10 @@
     {
       "id": "modular-monolith.relational-persistence",
       "state": "selected"
+    },
+    {
+      "id": "modular-monolith.reliable-integration-events",
+      "state": "selected"
     }
   ],
   "providers": [

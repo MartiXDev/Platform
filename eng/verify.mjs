@@ -77,24 +77,29 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Program.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Migrator/MartiX.TemplateTestApp.Migrator.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Migrator/Program.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/OrdersModule.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Contracts/ModuleContracts/IOrdersStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Contracts/IntegrationEvents/OrdersIntegrationEvents.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Domain/OrdersAggregate.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Features/Status/OrdersStatus.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/OrdersDbContext.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/OrdersPersistenceModel.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/IntegrationEvents/OrdersReliableEvents.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/Migrations/20260101000000_InitialOrders.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/Infrastructure/Persistence/Migrations/OrdersDbContextModelSnapshot.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/BillingModule.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Contracts/ModuleContracts/IBillingStatus.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Contracts/IntegrationEvents/BillingIntegrationEvents.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Domain/BillingAggregate.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Features/Status/BillingStatus.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/BillingDbContext.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/BillingPersistenceModel.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/IntegrationEvents/BillingReliableEvents.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/Migrations/20260101000000_InitialBilling.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/Migrations/BillingDbContextModelSnapshot.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/MartiX.TemplateTestApp.Tests.csproj`,
@@ -113,7 +118,6 @@ class BootstrapVerificationError extends Error {}
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-
 function fail(message) {
   throw new BootstrapVerificationError(message);
 }
@@ -433,6 +437,7 @@ function modularMonolithExpectedFiles(manifest) {
     "martix.platform.json",
     `src/${applicationName}.Api/${applicationName}.Api.csproj`,
     `src/${applicationName}.Api/Program.cs`,
+    `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
     `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
     `src/${applicationName}.Migrator/Program.cs`,
     `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
@@ -446,10 +451,12 @@ function modularMonolithExpectedFiles(manifest) {
       `${project}/${projectName}.csproj`,
       `${project}/${module.name}Module.cs`,
       `${project}/Contracts/ModuleContracts/I${module.name}Status.cs`,
+      `${project}/Contracts/IntegrationEvents/${module.name}IntegrationEvents.cs`,
       `${project}/Domain/${module.name}Aggregate.cs`,
       `${project}/Features/Status/${module.name}Status.cs`,
       `${project}/Infrastructure/Persistence/${module.name}DbContext.cs`,
       `${project}/Infrastructure/Persistence/${module.name}PersistenceModel.cs`,
+      `${project}/Infrastructure/IntegrationEvents/${module.name}ReliableEvents.cs`,
       `${project}/Infrastructure/Persistence/Migrations/20260101000000_Initial${module.name}.cs`,
       `${project}/Infrastructure/Persistence/Migrations/${module.name}DbContextModelSnapshot.cs`,
     );
@@ -645,6 +652,15 @@ async function validateModularMonolithComposition(
       "Modular Monolith manifest must select the relational-persistence capability.",
     );
   }
+  const reliableEventsCapability = manifest.capabilities.find(
+    (capability) =>
+      capability?.id === "modular-monolith.reliable-integration-events",
+  );
+  if (reliableEventsCapability?.state !== "selected") {
+    fail(
+      "Modular Monolith manifest must select the reliable-integration-events capability.",
+    );
+  }
   const moduleProjectNames = new Map();
   for (const [index, module] of modules.entries()) {
     moduleProjectNames.set(
@@ -682,6 +698,19 @@ async function validateModularMonolithComposition(
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
   );
+  const apiReliableEventsSource = await readSolutionFile(
+    `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
+  );
+  if (
+    !apiSource.includes("ReliableEventsComposition.AddServices(services);") ||
+    !apiReliableEventsSource.includes("ReliableEventsDispatcher") ||
+    !apiReliableEventsSource.includes("ClaimAsync") ||
+    !apiReliableEventsSource.includes("AcknowledgeAsync")
+  ) {
+    fail(
+      "API composition must host the bounded durable reliable-events dispatcher.",
+    );
+  }
   for (const module of modules) {
     if (!apiSource.includes(`${module.name}Module.AddServices(services, configuration);`)) {
       fail(
@@ -795,6 +824,10 @@ async function validateModularMonolithComposition(
 
     const contractsPath = `${module.project}/Contracts/ModuleContracts/I${module.name}Status.cs`;
     const contractsSource = await readSolutionFile(contractsPath);
+    const integrationEventsPath = `${module.project}/Contracts/IntegrationEvents/${module.name}IntegrationEvents.cs`;
+    const integrationEventsSource = await readSolutionFile(
+      integrationEventsPath,
+    );
     if (
       !new RegExp(
         `namespace\\s+${escapeRegExp(
@@ -807,6 +840,17 @@ async function validateModularMonolithComposition(
       );
     }
     validatePublicContracts(module, contractsSource, contractsPath);
+    if (
+      !new RegExp(
+        `public\\s+sealed\\s+record\\s+${escapeRegExp(module.name)}SubmittedV1`,
+      ).test(integrationEventsSource) ||
+      !integrationEventsSource.includes("[JsonSerializable(") ||
+      !integrationEventsSource.includes("SchemaVersion = 1")
+    ) {
+      fail(
+        `Business Module ${module.name} must publish an explicit versioned Integration Event Contract in ${integrationEventsPath}.`,
+      );
+    }
 
     const compositionPath = `${module.project}/${module.name}Module.cs`;
     const compositionSource = await readSolutionFile(compositionPath);
@@ -845,14 +889,21 @@ async function validateModularMonolithComposition(
       persistenceContextPath,
     );
     const persistenceModelSource = await readSolutionFile(persistenceModelPath);
+    const reliableEventsPath = `${module.project}/Infrastructure/IntegrationEvents/${module.name}ReliableEvents.cs`;
+    const reliableEventsSource = await readSolutionFile(reliableEventsPath);
     const migrationSource = await readSolutionFile(migrationPath);
     const snapshotSource = await readSolutionFile(snapshotPath);
+    const expectedSubscriptions = modules
+      .filter((candidate) => candidate.dependencies.includes(module.name))
+      .map((candidate) => `"${candidate.name}"`);
     const persistenceSource = [
       compositionSource,
       domainSource,
       featureSource,
       persistenceContextSource,
       persistenceModelSource,
+      reliableEventsSource,
+      integrationEventsSource,
       migrationSource,
       snapshotSource,
     ].join("\n");
@@ -895,6 +946,7 @@ async function validateModularMonolithComposition(
         `HasDefaultSchema("${schema}")`,
         'Property<Guid>("ConcurrencyToken")',
         "IsConcurrencyToken()",
+        `HasReliableEvents("${schema}")`,
       ].every((fragment) => snapshotSource.includes(fragment));
     const hasMigrationOperations = [
       "CanConnectAsync",
@@ -934,7 +986,10 @@ async function validateModularMonolithComposition(
       !persistenceContextSource.includes(`HasDefaultSchema("${schema}")`) ||
       !persistenceContextSource.includes(
         `DbSet<${module.name}Aggregate>`,
-      )
+      ) ||
+      !persistenceContextSource.includes("DbSet<OutboxMessage>") ||
+      !persistenceContextSource.includes("DbSet<OutboxDelivery>") ||
+      !persistenceContextSource.includes("DbSet<InboxReceipt>")
     ) {
       fail(
         `Business Module ${module.name} must own an internal relational DbContext in ${persistenceContextPath}.`,
@@ -944,7 +999,10 @@ async function validateModularMonolithComposition(
       !hasExplicitAggregateConfiguration ||
       !persistenceModelSource.includes(`ToTable("${table}", "${schema}")`) ||
       !persistenceModelSource.includes("HasEntityTimestamps()") ||
-      !hasExplicitConcurrencyMapping
+      !hasExplicitConcurrencyMapping ||
+      !persistenceModelSource.includes(
+        `${module.name}ReliableEvents.Configure(modelBuilder)`,
+      )
     ) {
       fail(
         `Business Module ${module.name} must use an explicit configuration with portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
@@ -989,6 +1047,36 @@ async function validateModularMonolithComposition(
         `Business Module ${module.name} migration composition must validate connectivity, migration history, model state, idempotent scripts, and post-apply state.`,
       );
     }
+    if (
+      !reliableEventsSource.includes("ReliableEventsSaveChangesInterceptor") ||
+      !reliableEventsSource.includes("ReliableEventEnvelope.Create") ||
+      !reliableEventsSource.includes("OutboxMessage.Create") ||
+      !reliableEventsSource.includes("HasReliableEvents") ||
+      !reliableEventsSource.includes(
+        expectedSubscriptions.length === 0
+          ? "Array.Empty<string>()"
+          : expectedSubscriptions.join(", "),
+      ) ||
+      !migrationSource.includes('name: "outbox_messages"') ||
+      !migrationSource.includes('name: "outbox_deliveries"') ||
+      !migrationSource.includes('name: "inbox_receipts"') ||
+      !migrationSource.includes("protected override void Down")
+    ) {
+      fail(
+        `Business Module ${module.name} must persist immutable Outbox Messages, fenced Deliveries, and Inbox Receipts with explicit event capture.`,
+      );
+    }
+    for (const dependency of module.dependencies) {
+      if (
+        !reliableEventsSource.includes(
+          `Consume${dependency}SubmittedAsync`,
+        )
+      ) {
+        fail(
+          `Business Module ${module.name} must register its ${dependency} Inbox consumer explicitly.`,
+        );
+      }
+    }
     if (/\b(?:IUnitOfWork|UnitOfWork|IRepository|Repository)\b/.test(persistenceSource)) {
       fail(
         `Business Module ${module.name} must not introduce repository or unit-of-work persistence abstractions.`,
@@ -1007,6 +1095,7 @@ async function validateModularMonolithComposition(
     for (const [source, path] of [
       [persistenceContextSource, persistenceContextPath],
       [persistenceModelSource, persistenceModelPath],
+      [reliableEventsSource, reliableEventsPath],
       [migrationSource, migrationPath],
       [snapshotSource, snapshotPath],
     ]) {

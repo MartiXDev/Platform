@@ -1,7 +1,9 @@
 using MartiX.TemplateTestApp.Orders.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Orders.Features.Status;
+using MartiX.TemplateTestApp.Orders.Infrastructure.IntegrationEvents;
 using MartiX.TemplateTestApp.Orders.Infrastructure.Persistence;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
@@ -17,6 +19,7 @@ public static class OrdersModule
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
+        services.AddSingleton(new ReliableEventsOptions());
         services.AddSingleton<IOrdersStatus, OrdersStatusOperation>();
     }
 
@@ -30,6 +33,122 @@ public static class OrdersModule
     public static void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         OrdersStatusEndpoint.Map(endpoints);
+    }
+
+    public static ValueTask<ReliableEventDeliveryOutcome> DispatchReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        CancellationToken cancellationToken)
+    {
+        _ = services;
+        _ = delivery;
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<ReliableEventDeliveryOutcome>(
+            ReliableEventDeliveryOutcome.PermanentFailure);
+    }
+
+    public static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimReliableEventsAsync(
+        IServiceProvider services,
+        int batchSize,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (batchSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        }
+
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<OrdersDbContext>();
+        return await ReliableEventsLeaseCoordinator.ClaimDueEventsAsync(
+            dbContext,
+            "orders",
+            ReliableEventsProvider.PostgreSql,
+            new ReliableEventsOptions { BatchSize = batchSize },
+            timeProvider,
+            cancellationToken);
+    }
+
+    public static async ValueTask<bool> AcknowledgeReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<OrdersDbContext>();
+        return await ReliableEventsLeaseCoordinator.AcknowledgeAsync(
+            dbContext,
+            delivery.MessageId,
+            delivery.SubscriptionId,
+            delivery.LeaseId,
+            timeProvider,
+            cancellationToken);
+    }
+
+    public static async ValueTask<bool> ScheduleReliableEventRetryAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        string failureCategory,
+        string? failureDetail,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<OrdersDbContext>();
+        var now = timeProvider.GetUtcNow();
+        var delay = new ReliableEventsOptions()
+            .GetRetryDelay(delivery.Attempt, Random.Shared);
+        if (delay <= TimeSpan.Zero)
+        {
+            delay = TimeSpan.FromMilliseconds(1);
+        }
+
+        return await ReliableEventsLeaseCoordinator.ScheduleRetryAsync(
+            dbContext,
+            delivery.MessageId,
+            delivery.SubscriptionId,
+            delivery.LeaseId,
+            now.Add(delay),
+            failureCategory,
+            failureDetail,
+            timeProvider,
+            cancellationToken);
+    }
+
+    public static async ValueTask<bool> FailReliableEventAsync(
+        IServiceProvider services,
+        ReliableEventDelivery delivery,
+        string failureCategory,
+        string? failureDetail,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<OrdersDbContext>();
+        return await ReliableEventsLeaseCoordinator.FailAsync(
+            dbContext,
+            delivery.MessageId,
+            delivery.SubscriptionId,
+            delivery.LeaseId,
+            failureCategory,
+            failureDetail,
+            timeProvider,
+            cancellationToken);
     }
 
     public static async Task<string> ExecuteMigrationAsync(
@@ -72,7 +191,8 @@ public static class OrdersModule
                   providerOptions => providerOptions.MigrationsHistoryTable("__ef_migrations_history", "orders"));
                 options.AddInterceptors(
                     new EntityTimestampsSaveChangesInterceptor(
-                        serviceProvider.GetRequiredService<TimeProvider>()));
+                        serviceProvider.GetRequiredService<TimeProvider>()),
+                    OrdersReliableEvents.CreateInterceptor());
             });
     }
 

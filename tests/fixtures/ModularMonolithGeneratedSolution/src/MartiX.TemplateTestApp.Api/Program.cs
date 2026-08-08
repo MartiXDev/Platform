@@ -1,5 +1,6 @@
 using MartiX.TemplateTestApp.Orders;
 using MartiX.TemplateTestApp.Billing;
+using MartiX.TemplateTestApp.Infrastructure.IntegrationEvents;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
@@ -26,6 +27,7 @@ public static class ApiComposition
             options.AddMartiXProblemDetailsContract());
         OrdersModule.AddServices(services, configuration);
         BillingModule.AddServices(services, configuration);
+        ReliableEventsComposition.AddServices(services);
     }
 
     public static void Configure(WebApplication app)
