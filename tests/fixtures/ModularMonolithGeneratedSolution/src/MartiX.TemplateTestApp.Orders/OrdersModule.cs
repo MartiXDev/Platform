@@ -86,24 +86,26 @@ public static class OrdersModule
                 "Orders database connectivity validation failed.");
         }
 
-        var migrations = dbContext.Database.GetMigrations().ToArray();
-        var applied = (await dbContext.Database
+        var availableMigrations = dbContext.Database.GetMigrations().ToArray();
+        var appliedMigrations = (await dbContext.Database
                 .GetAppliedMigrationsAsync(cancellationToken))
             .ToArray();
-        var pending = (await dbContext.Database
+        var pendingMigrations = (await dbContext.Database
                 .GetPendingMigrationsAsync(cancellationToken))
             .ToArray();
-        var unexpected = applied.Except(migrations).ToArray();
-        if (unexpected.Length > 0)
+        var unexpectedMigrations = appliedMigrations
+            .Except(availableMigrations)
+            .ToArray();
+        if (unexpectedMigrations.Length > 0)
         {
             throw new InvalidOperationException(
-                $"Orders has unexpected migrations: {string.Join(", ", unexpected)}");
+                $"Orders has unexpected migrations: {string.Join(", ", unexpectedMigrations)}");
         }
 
-        if (pending.Length > 0)
+        if (pendingMigrations.Length > 0)
         {
             throw new InvalidOperationException(
-                $"Orders has pending migrations: {string.Join(", ", pending)}");
+                $"Orders has pending migrations: {string.Join(", ", pendingMigrations)}");
         }
 
         if (dbContext.Database.HasPendingModelChanges())

@@ -235,41 +235,18 @@ test("generation emits module-owned relational persistence for each provider", a
       assert.match(migrator, /script/);
       assert.match(migrator, /apply/);
       assert.match(ordersModule, /MigrationsSqlGenerationOptions\.Idempotent/);
+      assert.match(ordersModule, /CanConnectAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /GetAppliedMigrationsAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /GetPendingMigrationsAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /HasPendingModelChanges\(\)/);
+      assert.match(ordersModule, /MigrateAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /ApplyAndValidateAsync/);
       assert.doesNotMatch(api, /\.Migrate(?:Async)?\(|EnsureCreated|UseSeeding/);
     }
   } finally {
     await Promise.all(
       roots.map((root) => rm(root, { recursive: true, force: true })),
     );
-  }
-});
-
-test("generated migration operations validate connectivity and post-apply state", async () => {
-  const root = await createTemporaryDirectory();
-
-  try {
-    const output = join(root, "generated");
-    await generateModularMonolithPreset({
-      applicationName: "MartiX.Planner",
-      businessModules: ["Orders"],
-      outputDirectory: output,
-    });
-
-    const module = await readFile(
-      join(
-        output,
-        "src",
-        "MartiX.Planner.Orders",
-        "OrdersModule.cs",
-      ),
-      "utf8",
-    );
-
-    assert.match(module, /CanConnectAsync\(cancellationToken\)/);
-    assert.match(module, /GetAppliedMigrationsAsync\(cancellationToken\)/);
-    assert.match(module, /ApplyAndValidateAsync/);
-  } finally {
-    await rm(root, { recursive: true, force: true });
   }
 });
 
