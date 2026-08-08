@@ -26,6 +26,14 @@ const problemSchema = {
   additionalProperties: false,
 };
 
+const CSHARP_HTTP_METHOD_NAMES = Object.freeze({
+  delete: "Delete",
+  get: "Get",
+  patch: "Patch",
+  post: "Post",
+  put: "Put",
+});
+
 function ref(name) {
   return { $ref: `#/components/schemas/${name}` };
 }
@@ -422,6 +430,24 @@ export function createModularMonolithHttpContractDocument(plan) {
   );
 }
 
+export function renderCSharpClientProject(namespace) {
+  return `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>${namespace}</RootNamespace>
+    <AssemblyName>${namespace}</AssemblyName>
+  </PropertyGroup>
+</Project>
+`;
+}
+
+export function renderOpenApiContract(document) {
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
 function csharpIdentifier(value) {
   return value
     .split(/[^A-Za-z0-9]+/)
@@ -439,19 +465,22 @@ function csharpType(schema, nullable = false) {
     const nonNullType = schema.type.find((type) => type !== "null");
     return csharpType({ ...schema, type: nonNullType }, true);
   }
-  const type = schema.type === "integer"
-    ? "int"
-    : schema.type === "number"
-      ? "decimal"
-      : schema.type === "boolean"
-        ? "bool"
-        : schema.format === "uuid"
-          ? "Guid"
-          : schema.format === "date-time"
-            ? "DateTimeOffset"
-            : schema.type === "array"
-              ? `IReadOnlyList<${csharpType(schema.items)}>`
-              : "string";
+  let type;
+  if (schema.type === "integer") {
+    type = "int";
+  } else if (schema.type === "number") {
+    type = "decimal";
+  } else if (schema.type === "boolean") {
+    type = "bool";
+  } else if (schema.format === "uuid") {
+    type = "Guid";
+  } else if (schema.format === "date-time") {
+    type = "DateTimeOffset";
+  } else if (schema.type === "array") {
+    type = `IReadOnlyList<${csharpType(schema.items)}>`;
+  } else {
+    type = "string";
+  }
   return `${type}${nullable ? "?" : ""}`;
 }
 
@@ -459,9 +488,9 @@ function renderSchema(name, schema) {
   const properties = Object.entries(schema.properties ?? {});
   const required = new Set(schema.required ?? []);
   const parameters = properties.map(([propertyName, property]) => {
-    const name = csharpIdentifier(propertyName);
+    const propertyIdentifier = csharpIdentifier(propertyName);
     const nullable = !required.has(propertyName) || property.type?.includes?.("null");
-    return `    ${csharpType(property, nullable)} ${name}`;
+    return `    ${csharpType(property, nullable)} ${propertyIdentifier}`;
   });
   return `public sealed record ${name}(
 ${parameters.join(",\n")});
@@ -486,8 +515,9 @@ function renderClientMethod(path, method, operation) {
     ),
     "CancellationToken cancellationToken = default",
   ];
+  const csharpMethodName = CSHARP_HTTP_METHOD_NAMES[method] ?? "Get";
   const methodBody = [
-    `var request = new HttpRequestMessage(HttpMethod.${method === "delete" ? "Delete" : method === "post" ? "Post" : method === "put" ? "Put" : method === "patch" ? "Patch" : "Get"}, BuildUri("${path}"`,
+    `var request = new HttpRequestMessage(HttpMethod.${csharpMethodName}, BuildUri("${path}"`,
   ];
   for (const parameter of pathParameters) {
     methodBody[0] += `, ${parameter.name}`;

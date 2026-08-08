@@ -9,6 +9,8 @@ import { findDependencyCycle } from "./module-graph.mjs";
 import {
   createModularMonolithHttpContractDocument,
   renderCSharpClient,
+  renderCSharpClientProject,
+  renderOpenApiContract,
 } from "./openapi-client.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
@@ -869,35 +871,6 @@ ${renderPackageReferences(TEST_PACKAGE_REFERENCES, [])}
   </ItemGroup>
 </Project>
 `;
-}
-
-function clientProjectFile(plan) {
-  return `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <RootNamespace>${plan.applicationName}.Client</RootNamespace>
-    <AssemblyName>${plan.applicationName}.Client</AssemblyName>
-  </PropertyGroup>
-</Project>
-`;
-}
-
-function clientSourceFile(plan) {
-  const document = createModularMonolithHttpContractDocument(plan);
-  return renderCSharpClient(document, {
-    namespace: `${plan.applicationName}.Client`,
-  });
-}
-
-function clientContractFile(plan) {
-  return `${JSON.stringify(
-    createModularMonolithHttpContractDocument(plan),
-    null,
-    2,
-  )}\n`;
 }
 
 function apiProgramFile(plan) {
@@ -2785,6 +2758,7 @@ ${plan.businessModules.map((module) => `- ${module.name}`).join("\n")}
 }
 
 function createFiles(plan, manifest) {
+  const contract = createModularMonolithHttpContractDocument(plan);
   const files = new Map([
     ["AGENTS.md", agentsFile(plan)],
     ["CONTEXT.md", contextFile(plan)],
@@ -2801,13 +2775,15 @@ function createFiles(plan, manifest) {
     ],
     [
       `src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj`,
-      clientProjectFile(plan),
+      renderCSharpClientProject(`${plan.applicationName}.Client`),
     ],
     [
       `src/${plan.applicationName}.Client/${plan.applicationName}.Client.cs`,
-      clientSourceFile(plan),
+      renderCSharpClient(contract, {
+        namespace: `${plan.applicationName}.Client`,
+      }),
     ],
-    ["contracts/openapi-v1.json", clientContractFile(plan)],
+    ["contracts/openapi-v1.json", renderOpenApiContract(contract)],
     [
       `src/${plan.applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
       apiReliableEventsFile(plan),

@@ -7,6 +7,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import {
   createApiHttpContractDocument,
   renderCSharpClient,
+  renderCSharpClientProject,
+  renderOpenApiContract,
 } from "./openapi-client.mjs";
 
 export const API_PRESET = "api";
@@ -549,7 +551,7 @@ internal enum OrderMutationOutcome
 
 internal sealed class OrderStore
 {
-    private readonly object gate = new();
+    private readonly object ordersLock = new();
     private readonly Dictionary<Guid, OrderRecord> orders = new();
     private readonly Dictionary<string, (string Description, OrderRecord Order)> idempotency =
         new(StringComparer.Ordinal);
@@ -561,7 +563,7 @@ internal sealed class OrderStore
         string idempotencyKey)
     {
         ArgumentNullException.ThrowIfNull(request);
-        lock (gate)
+        lock (ordersLock)
         {
             if (idempotency.TryGetValue(
                     idempotencyKey,
@@ -591,7 +593,7 @@ internal sealed class OrderStore
 
     internal OrderRecord? Find(Guid id)
     {
-        lock (gate)
+        lock (ordersLock)
         {
             return orders.GetValueOrDefault(id);
         }
@@ -620,7 +622,7 @@ internal sealed class OrderStore
         }
 
         List<OrderRecord> snapshot;
-        lock (gate)
+        lock (ordersLock)
         {
             snapshot = orders.Values.ToList();
         }
@@ -667,7 +669,7 @@ internal sealed class OrderStore
         string description,
         string ifMatch)
     {
-        lock (gate)
+        lock (ordersLock)
         {
             if (!orders.TryGetValue(id, out var order))
             {
@@ -686,7 +688,7 @@ internal sealed class OrderStore
 
     internal OrderMutationOutcome Delete(Guid id, string ifMatch)
     {
-        lock (gate)
+        lock (ordersLock)
         {
             if (!orders.TryGetValue(id, out var order))
             {
@@ -1067,31 +1069,6 @@ internal static class OrdersEndpoints
 `;
 }
 
-function clientProjectFile(plan) {
-  return `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <RootNamespace>${plan.applicationName}.Client</RootNamespace>
-    <AssemblyName>${plan.applicationName}.Client</AssemblyName>
-  </PropertyGroup>
-</Project>
-`;
-}
-
-function clientSourceFile(plan) {
-  const document = createApiHttpContractDocument();
-  return renderCSharpClient(document, {
-    namespace: `${plan.applicationName}.Client`,
-  });
-}
-
-function contractFile() {
-  return `${JSON.stringify(createApiHttpContractDocument(), null, 2)}\n`;
-}
-
 function testProjectFile(plan) {
   const projectNames = getProjectNames(plan.applicationName);
   const packageReferences = [
@@ -1447,6 +1424,7 @@ independent; the ASP.NET Core adapter owns safe Problem Details translation.
 
 function createFiles(plan, manifest) {
   const projectNames = getProjectNames(plan.applicationName);
+  const contract = createApiHttpContractDocument();
 
   return new Map([
     ["AGENTS.md", agentsFile(plan)],
@@ -1462,13 +1440,15 @@ function createFiles(plan, manifest) {
     [`src/${projectNames.api}/Orders/Orders.cs`, ordersFile(plan)],
     [
       `src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj`,
-      clientProjectFile(plan),
+      renderCSharpClientProject(`${plan.applicationName}.Client`),
     ],
     [
       `src/${plan.applicationName}.Client/${plan.applicationName}.Client.cs`,
-      clientSourceFile(plan),
+      renderCSharpClient(contract, {
+        namespace: `${plan.applicationName}.Client`,
+      }),
     ],
-    ["contracts/openapi-v1.json", contractFile()],
+    ["contracts/openapi-v1.json", renderOpenApiContract(contract)],
     [
       `tests/${projectNames.tests}/ApiContractTests.cs`,
       testSourceFile(plan),
