@@ -114,7 +114,7 @@ test("generated context routes composition and surfaces version drift", async ()
 
     manifest.platformContractVersion = "0.1.0-preview.1";
     manifest.origin.canonicalRepository =
-      "https://example.invalid/contradictory-source";
+      "https://example.invalid/opaque-marker-path";
     await writeFile(manifestPath, JSON.stringify(manifest));
     const contradictory = await createAgentContext({
       rootDir: generatedRoot,
@@ -122,6 +122,40 @@ test("generated context routes composition and surfaces version drift", async ()
     });
     assert.equal(contradictory.compatibility.status, "blocked");
     assert.match(contradictory.compatibility.reason, /canonical|origin/i);
+    assert.equal(
+      JSON.stringify(contradictory).includes("opaque-marker-path"),
+      false,
+    );
+  });
+});
+
+test("generated context surfaces selections outside the preset matrix", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const generatedRoot = join(directory, "generated");
+    await generateApiPreset({
+      applicationName: "Contoso.AgentReady",
+      outputDirectory: generatedRoot,
+    });
+
+    const manifestPath = join(generatedRoot, "martix.platform.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.capabilities.push({
+      id: "unsupported.capability",
+      state: "selected",
+    });
+    await writeFile(manifestPath, JSON.stringify(manifest));
+
+    const context = await createAgentContext({
+      rootDir: generatedRoot,
+      platformRoot: repositoryRoot,
+    });
+
+    assert.equal(context.compatibility.status, "migration-available");
+    assert.ok(
+      context.warnings.some((warning) =>
+        warning.includes("unsupported.capability"),
+      ),
+    );
   });
 });
 

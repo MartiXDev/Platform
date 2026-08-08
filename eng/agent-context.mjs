@@ -3,11 +3,19 @@ import { execFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { z } from "zod";
 import {
   PLATFORM_MIGRATION_SCHEMA_VERSION,
   PLATFORM_MIGRATION_TARGET_VERSION,
   PLATFORM_MIGRATION_TOOL_VERSION,
 } from "./platform-migration.mjs";
+import { API_BASELINE_CAPABILITIES } from "./api-preset.mjs";
+import {
+  MODULAR_MONOLITH_ALPHA_PROVIDERS,
+} from "./modular-monolith-alpha.mjs";
+import {
+  MODULAR_MONOLITH_BASELINE_CAPABILITIES,
+} from "./modular-monolith-preset.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -95,6 +103,14 @@ const SUPPORTED_REPOSITORY_ROLES = new Set([
   "canonical-source",
   "generated-solution",
 ]);
+const CAPABILITIES_BY_PRESET = new Map([
+  ["api", new Set(API_BASELINE_CAPABILITIES)],
+  ["modular-monolith", new Set(MODULAR_MONOLITH_BASELINE_CAPABILITIES)],
+]);
+const PROVIDERS_BY_PRESET = new Map([
+  ["api", new Set()],
+  ["modular-monolith", new Set(MODULAR_MONOLITH_ALPHA_PROVIDERS)],
+]);
 
 export class AgentContextError extends Error {
   constructor(message, details = undefined) {
@@ -167,7 +183,7 @@ async function readJson(path, label) {
   }
 }
 
-async function readManifest(rootDir) {
+async function readManifest(rootDir, platformRoot) {
   const manifest = requireRecord(
     await readJson(join(rootDir, "martix.platform.json"), "martix.platform.json"),
     "martix.platform.json",
@@ -258,6 +274,14 @@ async function readManifest(rootDir) {
     ),
   );
   assertSecretFree(manifest, "martix.platform.json");
+  const schema = await readJson(
+    join(platformRoot, "schemas/martix.platform.schema.json"),
+    "martix.platform.schema.json",
+  );
+  const validation = z.fromJSONSchema(schema).safeParse(manifest);
+  if (!validation.success) {
+    fail("martix.platform.json does not satisfy martix.platform.schema.json.");
+  }
   return manifest;
 }
 
@@ -414,9 +438,7 @@ async function getSafeGitState(rootDir) {
 
 function compatibilityRecord(manifest, role, skillRelease) {
   const reasons = [];
-  const expectedManifestRole =
-    role === "canonical-source" ? "canonical-source" : "generated-solution";
-  if (manifest.repository.role !== expectedManifestRole) {
+  if (manifest.repository.role !== role) {
     reasons.push(
       `manifest repository role ${manifest.repository.role} contradicts ${manifest.kind}`,
     );
@@ -470,12 +492,14 @@ function compatibilityRecord(manifest, role, skillRelease) {
   }
 
   if (role === "canonical-source" || manifest.platformVersion === "0.0.0-bootstrap") {
+    let reason =
+      "Bootstrap Generated Solution uses the repository bootstrap contract.";
+    if (role === "canonical-source") {
+      reason = "Canonical Platform source owns the exact Tool and Skill release.";
+    }
     return {
       status: "compatible",
-      reason:
-        role === "canonical-source"
-          ? "Canonical Platform source owns the exact Tool and Skill release."
-          : "Bootstrap Generated Solution uses the repository bootstrap contract.",
+      reason,
       migrationAvailable: false,
     };
   }
@@ -535,22 +559,42 @@ function compositionRecord(manifest) {
 
 function warningRecords(manifest, compatibility) {
   const warnings = [];
+  const knownCapabilities = CAPABILITIES_BY_PRESET.get(manifest.preset);
+  const knownProviders = PROVIDERS_BY_PRESET.get(manifest.preset);
   if (compatibility.status !== "compatible") {
     warnings.push(compatibility.reason);
   }
   for (const capability of manifest.capabilities) {
-    if (isRecord(capability) && capability.state !== "selected") {
+    if (!isRecord(capability)) {
+      continue;
+    }
+    const capabilityId = String(capability.id ?? "unknown");
+    if (knownCapabilities && !knownCapabilities.has(capabilityId)) {
       warnings.push(
-        `Capability ${String(capability.id ?? "unknown")} is ${String(
+        `Capability ${capabilityId} is not declared by the ${manifest.preset} Preset capability matrix.`,
+      );
+    }
+    if (capability.state !== "selected") {
+      warnings.push(
+        `Capability ${capabilityId} is ${String(
           capability.state ?? "unspecified",
         )}; do not infer implementation or support.`,
       );
     }
   }
   for (const provider of manifest.providers) {
-    if (isRecord(provider) && provider.state !== "selected") {
+    if (!isRecord(provider)) {
+      continue;
+    }
+    const providerId = String(provider.id ?? "unknown");
+    if (knownProviders && !knownProviders.has(providerId)) {
       warnings.push(
-        `Provider ${String(provider.id ?? "unknown")} is ${String(
+        `Provider ${providerId} is not declared by the ${manifest.preset} Preset provider matrix.`,
+      );
+    }
+    if (provider.state !== "selected") {
+      warnings.push(
+        `Provider ${providerId} is ${String(
           provider.state ?? "unspecified",
         )}; do not infer availability.`,
       );
@@ -581,13 +625,15 @@ function migrationRecord(manifest, compatibility) {
     `${tool} migrate apply --plan <external-plan-file> --root <repository>`,
     `${tool} migrate verify --root <repository>`,
   ];
+  let status = "not-required";
+  if (compatibility.status === "migration-available") {
+    status = "available";
+  } else if (compatibility.status === "blocked") {
+    status = "blocked";
+  }
+
   return {
-    status:
-      compatibility.status === "migration-available"
-        ? "available"
-        : compatibility.status === "blocked"
-          ? "blocked"
-          : "not-required",
+    status,
     sourceVersion: manifest.platformVersion,
     targetVersion: PLATFORM_MIGRATION_TARGET_VERSION,
     toolVersion: PLATFORM_MIGRATION_TOOL_VERSION,
@@ -664,15 +710,21 @@ export async function createAgentContext({
 } = {}) {
   const root = resolve(rootDir);
   const platform = resolve(platformRoot);
-  const manifest = await readManifest(root);
+  const manifest = await readManifest(root, platform);
   const skillRelease = await readSkillRelease(platform);
   const qualityPolicy = await readQualityPolicy(platform);
-  const role =
-    manifest.kind === "platform-repository"
-      ? "canonical-source"
-      : manifest.kind === "generated-solution"
-        ? "generated-solution"
-        : manifest.kind;
+  let role;
+  switch (manifest.kind) {
+    case "platform-repository":
+      role = "canonical-source";
+      break;
+    case "generated-solution":
+      role = "generated-solution";
+      break;
+    default:
+      role = manifest.kind;
+      break;
+  }
 
   if (!SUPPORTED_REPOSITORY_ROLES.has(role)) {
     fail(`Unsupported repository role in martix.platform.json: ${manifest.kind}.`);
@@ -711,7 +763,7 @@ export async function createAgentContext({
     repository: {
       role,
       name: manifest.repository.name,
-      canonicalRepository: manifest.origin.canonicalRepository,
+      canonicalRepository: CANONICAL_PLATFORM_REPOSITORY,
     },
     versions: {
       installedPlatformVersion: manifest.platformVersion,

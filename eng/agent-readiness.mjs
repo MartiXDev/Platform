@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { z } from "zod";
 import { generateApiPreset } from "./api-preset.mjs";
 import {
   AGENT_CONTEXT_SCHEMA_PATH,
@@ -94,6 +95,13 @@ function validateClosedSchema(value, path) {
   }
   for (const [key, child] of Object.entries(value)) {
     validateClosedSchema(child, `${path}.${key}`);
+  }
+}
+
+function validateContextSchema(context, schema) {
+  const result = z.fromJSONSchema(schema).safeParse(context);
+  if (!result.success) {
+    fail(`Generated agent context does not satisfy ${AGENT_CONTEXT_SCHEMA_PATH}.`);
   }
 }
 
@@ -320,6 +328,7 @@ export async function verifyAgentReadiness({
 
     const { generatedRoot, context: generatedContext } =
       await generatedSolutionEvidence(platform, directory);
+    validateContextSchema(generatedContext, schema);
     await guidanceEvidence(platform, generatedRoot);
     permissionEvidence(generatedContext);
     await migrationEvidence(platform, directory);
