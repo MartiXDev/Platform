@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   MODULAR_MONOLITH_ALPHA_GATE_IDS,
@@ -9,6 +10,7 @@ import {
   createModularMonolithAlphaEvidence,
   verifyModularMonolithAlphaEvidence,
 } from "../eng/modular-monolith-alpha.mjs";
+import { generateModularMonolithPreset } from "../eng/modular-monolith-preset.mjs";
 
 const digest = (hexDigit) => `sha256:${hexDigit.repeat(64)}`;
 
@@ -125,4 +127,37 @@ test("the quality policy selects the complete claim-free alpha profile", async (
   assert.deepEqual(profile.gates, [...MODULAR_MONOLITH_ALPHA_GATE_IDS]);
   assert.equal(profile.command, "npm run verify:modular-monolith-alpha");
   assert.deepEqual(policy.supportClaims, []);
+});
+
+test("generation omits a fake reliability test without a module consumer", async () => {
+  const root = await mkdtemp(join(tmpdir(), "martix-modular-monolith-alpha-"));
+
+  try {
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Alpha",
+      businessModules: ["Orders"],
+      outputDirectory: root,
+    });
+    const testSource = await readFile(
+      join(
+        root,
+        "tests",
+        "MartiX.Alpha.Tests",
+        "ModularMonolithCompositionTests.cs",
+      ),
+      "utf8",
+    );
+
+    assert.doesNotMatch(testSource, /Assert\.That\(true\)/);
+    assert.doesNotMatch(
+      testSource,
+      /The_generated_acceptance_boundary_is_executable/,
+    );
+    assert.match(
+      testSource,
+      /The_generated_host_composes_every_business_module/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

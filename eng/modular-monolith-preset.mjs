@@ -2316,15 +2316,10 @@ using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
             .IsEqualTo(HttpStatusCode.OK);`,
     )
     .join("\n");
- const crashRedeliveryScenario =
-   consumerModule === undefined
-     ? `    [Test]
-    public async Task The_generated_acceptance_boundary_is_executable()
-    {
-        await Assert.That(true).IsTrue();
-    }
-`
-     : `    [Test, NotInParallel("modular-monolith-alpha-database")]
+  const crashRedeliveryScenario =
+    consumerModule === undefined
+      ? ""
+      : `    [Test, NotInParallel("modular-monolith-alpha-database")]
     public async Task Real_provider_transaction_and_crash_redelivery_are_idempotent()
     {
         await using var services = BuildEvidenceServices();

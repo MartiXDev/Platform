@@ -213,7 +213,10 @@ function normalizeGates(value, provider) {
 }
 
 function normalizeVariants(value) {
-  if (!Array.isArray(value) || value.length !== MODULAR_MONOLITH_ALPHA_PROVIDERS.length) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== MODULAR_MONOLITH_ALPHA_PROVIDERS.length
+  ) {
     fail("Alpha evidence requires exactly one postgresql and one sqlserver variant.");
   }
 

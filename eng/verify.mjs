@@ -5,6 +5,10 @@ import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
+import {
+  MODULAR_MONOLITH_ALPHA_GATE_IDS,
+  MODULAR_MONOLITH_ALPHA_PROVIDERS,
+} from "./modular-monolith-alpha.mjs";
 
 const CADENCES = [
   "fast",
@@ -36,14 +40,6 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.secret-free",
 ];
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
-const MODULAR_MONOLITH_ALPHA_GATE_IDS = [
-  "modular-monolith.generated-solution",
-  "modular-monolith.architecture",
-  "modular-monolith.provider-integration",
-  "modular-monolith.migration",
-  "modular-monolith.reliability",
-  "modular-monolith.release-evidence",
-];
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
   "kind",
@@ -122,7 +118,7 @@ const ALLOWED_SECRET_METADATA_KEYS = new Set([
   "containsSecrets",
 ]);
 
-class BootstrapVerificationError extends Error {}
+export class BootstrapVerificationError extends Error {}
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -1177,7 +1173,7 @@ async function validateModularMonolithSolution(rootDir, manifest) {
   await validateModularMonolithComposition(solutionRoot, actualFiles, manifest);
 }
 
-function validateQualityGatePolicy(policy) {
+export function validateQualityGatePolicy(policy) {
   requireRecord(policy, "eng/quality-gates.json");
   requireString(policy.policyVersion, "eng/quality-gates.json.policyVersion");
 
@@ -1204,7 +1200,7 @@ function validateQualityGatePolicy(policy) {
     alphaProfile.maturity !== "experimental" ||
     alphaProfile.preset !== "modular-monolith" ||
     JSON.stringify(alphaProfile.providers) !==
-      JSON.stringify(["postgresql", "sqlserver"]) ||
+      JSON.stringify(MODULAR_MONOLITH_ALPHA_PROVIDERS) ||
     JSON.stringify(alphaProfile.cadences) !==
       JSON.stringify(["release-candidate"]) ||
     JSON.stringify(alphaProfile.gates) !==

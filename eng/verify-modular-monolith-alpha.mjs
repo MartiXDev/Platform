@@ -13,13 +13,12 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { z } from "zod";
 import {
-  MODULAR_MONOLITH_ALPHA_GATE_IDS,
   MODULAR_MONOLITH_ALPHA_PROVIDERS,
-  createModularMonolithAlphaEvidence,
-  sha256,
   canonicalJson,
-  verifyModularMonolithAlphaEvidence,
+  createModularMonolithAlphaEvidence,
   ModularMonolithAlphaEvidenceError,
+  sha256,
+  verifyModularMonolithAlphaEvidence,
 } from "./modular-monolith-alpha.mjs";
 import {
   MODULAR_MONOLITH_MANIFEST_SCHEMA_URI,
@@ -30,6 +29,10 @@ import {
   listZipEntries,
   runDotnet,
 } from "./package-verification.mjs";
+import {
+  BootstrapVerificationError,
+  validateQualityGatePolicy,
+} from "./verify.mjs";
 
 const execFileAsync = promisify(execFile);
 const PUBLIC_PACKAGE_SOURCE = "https://api.nuget.org/v3/index.json";
@@ -102,20 +105,6 @@ function requireDigest(value, label) {
   return value;
 }
 
-function canonicalize(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => canonicalize(item));
-  }
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, canonicalize(value[key])]),
-  );
-}
-
 async function listFiles(root) {
   const files = [];
 
@@ -168,55 +157,24 @@ async function readJson(path, label) {
   }
 }
 
-async function verifyAlphaQualityProfile(repositoryRoot) {
+async function validateAlphaQualityPolicy(repositoryRoot) {
   const policy = await readJson(
     join(repositoryRoot, "eng", "quality-gates.json"),
     "eng/quality-gates.json",
   );
-  const profiles = Array.isArray(policy.profiles) ? policy.profiles : [];
-  const profile = profiles.find(
-    (candidate) => candidate?.id === "modular-monolith-alpha",
-  );
-  if (
-    profiles.length !== 1 ||
-    !Array.isArray(policy.supportClaims) ||
-    policy.supportClaims.length !== 0 ||
-    profile?.maturity !== "experimental" ||
-    profile.preset !== "modular-monolith" ||
-    JSON.stringify(profile.providers) !==
-      JSON.stringify(MODULAR_MONOLITH_ALPHA_PROVIDERS) ||
-    JSON.stringify(profile.cadences) !==
-      JSON.stringify(["release-candidate"]) ||
-    JSON.stringify(profile.gates) !==
-      JSON.stringify(MODULAR_MONOLITH_ALPHA_GATE_IDS) ||
-    profile.command !== "npm run verify:modular-monolith-alpha"
-  ) {
-    fail(
-      "eng/quality-gates.json must declare the complete Experimental Modular Monolith alpha profile.",
-    );
-  }
-
-  const declaredGates = new Map(
-    (Array.isArray(policy.gates) ? policy.gates : []).map((gate) => [
-      gate?.id,
-      gate,
-    ]),
-  );
-  for (const gateId of MODULAR_MONOLITH_ALPHA_GATE_IDS) {
-    const gate = declaredGates.get(gateId);
-    if (
-      gate?.required !== true ||
-      JSON.stringify(gate.cadences) !== JSON.stringify(["release-candidate"])
-    ) {
-      fail(
-        `Quality policy alpha gate ${gateId} must be required for release-candidate.`,
-      );
+  try {
+    validateQualityGatePolicy(policy);
+  } catch (error) {
+    if (error instanceof BootstrapVerificationError) {
+      fail(error.message);
     }
+    throw error;
   }
 }
 
-async function sourceCommit(rootDir, requestedCommit) {
-  const value = requestedCommit ?? process.env.GITHUB_SHA ?? process.env.SOURCE_COMMIT;
+async function resolveSourceCommit(rootDir, requestedCommit) {
+  const value =
+    requestedCommit ?? process.env.GITHUB_SHA ?? process.env.SOURCE_COMMIT;
   let commit;
   if (value === undefined) {
     const result = await execFileAsync("git", ["rev-parse", "HEAD"], {
@@ -556,28 +514,9 @@ function gateEvidence(provider, id, evidence) {
   };
 }
 
-async function runExpectedPendingValidation({
-  run,
-  generatedRoot,
-  migrator,
-  environment,
-}) {
+async function runExpectedPendingValidation({ runMigrationOperation }) {
   try {
-    await run(
-      [
-        "run",
-        "--project",
-        migrator,
-        "--configuration",
-        "Release",
-        "--no-restore",
-        "--no-build",
-        "--",
-        "validate",
-      ],
-      generatedRoot,
-      environment,
-    );
+    await runMigrationOperation("validate");
   } catch (error) {
     if (
       error instanceof ModularMonolithAlphaVerificationError &&
@@ -602,75 +541,32 @@ async function runMigrationEvidence({
   migrator,
   environment,
 }) {
+  const runMigrationOperation = (operation) =>
+    run(
+      [
+        "run",
+        "--project",
+        migrator,
+        "--configuration",
+        "Release",
+        "--no-restore",
+        "--no-build",
+        "--",
+        operation,
+      ],
+      generatedRoot,
+      environment,
+    );
   const freshValidation = await runExpectedPendingValidation({
-    run,
-    generatedRoot,
-    migrator,
-    environment,
+    runMigrationOperation,
   });
-  const apply = await run(
-    [
-      "run",
-      "--project",
-      migrator,
-      "--configuration",
-      "Release",
-      "--no-restore",
-      "--no-build",
-      "--",
-      "apply",
-    ],
-    generatedRoot,
-    environment,
-  );
-  const validate = await run(
-    [
-      "run",
-      "--project",
-      migrator,
-      "--configuration",
-      "Release",
-      "--no-restore",
-      "--no-build",
-      "--",
-      "validate",
-    ],
-    generatedRoot,
-    environment,
-  );
-  const script = await run(
-    [
-      "run",
-      "--project",
-      migrator,
-      "--configuration",
-      "Release",
-      "--no-restore",
-      "--no-build",
-      "--",
-      "script",
-    ],
-    generatedRoot,
-    environment,
-  );
+  const apply = await runMigrationOperation("apply");
+  const validate = await runMigrationOperation("validate");
+  const script = await runMigrationOperation("script");
   if (!/create\s+(schema|table)/i.test(script.stdout ?? "")) {
     fail("Migration script evidence did not contain relational DDL.");
   }
-  const idempotentApply = await run(
-    [
-      "run",
-      "--project",
-      migrator,
-      "--configuration",
-      "Release",
-      "--no-restore",
-      "--no-build",
-      "--",
-      "apply",
-    ],
-    generatedRoot,
-    environment,
-  );
+  const idempotentApply = await runMigrationOperation("apply");
   return {
     freshValidation,
     applyDigest: sha256(apply.stdout ?? ""),
@@ -686,7 +582,6 @@ async function runProviderVariant({
   packageFeed,
   configPath,
   packageCache,
-  sourceCommitValue,
   provider,
   providerInputs,
   run,
@@ -803,7 +698,6 @@ async function runProviderVariant({
     files: generatedSolution.files,
     gates: providerGateEvidence,
     plan: result.plan,
-    sourceCommit: sourceCommitValue,
   };
 }
 
@@ -817,9 +711,9 @@ export async function verifyModularMonolithAlpha({
     fail(`Alpha evidence uses the fixed candidate application name ${APPLICATION_NAME}.`);
   }
   const repositoryRoot = resolve(rootDir);
-  await verifyAlphaQualityProfile(repositoryRoot);
+  await validateAlphaQualityPolicy(repositoryRoot);
   const providerInputs = requireProviderInputs(process.env);
-  const sourceCommitValue = await sourceCommitValueForRun(
+  const sourceCommitValue = await resolveSourceCommit(
     repositoryRoot,
     sourceCommit,
   );
@@ -836,7 +730,11 @@ export async function verifyModularMonolithAlpha({
     NUGET_PACKAGES: packageCache,
   };
   const dotnet = process.env.DOTNET ?? "dotnet";
-  const run = (argumentsList, cwd = repositoryRoot, commandEnvironment = environment) =>
+  const run = (
+    argumentsList,
+    cwd = repositoryRoot,
+    commandEnvironment = environment,
+  ) =>
     runDotnet(
       dotnet,
       argumentsList,
@@ -882,7 +780,6 @@ export async function verifyModularMonolithAlpha({
         packageFeed,
         configPath,
         packageCache,
-        sourceCommitValue,
         provider,
         providerInputs: providerInputs[provider],
         run,
@@ -1008,10 +905,6 @@ export async function verifyModularMonolithAlpha({
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
-}
-
-async function sourceCommitValueForRun(rootDir, requestedCommit) {
-  return sourceCommit(rootDir, requestedCommit);
 }
 
 export async function runModularMonolithAlphaCli(
