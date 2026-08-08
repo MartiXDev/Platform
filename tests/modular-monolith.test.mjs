@@ -207,6 +207,12 @@ test("generation emits module-owned relational persistence for each provider", a
           ? /type: "uuid"/
           : /type: "uniqueidentifier"/,
       );
+      assert.match(
+        migration,
+        provider === "postgresql"
+          ? /type: "character varying\(200\)"/
+          : /type: "nvarchar\(200\)"/,
+      );
       assert.match(migrator, /validate/);
       assert.match(migrator, /script/);
       assert.match(migrator, /apply/);
@@ -229,6 +235,35 @@ test("generated relational identifiers are deterministic lowercase snake_case", 
       applicationName: "MartiX.Planner",
       businessModules: ["SalesOrders"],
       outputDirectory: output,
+    });
+
+    test("generated relational identifiers separate acronym word boundaries", async () => {
+      const root = await createTemporaryDirectory();
+
+      try {
+        const output = join(root, "generated");
+        await generateModularMonolithPreset({
+          applicationName: "MartiX.Planner",
+          businessModules: ["XMLParser"],
+          outputDirectory: output,
+        });
+
+        const model = await readFile(
+          join(
+            output,
+            "src",
+            "MartiX.Planner.XMLParser",
+            "Infrastructure",
+            "Persistence",
+            "XMLParserPersistenceModel.cs",
+          ),
+          "utf8",
+        );
+
+        assert.match(model, /ToTable\("xml_parser_aggregate", "xml_parser"\)/);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
     });
 
     const model = await readFile(

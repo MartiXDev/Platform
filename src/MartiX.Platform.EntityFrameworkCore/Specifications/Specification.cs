@@ -102,9 +102,9 @@ public sealed class Specification<TEntity>
         ArgumentNullException.ThrowIfNull(keySelector);
         return Clone(
             orderings:
-            new[]
+            new IOrdering[]
             {
-                (IOrdering)new Ordering<TProperty>(keySelector, descending: false),
+                new Ordering<TProperty>(keySelector, descending: false),
             });
     }
 
@@ -118,9 +118,9 @@ public sealed class Specification<TEntity>
         ArgumentNullException.ThrowIfNull(keySelector);
         return Clone(
             orderings:
-            new[]
+            new IOrdering[]
             {
-                (IOrdering)new Ordering<TProperty>(keySelector, descending: true),
+                new Ordering<TProperty>(keySelector, descending: true),
             });
     }
 
@@ -242,7 +242,12 @@ public sealed class Specification<TEntity>
             query = query.Skip(Skip.Value);
         }
 
-        return Take is null ? query : query.Take(Take.Value);
+        if (Take is not null)
+        {
+            query = query.Take(Take.Value);
+        }
+
+        return query;
     }
 
     /// <summary>Applies this specification and a projection without materializing.</summary>
@@ -330,7 +335,7 @@ public sealed class Specification<TEntity>
 
     private sealed class ParameterReplacer(
         ParameterExpression source,
-        Expression target) : ExpressionVisitor
+        ParameterExpression target) : ExpressionVisitor
     {
         protected override Expression VisitParameter(
             ParameterExpression node)

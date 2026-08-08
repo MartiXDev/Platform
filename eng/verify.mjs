@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
 
@@ -22,6 +23,10 @@ const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "MapEndpoints",
   "MigrationIdentity",
 ];
+const RELATIONAL_PROVIDER_APIS = Object.freeze({
+  postgresql: "UseNpgsql",
+  sqlserver: "UseSqlServer",
+});
 const MANIFEST_PRESETS = new Set(["api", "modular-monolith", "full-stack"]);
 const BOOTSTRAP_GATE_IDS = [
   "bootstrap.manifest",
@@ -619,18 +624,27 @@ async function validateModularMonolithComposition(
 ) {
   const applicationName = manifest.repository.name;
   const modules = manifest.modules;
-  const relationalProviders = manifest.providers
-    .filter((provider) => provider?.capability === "relational-persistence")
-    .map((provider) => provider?.id);
+  const relationalProviders = manifest.providers.filter(
+    (provider) => provider?.capability === "relational-persistence",
+  );
   if (
     relationalProviders.length !== 1 ||
-    !["postgresql", "sqlserver"].includes(relationalProviders[0])
+    relationalProviders[0]?.state !== "selected" ||
+    !Object.hasOwn(RELATIONAL_PROVIDER_APIS, relationalProviders[0]?.id)
   ) {
     fail(
       "Modular Monolith manifest must select exactly one supported relational provider.",
     );
   }
-  const relationalProvider = relationalProviders[0];
+  const relationalProvider = relationalProviders[0].id;
+  const relationalCapability = manifest.capabilities.find(
+    (capability) => capability?.id === "modular-monolith.relational-persistence",
+  );
+  if (relationalCapability?.state !== "selected") {
+    fail(
+      "Modular Monolith manifest must select the relational-persistence capability.",
+    );
+  }
   const moduleProjectNames = new Map();
   for (const [index, module] of modules.entries()) {
     moduleProjectNames.set(
@@ -842,14 +856,16 @@ async function validateModularMonolithComposition(
       migrationSource,
       snapshotSource,
     ].join("\n");
-    const schema = module.name
-      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-      .toLowerCase();
+    const schema = toDatabaseIdentifier(module.name);
     const table = `${schema}_aggregate`;
-    const providerApi =
-      relationalProvider === "postgresql" ? "UseNpgsql" : "UseSqlServer";
-    const otherProviderApi =
-      relationalProvider === "postgresql" ? "UseSqlServer" : "UseNpgsql";
+    const providerApi = RELATIONAL_PROVIDER_APIS[relationalProvider];
+    const otherProviderApi = Object.values(RELATIONAL_PROVIDER_APIS).find(
+      (api) => api !== providerApi,
+    );
+    const expectedTextType =
+      relationalProvider === "postgresql"
+        ? 'type: "character varying(200)"'
+        : 'type: "nvarchar(200)"';
     if (
       !new RegExp(
         `internal\\s+sealed\\s+class\\s+${escapeRegExp(module.name)}Aggregate`,
@@ -914,6 +930,7 @@ async function validateModularMonolithComposition(
       ) ||
       !migrationSource.includes(`EnsureSchema(name: "${schema}")`) ||
       !migrationSource.includes(`name: "${table}"`) ||
+      !migrationSource.includes(expectedTextType) ||
       !migrationSource.includes('created_at = table.Column') ||
       !migrationSource.includes('updated_at = table.Column') ||
       !snapshotSource.includes(

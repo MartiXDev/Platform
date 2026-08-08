@@ -58,6 +58,8 @@ test("the EF Core package exposes only the admitted persistence policy surface",
   assert.match(interceptor, /Entries<IHasConcurrencyToken>\(\)/);
   assert.match(interceptor, /Entries<IHasEntityTimestamps>\(\)/);
   assert.match(interceptor, /GetUtcNow\(\)/);
+  assert.match(interceptor, /createdAt\.CurrentValue = createdAt\.OriginalValue/);
+  assert.match(interceptor, /createdAt\.IsModified = false/);
   assert.match(modelBuilder, /HasEntityTimestamps<TEntity>/);
   assert.match(databaseNaming, /public static string ToSnakeCase\(string identifier\)/);
 });

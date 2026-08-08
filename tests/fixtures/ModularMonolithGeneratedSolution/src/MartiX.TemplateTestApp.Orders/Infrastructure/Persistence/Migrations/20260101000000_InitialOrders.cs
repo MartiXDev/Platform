@@ -20,7 +20,7 @@ internal partial class InitialOrders : Migration
                     type: "uuid",
                     nullable: false),
                 name = table.Column<string>(
-                    type: "text",
+                    type: "character varying(200)",
                     maxLength: 200,
                     nullable: false),
                 created_at = table.Column<DateTimeOffset>(

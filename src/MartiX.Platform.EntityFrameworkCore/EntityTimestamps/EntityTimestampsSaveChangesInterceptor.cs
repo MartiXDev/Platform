@@ -26,7 +26,7 @@ public sealed class EntityTimestampsSaveChangesInterceptor : SaveChangesIntercep
         DbContextEventData eventData,
         InterceptionResult<int> result)
     {
-        UpdateTimestamps(eventData.Context);
+        ApplyAuditValues(eventData.Context);
         return base.SavingChanges(eventData, result);
     }
 
@@ -36,11 +36,11 @@ public sealed class EntityTimestampsSaveChangesInterceptor : SaveChangesIntercep
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        UpdateTimestamps(eventData.Context);
+        ApplyAuditValues(eventData.Context);
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
-    private void UpdateTimestamps(DbContext? context)
+    private void ApplyAuditValues(DbContext? context)
     {
         if (context is null)
         {
@@ -50,15 +50,21 @@ public sealed class EntityTimestampsSaveChangesInterceptor : SaveChangesIntercep
         var now = timeProvider.GetUtcNow();
         foreach (var entry in context.ChangeTracker.Entries<IHasEntityTimestamps>())
         {
+            var createdAt = entry.Property<DateTimeOffset>(
+                nameof(IHasEntityTimestamps.CreatedAt));
+            var updatedAt = entry.Property<DateTimeOffset>(
+                nameof(IHasEntityTimestamps.UpdatedAt));
             if (entry.State == EntityState.Added)
             {
-                entry.Property(nameof(IHasEntityTimestamps.CreatedAt)).CurrentValue = now;
-                entry.Property(nameof(IHasEntityTimestamps.UpdatedAt)).CurrentValue = now;
+                createdAt.CurrentValue = now;
+                updatedAt.CurrentValue = now;
             }
             else if (entry.State == EntityState.Modified)
             {
-                entry.Property(nameof(IHasEntityTimestamps.UpdatedAt)).CurrentValue = now;
-                entry.Property(nameof(IHasEntityTimestamps.UpdatedAt)).IsModified = true;
+                createdAt.CurrentValue = createdAt.OriginalValue;
+                createdAt.IsModified = false;
+                updatedAt.CurrentValue = now;
+                updatedAt.IsModified = true;
             }
         }
 

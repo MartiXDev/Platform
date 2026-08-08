@@ -4,6 +4,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
+import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
@@ -111,14 +112,30 @@ const ENTITY_FRAMEWORK_PACKAGE_REFERENCES = Object.freeze([
     privateAssets: true,
   }),
 ]);
-const RELATIONAL_PROVIDER_PACKAGE_REFERENCES = Object.freeze({
+const RELATIONAL_PROVIDER_DEFINITIONS = Object.freeze({
   postgresql: Object.freeze({
-    id: "Npgsql.EntityFrameworkCore.PostgreSQL",
-    version: "10.0.0",
+    packageReference: Object.freeze({
+      id: "Npgsql.EntityFrameworkCore.PostgreSQL",
+      version: "10.0.0",
+    }),
+    providerApiMethod: "UseNpgsql",
+    migrationTypes: Object.freeze({
+      identifier: "uuid",
+      timestamp: "timestamp with time zone",
+      text: "character varying(200)",
+    }),
   }),
   sqlserver: Object.freeze({
-    id: "Microsoft.EntityFrameworkCore.SqlServer",
-    version: "10.0.10",
+    packageReference: Object.freeze({
+      id: "Microsoft.EntityFrameworkCore.SqlServer",
+      version: "10.0.10",
+    }),
+    providerApiMethod: "UseSqlServer",
+    migrationTypes: Object.freeze({
+      identifier: "uniqueidentifier",
+      timestamp: "datetimeoffset",
+      text: "nvarchar(200)",
+    }),
   }),
 });
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
@@ -229,7 +246,9 @@ const PLACEHOLDER_MODULE_NAMES = new Set([
   "testmodule",
   "weatherforecast",
 ]);
-const SUPPORTED_RELATIONAL_PROVIDERS = new Set(["postgresql", "sqlserver"]);
+const SUPPORTED_RELATIONAL_PROVIDERS = new Set(
+  Object.keys(RELATIONAL_PROVIDER_DEFINITIONS),
+);
 const SUPPORTED_CAPABILITIES = new Set(
   MODULAR_MONOLITH_BASELINE_CAPABILITIES,
 );
@@ -577,7 +596,8 @@ function createPlan(
     packageReferences: [
       ...PLATFORM_PACKAGE_REFERENCES,
       ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
-      RELATIONAL_PROVIDER_PACKAGE_REFERENCES[selections.relationalProvider],
+      RELATIONAL_PROVIDER_DEFINITIONS[selections.relationalProvider]
+        .packageReference,
     ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
@@ -654,7 +674,7 @@ function platformPackageReferences() {
 
 function persistencePackageReferences(plan) {
   const providerReference =
-    RELATIONAL_PROVIDER_PACKAGE_REFERENCES[plan.relationalProvider];
+    RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider].packageReference;
   return renderPackageReferences(
     [
       ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
@@ -670,7 +690,7 @@ function persistencePackageReferences(plan) {
 
 function migratorPackageReferences(plan) {
   const providerReference =
-    RELATIONAL_PROVIDER_PACKAGE_REFERENCES[plan.relationalProvider];
+    RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider].packageReference;
   return renderPackageReferences(
     [
       Object.freeze({
@@ -702,12 +722,6 @@ function modulePath(plan, moduleName) {
 
 function routeName(moduleName) {
   return moduleName.toLowerCase();
-}
-
-function databaseIdentifier(value) {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-    .toLowerCase();
 }
 
 function modulePlan(plan, moduleName) {
@@ -926,7 +940,7 @@ internal sealed class ${moduleName}Aggregate :
 }
 
 function modulePersistenceContextFile(plan, moduleName) {
-  const schema = databaseIdentifier(moduleName);
+  const schema = toDatabaseIdentifier(moduleName);
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -952,7 +966,7 @@ internal sealed class ${moduleName}DbContext : DbContext
 }
 
 function modulePersistenceModelFile(plan, moduleName) {
-  const schema = databaseIdentifier(moduleName);
+  const schema = toDatabaseIdentifier(moduleName);
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
 using Microsoft.EntityFrameworkCore;
@@ -990,19 +1004,9 @@ internal static class ${moduleName}PersistenceModel
 }
 
 function moduleMigrationFile(plan, moduleName) {
-  const schema = databaseIdentifier(moduleName);
+  const schema = toDatabaseIdentifier(moduleName);
   const providerTypes =
-    plan.relationalProvider === "postgresql"
-      ? {
-          identifier: "uuid",
-          timestamp: "timestamp with time zone",
-          text: "text",
-        }
-      : {
-          identifier: "uniqueidentifier",
-          timestamp: "datetimeoffset",
-          text: "nvarchar(200)",
-        };
+    RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider].migrationTypes;
   return `using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -1064,7 +1068,7 @@ internal partial class Initial${moduleName} : Migration
 }
 
 function moduleMigrationSnapshotFile(plan, moduleName) {
-  const schema = databaseIdentifier(moduleName);
+  const schema = toDatabaseIdentifier(moduleName);
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
 using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -1127,14 +1131,15 @@ function moduleFeatureFile(plan, moduleName) {
         `    private readonly ${provider}Status ${provider.toLowerCase()}Status;`,
     )
     .join("\n");
-  const constructor = currentModule.dependencies.length === 0
-    ? ""
-    : `    public ${moduleName}StatusOperation(${currentModule.dependencies
-        .map(
-          (provider) =>
-            `${provider}Status ${provider.toLowerCase()}Status`,
-        )
-        .join(", ")})
+  const hasDependencies = currentModule.dependencies.length > 0;
+  let constructor = "";
+  if (hasDependencies) {
+    constructor = `    public ${moduleName}StatusOperation(${currentModule.dependencies
+      .map(
+        (provider) =>
+          `${provider}Status ${provider.toLowerCase()}Status`,
+      )
+      .join(", ")})
     {
 ${currentModule.dependencies
   .map(
@@ -1144,14 +1149,16 @@ ${currentModule.dependencies
   .join("\n")}
     }
 `;
+  }
   const providerCalls = currentModule.dependencies
     .map(
       (provider) =>
         `        dependencies.Add((await ${provider.toLowerCase()}Status.GetStatusAsync(cancellationToken)).Module);`,
     )
     .join("\n");
-  const operationMethod = currentModule.dependencies.length === 0
-    ? `    public Task<${moduleName}StatusResponse> GetStatusAsync(
+  let operationMethod;
+  if (!hasDependencies) {
+    operationMethod = `    public Task<${moduleName}StatusResponse> GetStatusAsync(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -1160,8 +1167,9 @@ ${currentModule.dependencies
             new ${moduleName}StatusResponse(
                 aggregate.Name,
                 Array.Empty<string>()));
-    }`
-    : `    public async Task<${moduleName}StatusResponse> GetStatusAsync(
+    }`;
+  } else {
+    operationMethod = `    public async Task<${moduleName}StatusResponse> GetStatusAsync(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -1170,6 +1178,7 @@ ${currentModule.dependencies
 ${providerCalls}
         return new ${moduleName}StatusResponse(aggregate.Name, dependencies);
     }`;
+  }
   const operationClass = `internal sealed class ${moduleName}StatusOperation : I${moduleName}Status
 {
 ${providerFields}
@@ -1232,13 +1241,10 @@ internal static class ${moduleName}StatusEndpoint
 }
 
 function moduleCompositionFile(plan, moduleName) {
-  const schema = databaseIdentifier(moduleName);
-  const providerRegistration =
-    plan.relationalProvider === "postgresql"
-      ? `                options.UseNpgsql(
-                  connectionString,
-                  providerOptions => providerOptions.MigrationsHistoryTable("__ef_migrations_history", "${schema}"));`
-      : `                options.UseSqlServer(
+  const schema = toDatabaseIdentifier(moduleName);
+  const providerApiMethod =
+    RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider].providerApiMethod;
+  const providerRegistration = `                options.${providerApiMethod}(
                   connectionString,
                   providerOptions => providerOptions.MigrationsHistoryTable("__ef_migrations_history", "${schema}"));`;
   return `using ${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts;

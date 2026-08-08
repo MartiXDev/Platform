@@ -285,6 +285,23 @@ test("modular monolith verification rejects a provider manifest that disagrees w
   });
 });
 
+test("modular monolith verification rejects deferred relational providers", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const manifestPath = modularMonolithFixturePath(
+      temporaryRoot,
+      "martix.platform.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.providers[0].state = "deferred";
+    await writeFile(manifestPath, JSON.stringify(manifest));
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /must select exactly one supported relational provider/i,
+    );
+  });
+});
+
 test("modular monolith verification requires executable API and Migrator projects", async () => {
   const projects = [
     {
