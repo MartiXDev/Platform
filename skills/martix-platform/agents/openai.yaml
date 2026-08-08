@@ -1,0 +1,7 @@
+interface:
+  display_name: MartiX Platform
+  short_description: Route safe Platform and Generated Solution work
+  default_prompt: >-
+    Read AGENTS.md, invoke the exact agent context projection, establish
+    compatibility, then route one Platform workflow through canonical authority
+    and report complete verification evidence.

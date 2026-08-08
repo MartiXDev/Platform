@@ -1,0 +1,457 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/agent-context.schema.json",
+  "title": "MartiX Platform ephemeral agent context",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schemaVersion",
+    "repository",
+    "versions",
+    "composition",
+    "authorities",
+    "verification",
+    "migration",
+    "compatibility",
+    "permissions",
+    "knowledge",
+    "git",
+    "warnings",
+    "contextDigest"
+  ],
+  "properties": {
+    "kind": {
+      "const": "agent-context"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "repository": {
+      "$ref": "#/$defs/repository"
+    },
+    "versions": {
+      "$ref": "#/$defs/versions"
+    },
+    "composition": {
+      "$ref": "#/$defs/composition"
+    },
+    "authorities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/authority"
+      }
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    },
+    "migration": {
+      "$ref": "#/$defs/migration"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    },
+    "permissions": {
+      "$ref": "#/$defs/permissions"
+    },
+    "knowledge": {
+      "$ref": "#/$defs/knowledge"
+    },
+    "git": {
+      "$ref": "#/$defs/git"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "contextDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "name",
+        "canonicalRepository"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "canonical-source",
+            "generated-solution"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonicalRepository": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installedPlatformVersion",
+        "platformContractVersion",
+        "manifestSchemaVersion",
+        "skillVersion",
+        "skillPlatformVersion",
+        "toolVersion"
+      ],
+      "properties": {
+        "installedPlatformVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platformContractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifestSchemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skillVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skillPlatformVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toolVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preset",
+        "capabilities",
+        "providers"
+      ],
+      "properties": {
+        "preset": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selection"
+          }
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provider"
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "capability",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capability": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "purpose",
+        "description",
+        "source"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\.).+$"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "enum": [
+            "repository",
+            "platform"
+          ]
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entrypoint",
+        "policy",
+        "cadences",
+        "commands",
+        "gates"
+      ],
+      "properties": {
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cadences": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "sourceVersion",
+        "targetVersion",
+        "toolVersion",
+        "schemaVersion",
+        "commands",
+        "planStorage",
+        "safety"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "blocked",
+            "not-required"
+          ]
+        },
+        "sourceVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toolVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "planStorage": {
+          "const": "outside-source-repository"
+        },
+        "safety": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "migrationAvailable"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "compatible",
+            "migration-available",
+            "blocked"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "migrationAvailable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "write",
+        "forbidden",
+        "migrationPlanStorage"
+      ],
+      "properties": {
+        "read": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "write": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forbidden": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "migrationPlanStorage": {
+          "const": "outside-source-repository"
+        }
+      }
+    },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorityOrder",
+        "untrustedLocalMaterial",
+        "rule"
+      ],
+      "properties": {
+        "authorityOrder": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "untrustedLocalMaterial": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+          }
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "status",
+        "clean",
+        "commit"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "clean": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}
