@@ -2416,29 +2416,32 @@ using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
 
         // The consumer commits before acknowledgement; redelivery has no
         // duplicate business effect after the producer crash.
-        var redeliveryDeadline = timeProvider.GetUtcNow().AddSeconds(15);
-        ReliableEventDelivery? secondDelivery = null;
-        while (secondDelivery is null)
+        async Task<ReliableEventDelivery> WaitForRedeliveryAsync()
         {
-            var redeliveries = await ${firstModule.name}Module.ClaimReliableEventsAsync(
-                services,
-                10,
-                options,
-                timeProvider,
-                CancellationToken.None);
-            secondDelivery = redeliveries.SingleOrDefault(
-                delivery => delivery.MessageId == messageId);
-            if (secondDelivery is not null)
+            var redeliveryDeadline = timeProvider.GetUtcNow().AddSeconds(15);
+            while (true)
             {
-                break;
+                var redeliveries = await ${firstModule.name}Module.ClaimReliableEventsAsync(
+                    services,
+                    10,
+                    options,
+                    timeProvider,
+                    CancellationToken.None);
+                var delivery = redeliveries.SingleOrDefault(
+                    candidate => candidate.MessageId == messageId);
+                if (delivery is not null)
+                {
+                    return delivery;
+                }
+                if (timeProvider.GetUtcNow() >= redeliveryDeadline)
+                {
+                    throw new InvalidOperationException(
+                        "The leased delivery did not become available for redelivery within the evidence budget.");
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
             }
-            if (timeProvider.GetUtcNow() >= redeliveryDeadline)
-            {
-                throw new InvalidOperationException(
-                    "The leased delivery did not become available for redelivery within the evidence budget.");
-            }
-            await Task.Delay(TimeSpan.FromMilliseconds(100));
         }
+        var secondDelivery = await WaitForRedeliveryAsync();
         var duplicateOutcome = await ${consumerModule.name}Module.DispatchReliableEventAsync(
             services,
             secondDelivery,

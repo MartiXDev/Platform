@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
+  MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS,
   MODULAR_MONOLITH_ALPHA_GATE_IDS,
   MODULAR_MONOLITH_ALPHA_MATURITY,
   MODULAR_MONOLITH_ALPHA_PROVIDERS,
@@ -67,7 +68,7 @@ const alphaInput = {
       "modular-monolith/postgresql",
       "modular-monolith/sqlserver",
     ],
-    invalidSelections: ["mixed-relational-providers", "sqlite"],
+    invalidSelections: [...MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS],
   },
 };
 

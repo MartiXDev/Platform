@@ -8,6 +8,18 @@ export const MODULAR_MONOLITH_ALPHA_PROVIDERS = Object.freeze([
   "postgresql",
   "sqlserver",
 ]);
+export const MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS = Object.freeze([
+  "mixed-relational-providers",
+  "sqlite",
+]);
+export const RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS = Object.freeze({
+  postgresql: "ReliableEventsProvider.PostgreSql",
+  sqlserver: "ReliableEventsProvider.SqlServer",
+});
+export const FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS = Object.freeze({
+  postgresql: "ReliableEventsProvider.SqlServer",
+  sqlserver: "ReliableEventsProvider.PostgreSql",
+});
 export const MODULAR_MONOLITH_ALPHA_GATE_IDS = Object.freeze([
   "modular-monolith.generated-solution",
   "modular-monolith.architecture",
@@ -301,7 +313,7 @@ function normalizeCompatibility(value) {
     value.invalidSelections,
     "compatibility.invalidSelections",
   );
-  for (const invalidSelection of ["mixed-relational-providers", "sqlite"]) {
+  for (const invalidSelection of MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS) {
     if (!invalidSelections.includes(invalidSelection)) {
       fail(
         `compatibility.invalidSelections must record ${invalidSelection} as unsupported.`,

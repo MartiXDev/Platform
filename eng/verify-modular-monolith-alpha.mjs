@@ -13,7 +13,10 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { z } from "zod";
 import {
+  FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
+  MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS,
   MODULAR_MONOLITH_ALPHA_PROVIDERS,
+  RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
   canonicalJson,
   createModularMonolithAlphaEvidence,
   ModularMonolithAlphaEvidenceError,
@@ -72,17 +75,9 @@ const PROVIDER_APIS = Object.freeze({
   postgresql: "UseNpgsql",
   sqlserver: "UseSqlServer",
 });
-const PROVIDER_LEASE_IMPLEMENTATIONS = Object.freeze({
-  postgresql: "ReliableEventsProvider.PostgreSql",
-  sqlserver: "ReliableEventsProvider.SqlServer",
-});
 const FORBIDDEN_PROVIDER_APIS = Object.freeze({
   postgresql: "UseSqlServer",
   sqlserver: "UseNpgsql",
-});
-const FORBIDDEN_PROVIDER_LEASE_IMPLEMENTATIONS = Object.freeze({
-  postgresql: "ReliableEventsProvider.SqlServer",
-  sqlserver: "ReliableEventsProvider.PostgreSql",
 });
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
@@ -509,13 +504,15 @@ async function verifyGeneratedSolution(rootDir, generatedRoot, result) {
       `Generated ${result.plan.relationalProvider} solution contains the other provider API.`,
     );
   }
+  const providerLeaseImplementation =
+    RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS[result.plan.relationalProvider];
+  const forbiddenProviderLeaseImplementation =
+    FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS[
+      result.plan.relationalProvider
+    ];
   if (
-    !allSource.includes(
-      PROVIDER_LEASE_IMPLEMENTATIONS[result.plan.relationalProvider],
-    ) ||
-    allSource.includes(
-      FORBIDDEN_PROVIDER_LEASE_IMPLEMENTATIONS[result.plan.relationalProvider],
-    )
+    !allSource.includes(providerLeaseImplementation) ||
+    allSource.includes(forbiddenProviderLeaseImplementation)
   ) {
     fail(
       `Generated ${result.plan.relationalProvider} solution does not use its provider-specific reliable-event lease implementation.`,
@@ -586,6 +583,9 @@ async function runMigrationEvidence({
   });
   const apply = await runMigrationOperation("apply");
   const historicalValidation = await runMigrationOperation("validate");
+  const historicalValidationDigest = sha256(
+    historicalValidation.stdout ?? "",
+  );
   const script = await runMigrationOperation("script");
   if (!/create\s+(schema|table)/i.test(script.stdout ?? "")) {
     fail("Migration script evidence did not contain relational DDL.");
@@ -594,8 +594,8 @@ async function runMigrationEvidence({
   return {
     freshValidation,
     applyDigest: sha256(apply.stdout ?? ""),
-    historicalValidationDigest: sha256(historicalValidation.stdout ?? ""),
-    validateDigest: sha256(historicalValidation.stdout ?? ""),
+    historicalValidationDigest,
+    validateDigest: historicalValidationDigest,
     scriptDigest: sha256(script.stdout ?? ""),
     idempotentApplyDigest: sha256(idempotentApply.stdout ?? ""),
   };
@@ -837,7 +837,7 @@ export async function verifyModularMonolithAlpha({
       providerCoordinates: MODULAR_MONOLITH_ALPHA_PROVIDERS.map(
         (provider) => `modular-monolith/${provider}`,
       ),
-      invalidSelections: ["mixed-relational-providers", "sqlite"],
+      invalidSelections: [...MODULAR_MONOLITH_ALPHA_INVALID_SELECTIONS],
       packageFeed: "isolated",
       packageIds: packages.map(({ id }) => id),
       packageDigests: packages,
