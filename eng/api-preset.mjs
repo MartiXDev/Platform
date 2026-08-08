@@ -15,6 +15,7 @@ import {
   HOST_BASELINE_SOURCE_PATH,
   renderHostSecurityFile,
 } from "./host-baseline.mjs";
+import { renderFastEndpointsOrdersSource } from "./api-fastendpoints-source.mjs";
 
 export const API_PRESET = "api";
 export const API_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -85,6 +86,16 @@ export const API_CAPABILITY_MATRIX = Object.freeze([
 export const API_BASELINE_CAPABILITIES = Object.freeze(
   API_CAPABILITY_MATRIX.map((capability) => capability.id),
 );
+export const API_PROVIDER_MATRIX = Object.freeze([
+  Object.freeze({
+    id: "fastendpoints",
+    capability: "aspnetcore.fastendpoints",
+    package: "MartiX.Platform.AspNetCore.FastEndpoints",
+    version: "0.1.0-preview.1",
+    runtimeSupport: "jit",
+    nativeAot: "undeclared",
+  }),
+]);
 
 const API_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "MartiX.Platform", version: API_PLATFORM_VERSION }),
@@ -97,6 +108,12 @@ const API_PACKAGE_REFERENCES = Object.freeze([
     version: API_PLATFORM_VERSION,
   }),
 ]);
+const API_PROVIDER_PACKAGE_REFERENCES = new Map(
+  API_PROVIDER_MATRIX.map(({ id, package: packageId, version }) => [
+    id,
+    Object.freeze({ id: packageId, version }),
+  ]),
+);
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
   Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
@@ -165,7 +182,6 @@ const PLACEHOLDER_APPLICATION_NAMES = new Set([
 ]);
 const KNOWN_UNAVAILABLE_CAPABILITIES = new Set([
   "application-ui",
-  "aspnetcore.fastendpoints",
   "authentication",
   "business-modules",
   "cache",
@@ -333,10 +349,18 @@ function validateApiSelections({
     fail(`Capability "${capability}" is ${reason}.`);
   }
 
-  if (requestedProviders.length > 0) {
+  if (requestedProviders.length > 1) {
     fail(
-      "Capability providers are not supported by the api preset; the baseline has no selected provider.",
+      "The api preset supports exactly one endpoint provider selection.",
     );
+  }
+
+  for (const requestedProvider of requestedProviders) {
+    if (!API_PROVIDER_MATRIX.some(({ id }) => id === requestedProvider)) {
+      fail(
+        `Capability providers are not supported by the api preset: "${requestedProvider}".`,
+      );
+    }
   }
 
   if (persistence !== "none") {
@@ -354,11 +378,20 @@ function validateApiSelections({
   if (requestedModules.length > 0) {
     fail("Business Modules are not supported by the api preset.");
   }
+
+  return requestedProviders[0] ?? null;
 }
 
-function createPlan(applicationName) {
+function createPlan(applicationName, selectedProvider) {
   const projectNames = getProjectNames(applicationName);
   const baselineCapabilities = [...API_BASELINE_CAPABILITIES];
+  const endpointProvider = selectedProvider ?? "minimal-api";
+  const providerDefinition = API_PROVIDER_MATRIX.find(
+    ({ id }) => id === selectedProvider,
+  );
+  const providerPackageReferences = selectedProvider === null
+    ? []
+    : [API_PROVIDER_PACKAGE_REFERENCES.get(selectedProvider)];
 
   return {
     applicationName,
@@ -372,11 +405,19 @@ function createPlan(applicationName) {
     },
     baselineCapabilities,
     capabilities: baselineCapabilities,
-    providers: [],
+    providers: providerDefinition === undefined
+      ? []
+      : [{
+          id: providerDefinition.id,
+          capability: providerDefinition.capability,
+          state: "selected",
+        }],
     persistence: "none",
-    packageReferences: API_PACKAGE_REFERENCES.map((reference) => ({
-      ...reference,
-    })),
+    endpointProvider,
+    packageReferences: [
+      ...API_PACKAGE_REFERENCES,
+      ...providerPackageReferences,
+    ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
       `tests/${projectNames.tests}/${projectNames.tests}.csproj`,
@@ -384,6 +425,7 @@ function createPlan(applicationName) {
     selected: {
       applicationUi: false,
       businessModules: false,
+      endpointProvider,
       relationalPersistence: false,
     },
   };
@@ -419,8 +461,8 @@ export function createApiPresetPlan(options = {}) {
   }
   rejectUnknownOptions(options);
   const applicationName = normalizeApplicationName(options.applicationName);
-  validateApiSelections(options);
-  return createPlan(applicationName);
+  const selectedProvider = validateApiSelections(options);
+  return createPlan(applicationName, selectedProvider);
 }
 
 function createManifest(plan) {
@@ -445,7 +487,7 @@ function createManifest(plan) {
       id,
       state: "selected",
     })),
-    providers: [],
+    providers: plan.providers.map((provider) => ({ ...provider })),
     appliedMigrations: [],
     supportClaims: [],
     security: {
@@ -484,6 +526,10 @@ ${renderPackageReferences(packageReferences, plan.packageReferences)}
 }
 
 function apiProgramFile(plan) {
+ if (plan.endpointProvider === "fastendpoints") {
+   return fastEndpointsApiProgramFile(plan);
+ }
+
  return `using ${plan.applicationName}.Api.Infrastructure.Host;
 using ${plan.applicationName}.Api.Orders;
 using MartiX.Platform.AspNetCore;
@@ -580,7 +626,104 @@ public sealed record HealthResponse(string Status);
 `;
 }
 
-function ordersFile(plan) {
+function fastEndpointsApiProgramFile(plan) {
+  return `using System;
+using System.Collections.Generic;
+using ${plan.applicationName}.Api.Infrastructure.Host;
+using ${plan.applicationName}.Api.Orders;
+using MartiX.Platform.AspNetCore;
+using MartiX.Platform.AspNetCore.FastEndpoints;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+ApiComposition.ConfigureBuilder(builder);
+ApiComposition.ConfigureServices(
+    builder.Services,
+    builder.Configuration,
+    builder.Environment);
+
+var app = builder.Build();
+ApiComposition.Configure(app);
+app.Run();
+
+public static class ApiComposition
+{
+    public static void ConfigureBuilder(WebApplicationBuilder builder)
+    {
+        HostSecurity.ValidateStartup(
+            builder.Configuration,
+            builder.Environment);
+        HostSecurity.ConfigureBuilder(builder);
+    }
+
+    public static void ConfigureServices(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        services.AddMartiXProblemDetails();
+        HostSecurity.AddServices(services, configuration, environment);
+        services.AddMartiXFastEndpoints(new List<Type>
+        {
+            typeof(ListOrdersEndpoint),
+            typeof(GetOrderEndpoint),
+            typeof(CreateOrderEndpoint),
+            typeof(ReplaceOrderEndpoint),
+            typeof(UpdateOrderEndpoint),
+            typeof(DeleteOrderEndpoint),
+            typeof(LegacyListOrdersEndpoint),
+            typeof(HealthEndpoint),
+        });
+        services.AddSingleton<OrderStore>();
+    }
+
+    public static void Configure(WebApplication app)
+    {
+        app.UseForwardedHeaders();
+        app.UseExceptionHandler();
+        if (app.Environment.IsProduction())
+        {
+            app.UseHsts();
+            app.UseHttpsRedirection();
+        }
+        app.UseMiddleware<HostHeaderPolicyMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+        app.UseCors(HostSecurity.CorsPolicyName);
+        app.UseRateLimiter();
+        app.UseAntiforgery();
+        app.UseAuthorization();
+        app.MapOpenApi().AllowAnonymous();
+        app.MapHealthChecks(
+                "/alive",
+                new HealthCheckOptions
+                {
+                    Predicate = HostSecurity.IsLive,
+                    ResponseWriter = HostSecurity.WriteHealthResponseAsync,
+                })
+            .AllowAnonymous();
+        app.MapHealthChecks(
+                "/ready",
+                new HealthCheckOptions
+                {
+                    Predicate = HostSecurity.IsReady,
+                    ResponseWriter = HostSecurity.WriteHealthResponseAsync,
+                })
+            .AllowAnonymous();
+        app.UseMartiXFastEndpoints();
+    }
+}
+
+public sealed record HealthResponse(string Status);
+`;
+}
+
+function minimalOrdersFile(plan) {
   return `using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using MartiX.Platform.AspNetCore;
@@ -594,7 +737,10 @@ namespace ${plan.applicationName}.Api.Orders;
 
 public sealed record CreateOrderRequest(string Description);
 
-public sealed record ReplaceOrderRequest(string Description);
+public sealed record ReplaceOrderRequest(string Description)
+{
+    public Guid Id { get; set; }
+}
 
 public sealed record OrderResponse(
     Guid Id,
@@ -1150,6 +1296,19 @@ internal static class OrdersEndpoints
 `;
 }
 
+function fastEndpointsOrdersFile(plan) {
+  return renderFastEndpointsOrdersSource(
+    plan,
+    minimalOrdersFile(plan),
+  );
+}
+
+function ordersFile(plan) {
+  return plan.endpointProvider === "fastendpoints"
+    ? fastEndpointsOrdersFile(plan)
+    : minimalOrdersFile(plan);
+}
+
 function testProjectFile(plan) {
   const projectNames = getProjectNames(plan.applicationName);
   const packageReferences = [
@@ -1176,7 +1335,7 @@ ${renderPackageReferences(packageReferences, plan.packageReferences)}
 `;
 }
 
-function testSourceFile(plan) {
+function minimalTestSourceFile(plan) {
   return `using System.Net;
 using System.Text.Json;
 using ${plan.applicationName}.Client;
@@ -1532,6 +1691,140 @@ public sealed class ApiContractTests
 `;
 }
 
+function fastEndpointsTestSourceFile(plan) {
+  const minimalSource = minimalTestSourceFile(plan)
+    .replace(
+      "using MartiX.Platform.AspNetCore;",
+      "using MartiX.Platform.AspNetCore;\nusing MartiX.Platform.AspNetCore.FastEndpoints;",
+    )
+    .replace("            MapConformanceEndpoints(app);\n", "")
+    .replace(
+      "    private sealed record ProbeResponse(string Status);\n",
+      "",
+    );
+  const methodsMarker = "        private static void MapConformanceEndpoints";
+  const methodsStart = minimalSource.indexOf(methodsMarker);
+  const hostEnd = minimalSource.lastIndexOf("    }\n}\n");
+  if (methodsStart === -1 || hostEnd === -1 || methodsStart > hostEnd) {
+    throw new Error("The generated conformance host source is incomplete.");
+  }
+
+  const hostSource = `${minimalSource.slice(0, methodsStart)}${minimalSource.slice(hostEnd)}`;
+  const endpointSource = `
+public sealed record ProbeResponse(string Status);
+
+public sealed class ConformanceFailureRequest
+{
+    public int Id { get; set; }
+}
+
+internal sealed class ConformanceFailureEndpoint
+    : MartiXEndpoint<ConformanceFailureRequest, Results<Ok<ProbeResponse>, ProblemHttpResult>>
+{
+    public override void Configure()
+    {
+        Get("/test/failures/{id}");
+        AllowAnonymous();
+        Options(builder => builder
+            .WithName("ConformanceFailure")
+            .Produces<ProbeResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.Validation,
+                ErrorKind.RuleViolation,
+                ErrorKind.NotFound,
+                ErrorKind.Conflict,
+                ErrorKind.AuthenticationRequired,
+                ErrorKind.Forbidden,
+                ErrorKind.RateLimited,
+                ErrorKind.Unavailable,
+                ErrorKind.Unexpected));
+    }
+
+    public override Task<Results<Ok<ProbeResponse>, ProblemHttpResult>> ExecuteAsync(
+        ConformanceFailureRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = request.Id switch
+        {
+            400 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.validation",
+                ErrorKind.Validation,
+                "The request is invalid.",
+                target: "id")),
+            422 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.rule-violation",
+                ErrorKind.RuleViolation,
+                "The request violates an application rule.")),
+            404 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.not-found",
+                ErrorKind.NotFound,
+                "The requested resource was not found.")),
+            409 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.conflict",
+                ErrorKind.Conflict,
+                "The request conflicts with current state.")),
+            401 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.authentication-required",
+                ErrorKind.AuthenticationRequired,
+                "Authentication is required.")),
+            403 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.forbidden",
+                ErrorKind.Forbidden,
+                "The current actor is not allowed.")),
+            429 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.rate-limited",
+                ErrorKind.RateLimited,
+                "The request rate is limited.")),
+            503 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.unavailable",
+                ErrorKind.Unavailable,
+                "The service is temporarily unavailable.")),
+            500 => Result<ProbeResponse>.Failure(Error.Create(
+                "api.unexpected",
+                ErrorKind.Unexpected,
+                "The request could not be completed safely.")),
+            _ => Result<ProbeResponse>.Success(new ProbeResponse("ok")),
+        };
+
+        Results<Ok<ProbeResponse>, ProblemHttpResult> response = result.IsSuccess
+            ? TypedResults.Ok(result.Value)
+            : result.ToProblemDetails(HttpContext);
+        return Task.FromResult(response);
+    }
+}
+
+internal sealed class ConformanceUnexpectedFailureEndpoint
+    : FastEndpoints.EndpointWithoutRequest<ProblemHttpResult>
+{
+    public override void Configure()
+    {
+        Get("/test/unexpected");
+        AllowAnonymous();
+        Options(builder => builder
+            .WithName("ConformanceUnexpectedFailure")
+            .Produces<ProblemDetails>(
+                StatusCodes.Status500InternalServerError,
+                "application/problem+json")
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected));
+    }
+
+    public override Task<ProblemHttpResult> ExecuteAsync(
+        CancellationToken cancellationToken)
+    {
+        throw new InvalidOperationException("sensitive-backend-details");
+    }
+}
+`;
+
+  return `${hostSource}${endpointSource}`;
+}
+
+function testSourceFile(plan) {
+  return plan.endpointProvider === "fastendpoints"
+    ? fastEndpointsTestSourceFile(plan)
+    : minimalTestSourceFile(plan);
+}
+
 function solutionFile(plan) {
   const projectNames = getProjectNames(plan.applicationName);
 
@@ -1544,6 +1837,13 @@ function solutionFile(plan) {
 }
 
 function readmeFile(plan) {
+  const providerText = plan.providers.length === 0
+    ? "none"
+    : plan.providers.map((provider) => `\`${provider.id}\``).join(", ");
+  const endpointText = plan.endpointProvider === "fastendpoints"
+    ? "FastEndpoints"
+    : "Minimal APIs";
+
   return `# ${plan.applicationName} API
 
 This solution was generated by the \`martix-app\` Template System.
@@ -1552,7 +1852,8 @@ This solution was generated by the \`martix-app\` Template System.
 - Platform Contract Version: \`${plan.platformContractVersion}\`
 - Manifest Schema Version: \`${plan.manifestSchemaVersion}\`
 - Capabilities: ${plan.capabilities.map((capability) => `\`${capability}\``).join(", ")}
-- Capability Providers: none
+- Capability Providers: ${providerText}
+- Endpoint Framework: ${endpointText}
 
 The API composition root owns service registration, middleware ordering, OpenAPI
 mapping, the secure host baseline, and health/readiness endpoints. Production
@@ -1580,11 +1881,16 @@ providers explicit in application-owned source.
 }
 
 function contextFile(plan) {
+  const providerText = plan.endpointProvider === "fastendpoints"
+    ? "The optional FastEndpoints adapter is selected explicitly and remains JIT-only in this profile; trim and Native AOT support are undeclared."
+    : "Minimal APIs remain the canonical endpoint model.";
+
   return `# ${plan.applicationName} API context
 
-This is an API Preset Generated Solution with the Platform baseline and no
-selected Capability Provider. Kernel Result/Error contracts stay transport
-independent; the ASP.NET Core adapter owns safe Problem Details translation.
+This is an API Preset Generated Solution with the Platform baseline.
+${providerText}
+Kernel Result/Error contracts stay transport independent; the selected ASP.NET
+Core adapter owns safe Problem Details translation.
 `;
 }
 

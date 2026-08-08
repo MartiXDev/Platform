@@ -75,6 +75,114 @@ test("the API plan is explicit and deterministic", () => {
   );
 });
 
+test("FastEndpoints selection is explicit and deterministic", async () => {
+  const firstRoot = await createTemporaryDirectory();
+  const secondRoot = await createTemporaryDirectory();
+
+  try {
+    const options = {
+      applicationName: "Contoso.Inventory",
+      provider: "fastendpoints",
+    };
+    const first = createApiPresetPlan(options);
+    const second = createApiPresetPlan(options);
+
+    assert.deepEqual(first, second);
+    assert.deepEqual(first.providers, [{
+      id: "fastendpoints",
+      capability: "aspnetcore.fastendpoints",
+      state: "selected",
+    }]);
+    assert.ok(first.packageReferences.some(
+      ({ id, version }) =>
+        id === "MartiX.Platform.AspNetCore.FastEndpoints" &&
+        version === API_PLATFORM_VERSION,
+    ));
+
+    const generated = await generateApiPreset({
+      ...options,
+      outputDirectory: join(firstRoot, "generated"),
+    });
+    const reproduced = await generateApiPreset({
+      ...options,
+      outputDirectory: join(secondRoot, "generated"),
+    });
+
+    assert.deepEqual(generated.files, reproduced.files);
+    assert.deepEqual(
+      JSON.parse(await readFile(
+        join(firstRoot, "generated", "contracts", "openapi-v1.json"),
+        "utf8",
+      )),
+      JSON.parse(await readFile(
+        join(secondRoot, "generated", "contracts", "openapi-v1.json"),
+        "utf8",
+      )),
+    );
+
+    const manifest = JSON.parse(await readFile(
+      join(firstRoot, "generated", "martix.platform.json"),
+      "utf8",
+    ));
+    assert.deepEqual(manifest.providers, first.providers);
+
+    const productionFiles = generated.files.filter((file) =>
+      file.startsWith("src/") && !file.includes(".Client/"));
+    const productionText = (
+      await Promise.all(productionFiles.map((file) =>
+        readFile(join(firstRoot, "generated", file), "utf8")))
+    ).join("\n");
+    assert.match(productionText, /FastEndpoints/);
+    assert.match(productionText, /Endpoint</);
+    assert.match(productionText, /AddMartiXFastEndpoints\(new List<Type>/);
+    assert.doesNotMatch(productionText, /AddMartiXFastEndpoints\(\);/);
+    assert.doesNotMatch(
+      productionText,
+      /app\.Map(?:Get|Post|Put|Patch|Delete)\s*\(/,
+    );
+    assert.doesNotMatch(productionText, /OrdersEndpoints\.Map/);
+  } finally {
+    await Promise.all([
+      rm(firstRoot, { recursive: true, force: true }),
+      rm(secondRoot, { recursive: true, force: true }),
+    ]);
+  }
+});
+
+test("FastEndpoints preserves the canonical OpenAPI contract", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const baselineRoot = join(root, "minimal-api");
+    const fastEndpointsRoot = join(root, "fastendpoints");
+    await generateApiPreset({
+      applicationName: "Contoso.Inventory",
+      outputDirectory: baselineRoot,
+    });
+    await generateApiPreset({
+      applicationName: "Contoso.Inventory",
+      provider: "fastendpoints",
+      outputDirectory: fastEndpointsRoot,
+    });
+
+    const baselineContract = JSON.parse(
+      await readFile(
+        join(baselineRoot, "contracts", "openapi-v1.json"),
+        "utf8",
+      ),
+    );
+    const fastEndpointsContract = JSON.parse(
+      await readFile(
+        join(fastEndpointsRoot, "contracts", "openapi-v1.json"),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(fastEndpointsContract, baselineContract);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("the CLI prints the resolved plan without writing in dry-run mode", async () => {
   const output = [];
   const originalLog = console.log;
@@ -139,6 +247,23 @@ test("identity and unsupported selections fail before generation writes", async 
         outputDirectory: join(output, "invalid-provider"),
       }),
       /providers are not supported by the api preset/i,
+    );
+    await assert.rejects(
+      () => generateApiPreset({
+        applicationName: "Contoso.Inventory",
+        providers: ["fastendpoints", "minimal-api"],
+        outputDirectory: join(output, "invalid-provider-combination"),
+      }),
+      /exactly one endpoint provider|unknown.*minimal-api|not supported/i,
+    );
+    await assert.rejects(
+      () => generateApiPreset({
+        applicationName: "Contoso.Inventory",
+        provider: "fastendpoints",
+        providers: ["fastendpoints"],
+        outputDirectory: join(output, "duplicate-provider"),
+      }),
+      /duplicate/i,
     );
 
     assert.deepEqual(await listFiles(output), []);
@@ -287,6 +412,10 @@ test("generation writes only the selected API composition and manifest", async (
     assert.doesNotMatch(
       generatedText,
       /WeatherForecast|DbContext|EntityFramework|Npgsql|SqlServer|Migrations|Sample|Demo/,
+    );
+    assert.doesNotMatch(
+      generatedText,
+      /FastEndpoints|MartiX\.Platform\.AspNetCore\.FastEndpoints|UseFastEndpoints/,
     );
   } finally {
     await Promise.all([

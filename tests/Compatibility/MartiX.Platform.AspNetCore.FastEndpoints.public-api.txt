@@ -1,0 +1,6 @@
+MartiX.Platform.AspNetCore.FastEndpoints.MartiXFastEndpointsExtensions
+  static IServiceCollection AddMartiXFastEndpoints(IServiceCollection)
+  static IServiceCollection AddMartiXFastEndpoints(IServiceCollection, params List<Type>[])
+  static IApplicationBuilder UseMartiXFastEndpoints(IApplicationBuilder, Action<Config>?)
+MartiX.Platform.AspNetCore.FastEndpoints.MartiXEndpoint<TRequest,TResponse>
+  abstract Task OnValidationFailedAsync(CancellationToken)

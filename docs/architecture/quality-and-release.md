@@ -24,6 +24,7 @@ The current repository verification commands are:
 npm run verify:fast
 npm run verify:pr
 npm run verify:api
+npm run verify:fastendpoints
 ```
 
 The `modular-monolith-alpha` profile is release-candidate-only and requires
@@ -44,6 +45,12 @@ artifact once, restores the generated API from an isolated feed, runs the
 generated TUnit consumer and JIT/OpenAPI probes, publishes and probes the
 declared Native AOT artifact, and writes content-addressed candidate evidence.
 The profile remains persistence-free, provider-free, and claim-free.
+
+The optional FastEndpoints adapter is verified separately from the canonical
+Minimal API release loop. Its named Generated Solution proves the declared
+JIT/TUnit/OpenAPI combination against the same HTTP contract. Trimmed and
+Native AOT combinations are explicit `Invalid` outcomes because endpoint
+reflection discovery and AOT support are not declared for this preview.
 
 ## Quality Gate model
 
