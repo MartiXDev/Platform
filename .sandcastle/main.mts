@@ -23,7 +23,11 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { z } from "zod";
+
+const execFileAsync = promisify(execFile);
 
 // The planner emits its plan as JSON inside <plan> tags; Output.object extracts
 // and validates it against this schema. We use Zod here, but any Standard
@@ -41,7 +45,7 @@ const planSchema = z.object({
 
 // Maximum number of plan→execute→merge cycles before stopping.
 // Raise this if your backlog is large; lower it for a quick smoke-test run.
-const MAX_ITERATIONS = 10;
+const MAX_ITERATIONS = 50;
 
 const defaultAgent = sandcastle.copilot(
   "gpt-5.6-luna",
@@ -218,6 +222,16 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
     },
   });
+
+  for (const issue of completedIssues) {
+    await execFileAsync("gh", [
+      "issue",
+      "close",
+      issue.id,
+      "--comment",
+      "Completed by Sandcastle",
+    ]);
+  }
 
   console.log("\nBranches merged.");
 }
