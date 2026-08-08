@@ -75,6 +75,8 @@ test("the EF Core package exposes only the admitted persistence policy surface",
 
   assert.match(project, /<PackageId>MartiX\.Platform\.EntityFrameworkCore<\/PackageId>/);
   assert.match(project, /Microsoft\.EntityFrameworkCore/);
+  assert.match(reliableModelBuilder, /^using System\.Linq;$/m);
+  assert.match(diagnostics, /^using System;$/m);
   assert.match(
     project,
     /<PackageReference Include="Microsoft\.Extensions\.Diagnostics" /,
