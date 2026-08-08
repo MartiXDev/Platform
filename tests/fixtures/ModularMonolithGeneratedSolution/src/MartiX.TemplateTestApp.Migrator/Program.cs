@@ -1,5 +1,6 @@
 using MartiX.TemplateTestApp.Orders;
 using MartiX.TemplateTestApp.Billing;
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -13,6 +14,7 @@ if (operation is not ("validate" or "script" or "apply"))
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLogging();
+builder.Services.AddReliableEvents();
 OrdersModule.AddMigrationServices(builder.Services, builder.Configuration);
 BillingModule.AddMigrationServices(builder.Services, builder.Configuration);
 using var host = builder.Build();

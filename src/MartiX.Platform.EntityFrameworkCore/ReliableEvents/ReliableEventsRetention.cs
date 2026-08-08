@@ -18,11 +18,13 @@ public static class ReliableEventsRetention
         ReliableEventsOptions options,
         TimeProvider timeProvider,
         int batchSize,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         if (batchSize <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(batchSize));
@@ -63,7 +65,7 @@ public static class ReliableEventsRetention
         await transaction.CommitAsync(cancellationToken);
 
         var cleaned = oldDeliveries.Count + oldReceipts.Count + orphanedMessages.Count;
-        ReliableEventsDiagnostics.Cleaned.Add(cleaned);
+        diagnostics.Cleaned.Add(cleaned);
         return cleaned;
     }
 }

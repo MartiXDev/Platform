@@ -9,13 +9,6 @@ namespace MartiX.TemplateTestApp.Orders.Infrastructure.IntegrationEvents;
 
 internal static class OrdersReliableEvents
 {
-    private static readonly string[] durableTables =
-    {
-        "outbox_messages",
-        "outbox_deliveries",
-        "inbox_receipts",
-    };
-
     private static readonly IReadOnlyList<string> activeSubscriptions =
         Array.AsReadOnly(new[] { "Billing" });
 
@@ -24,16 +17,17 @@ internal static class OrdersReliableEvents
 
     public static void Configure(ModelBuilder modelBuilder)
     {
-        _ = durableTables;
         modelBuilder.HasReliableEvents("orders");
     }
 
-    public static ReliableEventsSaveChangesInterceptor CreateInterceptor()
+    public static ReliableEventsSaveChangesInterceptor CreateInterceptor(
+        ReliableEventsDiagnostics diagnostics)
     {
         return new ReliableEventsSaveChangesInterceptor(
             Snapshot,
             Stage,
-            Acknowledge);
+            Acknowledge,
+            diagnostics);
     }
 
     public static OutboxMessage CreateSubmittedMessage(
@@ -69,10 +63,9 @@ internal static class OrdersReliableEvents
     }
 
     private static IReadOnlyList<OutboxMessage> Stage(
-        DbContext dbContext,
+        DbContext _,
         IReadOnlyList<DomainEventCapture> captures)
     {
-        _ = dbContext;
         return captures
             .Select(capture => capture.Event switch
             {

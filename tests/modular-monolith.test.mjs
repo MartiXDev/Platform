@@ -306,7 +306,7 @@ test("generation emits module-owned relational persistence for each provider", a
       assert.match(ordersReliableEvents, /ReliableEventsSaveChangesInterceptor/);
       assert.match(ordersReliableEvents, /ReliableEventEnvelope\.Create/);
       assert.match(ordersReliableEvents, /OutboxMessage\.Create/);
-      assert.match(ordersReliableEvents, /outbox_messages|outbox_deliveries/i);
+      assert.match(migration, /outbox_messages|outbox_deliveries/i);
       assert.match(billingReliableEvents, /ConsumeOrdersSubmittedAsync/);
       assert.match(billingReliableEvents, /ReliableEventsInboxExecutor\.ExecuteAsync/);
       assert.match(reliableEventsComposition, /ReliableEventsDispatcher/);

@@ -71,6 +71,12 @@ public sealed class DomainEventCollection<TEvent>
             throw new InvalidOperationException(
                 "Only events from this collection can be acknowledged.");
         }
+        if (snapshot.Any(snapshotEvent =>
+                !events.Any(currentEvent => ReferenceEquals(currentEvent, snapshotEvent))))
+        {
+            throw new InvalidOperationException(
+                "Only the captured event instances can be acknowledged.");
+        }
 
         events.RemoveAll(domainEvent => snapshotIds.Contains(eventIdSelector(domainEvent)));
         foreach (var eventId in snapshotIds)

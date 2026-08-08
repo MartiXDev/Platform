@@ -48,6 +48,35 @@ public sealed class ReliableEventsOptions
     /// <summary>Maximum persisted failure detail length.</summary>
     public int FailureDetailLimit { get; init; } = 1000;
 
+    /// <summary>
+    /// Creates options for a bounded claim batch without changing the other
+    /// delivery settings.
+    /// </summary>
+    public ReliableEventsOptions WithBatchSize(int batchSize)
+    {
+        if (batchSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        }
+
+        return new ReliableEventsOptions
+        {
+            BatchSize = batchSize,
+            MaxConcurrentDeliveries = MaxConcurrentDeliveries,
+            IdlePollInterval = IdlePollInterval,
+            AttemptTimeout = AttemptTimeout,
+            LeaseDuration = LeaseDuration,
+            AutomaticAttemptLimit = AutomaticAttemptLimit,
+            RetryBaseDelay = RetryBaseDelay,
+            MaxRetryDelay = MaxRetryDelay,
+            ShutdownBudget = ShutdownBudget,
+            OutboxRetention = OutboxRetention,
+            InboxReceiptRetention = InboxReceiptRetention,
+            FailureCategoryLimit = FailureCategoryLimit,
+            FailureDetailLimit = FailureDetailLimit,
+        };
+    }
+
     /// <summary>Validates all bounds and the recovery horizon relationship.</summary>
     public void Validate()
     {

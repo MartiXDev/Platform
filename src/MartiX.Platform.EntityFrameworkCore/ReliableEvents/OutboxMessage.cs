@@ -232,9 +232,17 @@ public sealed class OutboxDelivery
                 nameof(capturedAtUtc));
         }
 
+        var normalizedSubscriptionId = subscriptionId.Trim();
+        if (normalizedSubscriptionId.Length > 200)
+        {
+            throw new ArgumentException(
+                "Subscription identifiers cannot exceed 200 characters.",
+                nameof(subscriptionId));
+        }
+
         return new OutboxDelivery(
             messageId,
-            subscriptionId.Trim(),
+            normalizedSubscriptionId,
             capturedAtUtc);
     }
 

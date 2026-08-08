@@ -43,6 +43,7 @@ public static class ReliableEventsInboxExecutor
             CancellationToken,
             Task> operation,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
@@ -50,6 +51,7 @@ public static class ReliableEventsInboxExecutor
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         var normalizedSubscriptionId = subscriptionId.Trim();
 
         await using var transaction =
@@ -65,12 +67,12 @@ public static class ReliableEventsInboxExecutor
             if (!existing.Matches(envelope))
             {
                 await transaction.RollbackAsync(cancellationToken);
-                ReliableEventsDiagnostics.PermanentlyFailed.Add(1);
+                diagnostics.PermanentlyFailed.Add(1);
                 return ReliableEventDeliveryOutcome.PermanentFailure;
             }
 
             await transaction.RollbackAsync(cancellationToken);
-            ReliableEventsDiagnostics.DuplicateSuppressed.Add(1);
+            diagnostics.DuplicateSuppressed.Add(1);
             return ReliableEventDeliveryOutcome.DuplicateSuppressed;
         }
 
@@ -95,7 +97,7 @@ public static class ReliableEventsInboxExecutor
                     cancellationToken);
             if (concurrentReceipt?.Matches(envelope) == true)
             {
-                ReliableEventsDiagnostics.DuplicateSuppressed.Add(1);
+                diagnostics.DuplicateSuppressed.Add(1);
                 return ReliableEventDeliveryOutcome.DuplicateSuppressed;
             }
 

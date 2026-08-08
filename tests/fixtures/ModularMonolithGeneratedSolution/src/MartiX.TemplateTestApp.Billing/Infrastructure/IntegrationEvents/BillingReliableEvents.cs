@@ -13,13 +13,6 @@ namespace MartiX.TemplateTestApp.Billing.Infrastructure.IntegrationEvents;
 
 internal static class BillingReliableEvents
 {
-    private static readonly string[] durableTables =
-    {
-        "outbox_messages",
-        "outbox_deliveries",
-        "inbox_receipts",
-    };
-
     private static readonly IReadOnlyList<string> activeSubscriptions =
         Array.Empty<string>();
 
@@ -28,16 +21,17 @@ internal static class BillingReliableEvents
 
     public static void Configure(ModelBuilder modelBuilder)
     {
-        _ = durableTables;
         modelBuilder.HasReliableEvents("billing");
     }
 
-    public static ReliableEventsSaveChangesInterceptor CreateInterceptor()
+    public static ReliableEventsSaveChangesInterceptor CreateInterceptor(
+        ReliableEventsDiagnostics diagnostics)
     {
         return new ReliableEventsSaveChangesInterceptor(
             Snapshot,
             Stage,
-            Acknowledge);
+            Acknowledge,
+            diagnostics);
     }
 
     public static OutboxMessage CreateSubmittedMessage(
@@ -73,10 +67,9 @@ internal static class BillingReliableEvents
     }
 
     private static IReadOnlyList<OutboxMessage> Stage(
-        DbContext dbContext,
+        DbContext _,
         IReadOnlyList<DomainEventCapture> captures)
     {
-        _ = dbContext;
         return captures
             .Select(capture => capture.Event switch
             {
@@ -112,11 +105,13 @@ internal static class BillingReliableEvents
         BillingDbContext dbContext,
         ReliableEventEnvelope envelope,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         if (!string.Equals(
                 envelope.EventName,
                 OrdersSubmittedEvent.EventName,
@@ -160,6 +155,7 @@ internal static class BillingReliableEvents
                 return Task.CompletedTask;
             },
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 }

@@ -12,6 +12,7 @@ internal static class ReliableEventsComposition
     public static void AddServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddReliableEvents();
         services.AddSingleton<IHostedService>(serviceProvider =>
         {
             var options = serviceProvider
@@ -24,6 +25,7 @@ internal static class ReliableEventsComposition
                     ClaimAsync(
                         serviceProvider,
                         batchSize,
+                        options,
                         timeProvider,
                         cancellationToken),
                 (delivery, cancellationToken) =>
@@ -33,6 +35,8 @@ internal static class ReliableEventsComposition
                         cancellationToken),
                 serviceProvider
                     .GetRequiredService<ILogger<ReliableEventsDispatcher>>(),
+                serviceProvider
+                    .GetRequiredService<ReliableEventsDiagnostics>(),
                 (delivery, cancellationToken) =>
                     AcknowledgeAsync(
                         serviceProvider,
@@ -45,6 +49,7 @@ internal static class ReliableEventsComposition
                         delivery,
                         failureCategory,
                         failureDetail,
+                        options,
                         timeProvider,
                         cancellationToken),
                 (delivery, failureCategory, failureDetail, cancellationToken) =>
@@ -53,6 +58,7 @@ internal static class ReliableEventsComposition
                         delivery,
                         failureCategory,
                         failureDetail,
+                        options,
                         timeProvider,
                         cancellationToken));
         });
@@ -61,6 +67,7 @@ internal static class ReliableEventsComposition
     private static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimAsync(
         IServiceProvider services,
         int batchSize,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -72,6 +79,7 @@ internal static class ReliableEventsComposition
                 await OrdersModule.ClaimReliableEventsAsync(
                     services,
                     remaining,
+                    options,
                     timeProvider,
                     cancellationToken);
             result.AddRange(claimedOrders);
@@ -83,6 +91,7 @@ internal static class ReliableEventsComposition
                 await BillingModule.ClaimReliableEventsAsync(
                     services,
                     remaining,
+                    options,
                     timeProvider,
                     cancellationToken);
             result.AddRange(claimedBilling);
@@ -142,6 +151,7 @@ internal static class ReliableEventsComposition
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -153,6 +163,7 @@ internal static class ReliableEventsComposition
                     delivery,
                     failureCategory,
                     failureDetail,
+                    options,
                     timeProvider,
                     cancellationToken),
             "Billing" =>
@@ -161,6 +172,7 @@ internal static class ReliableEventsComposition
                     delivery,
                     failureCategory,
                     failureDetail,
+                    options,
                     timeProvider,
                     cancellationToken),
             _ => new ValueTask<bool>(false),
@@ -172,6 +184,7 @@ internal static class ReliableEventsComposition
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -183,6 +196,7 @@ internal static class ReliableEventsComposition
                     delivery,
                     failureCategory,
                     failureDetail,
+                    options,
                     timeProvider,
                     cancellationToken),
             "Billing" =>
@@ -191,6 +205,7 @@ internal static class ReliableEventsComposition
                     delivery,
                     failureCategory,
                     failureDetail,
+                    options,
                     timeProvider,
                     cancellationToken),
             _ => new ValueTask<bool>(false),

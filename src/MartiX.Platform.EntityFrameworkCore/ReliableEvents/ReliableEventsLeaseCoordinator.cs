@@ -35,12 +35,14 @@ public static class ReliableEventsLeaseCoordinator
         ReliableEventsProvider provider,
         ReliableEventsOptions options,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(schema);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         options.Validate();
 
         var now = timeProvider.GetUtcNow();
@@ -99,9 +101,9 @@ public static class ReliableEventsLeaseCoordinator
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        ReliableEventsDiagnostics.Attempted.Add(claimed.Count);
-        ReliableEventsDiagnostics.LeaseExpired.Add(expired);
-        ReliableEventsDiagnostics.PermanentlyFailed.Add(exhausted);
+        diagnostics.Attempted.Add(claimed.Count);
+        diagnostics.LeaseExpired.Add(expired);
+        diagnostics.PermanentlyFailed.Add(exhausted);
         return claimed;
     }
 
@@ -112,6 +114,7 @@ public static class ReliableEventsLeaseCoordinator
         ReliableEventsProvider provider,
         ReliableEventsOptions options,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         var deliveries = await ClaimDueAsync(
@@ -120,6 +123,7 @@ public static class ReliableEventsLeaseCoordinator
             provider,
             options,
             timeProvider,
+            diagnostics,
             cancellationToken);
         var result = new List<ReliableEventDelivery>(deliveries.Count);
         foreach (var delivery in deliveries)
@@ -139,7 +143,7 @@ public static class ReliableEventsLeaseCoordinator
                                 "A claimed delivery must have a fencing token."),
                         message.ToEnvelope(),
                         delivery.AttemptCount));
-                ReliableEventsDiagnostics.CaptureToDeliveryLatency.Record(
+                diagnostics.CaptureToDeliveryLatency.Record(
                     Math.Max(
                         0,
                         (timeProvider.GetUtcNow() - message.CapturedAtUtc)
@@ -158,7 +162,7 @@ public static class ReliableEventsLeaseCoordinator
                 }
 
                 await dbContext.SaveChangesAsync(cancellationToken);
-                ReliableEventsDiagnostics.PermanentlyFailed.Add(1);
+                diagnostics.PermanentlyFailed.Add(1);
             }
         }
 
@@ -172,11 +176,13 @@ public static class ReliableEventsLeaseCoordinator
         string subscriptionId,
         Guid leaseId,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionId);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         var normalizedSubscriptionId = subscriptionId.Trim();
         var now = timeProvider.GetUtcNow();
         var affected = await dbContext.Set<OutboxDelivery>()
@@ -206,7 +212,7 @@ public static class ReliableEventsLeaseCoordinator
         DetachTrackedDelivery(dbContext, messageId, normalizedSubscriptionId);
         if (affected == 1)
         {
-            ReliableEventsDiagnostics.Acknowledged.Add(1);
+            diagnostics.Acknowledged.Add(1);
         }
         return affected == 1;
     }
@@ -222,15 +228,20 @@ public static class ReliableEventsLeaseCoordinator
         DateTimeOffset nextAttemptAtUtc,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        options.Validate();
         var normalizedSubscriptionId = subscriptionId.Trim();
-        ValidateFailure(failureCategory, failureDetail);
+        ValidateFailure(failureCategory, failureDetail, options);
         var now = timeProvider.GetUtcNow();
         if (nextAttemptAtUtc.Offset != TimeSpan.Zero || nextAttemptAtUtc <= now)
         {
@@ -268,8 +279,8 @@ public static class ReliableEventsLeaseCoordinator
         DetachTrackedDelivery(dbContext, messageId, normalizedSubscriptionId);
         if (affected == 1)
         {
-            ReliableEventsDiagnostics.Retried.Add(1);
-            ReliableEventsDiagnostics.RetryDelay.Record(
+            diagnostics.Retried.Add(1);
+            diagnostics.RetryDelay.Record(
                 (nextAttemptAtUtc - now).TotalSeconds);
         }
         return affected == 1;
@@ -283,15 +294,20 @@ public static class ReliableEventsLeaseCoordinator
         Guid leaseId,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        options.Validate();
         var normalizedSubscriptionId = subscriptionId.Trim();
-        ValidateFailure(failureCategory, failureDetail);
+        ValidateFailure(failureCategory, failureDetail, options);
         var now = timeProvider.GetUtcNow();
         var affected = await dbContext.Set<OutboxDelivery>()
             .Where(candidate =>
@@ -319,7 +335,7 @@ public static class ReliableEventsLeaseCoordinator
         DetachTrackedDelivery(dbContext, messageId, normalizedSubscriptionId);
         if (affected == 1)
         {
-            ReliableEventsDiagnostics.PermanentlyFailed.Add(1);
+            diagnostics.PermanentlyFailed.Add(1);
         }
         return affected == 1;
     }
@@ -330,15 +346,20 @@ public static class ReliableEventsLeaseCoordinator
         Guid messageId,
         string subscriptionId,
         string reason,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        options.Validate();
         var normalizedSubscriptionId = subscriptionId.Trim();
-        ValidateFailure("operator-requeue", reason);
+        ValidateFailure("operator-requeue", reason, options);
         var now = timeProvider.GetUtcNow();
         var affected = await dbContext.Set<OutboxDelivery>()
             .Where(candidate =>
@@ -359,7 +380,7 @@ public static class ReliableEventsLeaseCoordinator
         DetachTrackedDelivery(dbContext, messageId, normalizedSubscriptionId);
         if (affected == 1)
         {
-            ReliableEventsDiagnostics.Replayed.Add(1);
+            diagnostics.Replayed.Add(1);
         }
 
         return affected == 1;
@@ -381,12 +402,15 @@ public static class ReliableEventsLeaseCoordinator
         }
     }
 
-    private static void ValidateFailure(string category, string? detail)
+    private static void ValidateFailure(
+        string category,
+        string? detail,
+        ReliableEventsOptions options)
     {
         var normalizedCategory = category.Trim();
         var normalizedDetail = detail?.Trim();
-        if (normalizedCategory.Length > 200 ||
-            normalizedDetail?.Length > 1000)
+        if (normalizedCategory.Length > options.FailureCategoryLimit ||
+            normalizedDetail?.Length > options.FailureDetailLimit)
         {
             throw new ArgumentException(
                 "Reliable-events failure metadata exceeds its persisted bounds.");

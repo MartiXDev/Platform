@@ -924,6 +924,7 @@ function apiReliableEventsFile(plan) {
                 await ${module.name}Module.ClaimReliableEventsAsync(
                     services,
                     remaining,
+                    options,
                     timeProvider,
                     cancellationToken);
             result.AddRange(claimed${module.name});
@@ -958,6 +959,7 @@ function apiReliableEventsFile(plan) {
                     delivery,
                     failureCategory,
                     failureDetail,
+                    options,
                     timeProvider,
                     cancellationToken),`,
     )
@@ -970,6 +972,7 @@ function apiReliableEventsFile(plan) {
                     delivery,
                     failureCategory,
                     failureDetail,
+                    options,
                     timeProvider,
                     cancellationToken),`,
     )
@@ -987,6 +990,7 @@ internal static class ReliableEventsComposition
     public static void AddServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddReliableEvents();
         services.AddSingleton<IHostedService>(serviceProvider =>
         {
             var options = serviceProvider
@@ -999,6 +1003,7 @@ internal static class ReliableEventsComposition
                     ClaimAsync(
                         serviceProvider,
                         batchSize,
+                        options,
                         timeProvider,
                         cancellationToken),
                 (delivery, cancellationToken) =>
@@ -1008,6 +1013,8 @@ internal static class ReliableEventsComposition
                         cancellationToken),
                 serviceProvider
                     .GetRequiredService<ILogger<ReliableEventsDispatcher>>(),
+                serviceProvider
+                    .GetRequiredService<ReliableEventsDiagnostics>(),
                 (delivery, cancellationToken) =>
                     AcknowledgeAsync(
                         serviceProvider,
@@ -1020,6 +1027,7 @@ internal static class ReliableEventsComposition
                         delivery,
                         failureCategory,
                         failureDetail,
+                        options,
                         timeProvider,
                         cancellationToken),
                 (delivery, failureCategory, failureDetail, cancellationToken) =>
@@ -1028,6 +1036,7 @@ internal static class ReliableEventsComposition
                         delivery,
                         failureCategory,
                         failureDetail,
+                        options,
                         timeProvider,
                         cancellationToken));
         });
@@ -1036,6 +1045,7 @@ internal static class ReliableEventsComposition
     private static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimAsync(
         IServiceProvider services,
         int batchSize,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -1076,6 +1086,7 @@ ${acknowledgeCases}
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -1091,6 +1102,7 @@ ${retryCases}
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -1262,11 +1274,13 @@ using ${provider}JsonContext =
         ${moduleName}DbContext dbContext,
         ReliableEventEnvelope envelope,
         TimeProvider timeProvider,
+        ReliableEventsDiagnostics diagnostics,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         if (!string.Equals(
                 envelope.EventName,
                 ${provider}SubmittedEvent.EventName,
@@ -1310,6 +1324,7 @@ using ${provider}JsonContext =
                 return Task.CompletedTask;
             },
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 `,
@@ -1331,13 +1346,6 @@ namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.IntegrationEvents;
 
 internal static class ${moduleName}ReliableEvents
 {
-    private static readonly string[] durableTables =
-    {
-        "outbox_messages",
-        "outbox_deliveries",
-        "inbox_receipts",
-    };
-
     private static readonly IReadOnlyList<string> activeSubscriptions =
         ${subscriptionExpression};
 
@@ -1346,16 +1354,17 @@ internal static class ${moduleName}ReliableEvents
 
     public static void Configure(ModelBuilder modelBuilder)
     {
-        _ = durableTables;
         modelBuilder.HasReliableEvents("${schema}");
     }
 
-    public static ReliableEventsSaveChangesInterceptor CreateInterceptor()
+    public static ReliableEventsSaveChangesInterceptor CreateInterceptor(
+        ReliableEventsDiagnostics diagnostics)
     {
         return new ReliableEventsSaveChangesInterceptor(
             Snapshot,
             Stage,
-            Acknowledge);
+            Acknowledge,
+            diagnostics);
     }
 
     public static OutboxMessage CreateSubmittedMessage(
@@ -1391,10 +1400,9 @@ internal static class ${moduleName}ReliableEvents
     }
 
     private static IReadOnlyList<OutboxMessage> Stage(
-        DbContext dbContext,
+        DbContext _,
         IReadOnlyList<DomainEventCapture> captures)
     {
-        _ = dbContext;
         return captures
             .Select(capture => capture.Event switch
             {
@@ -1930,6 +1938,7 @@ function moduleCompositionFile(plan, moduleName) {
                    dbContext,
                    delivery.Envelope,
                    timeProvider,
+                   diagnostics,
                    cancellationToken),`,
     )
     .join("\n");
@@ -1956,6 +1965,8 @@ function moduleCompositionFile(plan, moduleName) {
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<${moduleName}DbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         var timeProvider = scope.ServiceProvider
             .GetRequiredService<TimeProvider>();
         return delivery.Envelope.EventName switch
@@ -1986,7 +1997,6 @@ public static class ${moduleName}Module
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
-        services.AddSingleton(new ReliableEventsOptions());
         services.AddSingleton<I${moduleName}Status, ${moduleName}StatusOperation>();
     }
 
@@ -2006,10 +2016,12 @@ ${dispatchMethod}
     public static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimReliableEventsAsync(
         IServiceProvider services,
         int batchSize,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         if (batchSize <= 0)
         {
@@ -2019,12 +2031,15 @@ ${dispatchMethod}
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<${moduleName}DbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         return await ReliableEventsLeaseCoordinator.ClaimDueEventsAsync(
             dbContext,
             "${schema}",
             ${reliableProvider},
-            new ReliableEventsOptions { BatchSize = batchSize },
+            options.WithBatchSize(batchSize),
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -2039,12 +2054,15 @@ ${dispatchMethod}
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<${moduleName}DbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         return await ReliableEventsLeaseCoordinator.AcknowledgeAsync(
             dbContext,
             delivery.MessageId,
             delivery.SubscriptionId,
             delivery.LeaseId,
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -2053,18 +2071,21 @@ ${dispatchMethod}
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<${moduleName}DbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         var now = timeProvider.GetUtcNow();
-        var delay = new ReliableEventsOptions()
-            .GetRetryDelay(delivery.Attempt, Random.Shared);
+        var delay = options.GetRetryDelay(delivery.Attempt, Random.Shared);
         if (delay <= TimeSpan.Zero)
         {
             delay = TimeSpan.FromMilliseconds(1);
@@ -2078,7 +2099,9 @@ ${dispatchMethod}
             now.Add(delay),
             failureCategory,
             failureDetail,
+            options,
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -2087,15 +2110,19 @@ ${dispatchMethod}
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<${moduleName}DbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         return await ReliableEventsLeaseCoordinator.FailAsync(
             dbContext,
             delivery.MessageId,
@@ -2103,7 +2130,9 @@ ${dispatchMethod}
             delivery.LeaseId,
             failureCategory,
             failureDetail,
+            options,
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -2146,7 +2175,8 @@ ${providerRegistration}
                 options.AddInterceptors(
                     new EntityTimestampsSaveChangesInterceptor(
                         serviceProvider.GetRequiredService<TimeProvider>()),
-                    ${moduleName}ReliableEvents.CreateInterceptor());
+                    ${moduleName}ReliableEvents.CreateInterceptor(
+                        serviceProvider.GetRequiredService<ReliableEventsDiagnostics>()));
             });
     }
 
@@ -2224,6 +2254,7 @@ function migratorProgramFile(plan) {
     )
     .join("\n");
   return `${moduleUsings}
+using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -2237,6 +2268,7 @@ if (operation is not ("validate" or "script" or "apply"))
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLogging();
+builder.Services.AddReliableEvents();
 ${registrations}
 using var host = builder.Build();
 

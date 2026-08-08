@@ -14,3 +14,5 @@ Reliable Events persist immutable Outbox Messages, separately leased and fenced
 Delivery Attempts, and consumer-owned Inbox Receipts. The module supplies
 explicit event mappings and serialized envelopes; the package does not scan
 assemblies, expose a generic event bus, or claim exactly-once transport.
+Hosts should call `services.AddReliableEvents()` so the diagnostics instruments
+are created through the host's `IMeterFactory`.

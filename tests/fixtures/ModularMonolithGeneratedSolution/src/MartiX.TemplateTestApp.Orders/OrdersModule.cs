@@ -19,7 +19,6 @@ public static class OrdersModule
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
-        services.AddSingleton(new ReliableEventsOptions());
         services.AddSingleton<IOrdersStatus, OrdersStatusOperation>();
     }
 
@@ -50,10 +49,12 @@ public static class OrdersModule
     public static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimReliableEventsAsync(
         IServiceProvider services,
         int batchSize,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         if (batchSize <= 0)
         {
@@ -63,12 +64,15 @@ public static class OrdersModule
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<OrdersDbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         return await ReliableEventsLeaseCoordinator.ClaimDueEventsAsync(
             dbContext,
             "orders",
             ReliableEventsProvider.PostgreSql,
-            new ReliableEventsOptions { BatchSize = batchSize },
+            options.WithBatchSize(batchSize),
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -83,12 +87,15 @@ public static class OrdersModule
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<OrdersDbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         return await ReliableEventsLeaseCoordinator.AcknowledgeAsync(
             dbContext,
             delivery.MessageId,
             delivery.SubscriptionId,
             delivery.LeaseId,
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -97,18 +104,21 @@ public static class OrdersModule
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<OrdersDbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         var now = timeProvider.GetUtcNow();
-        var delay = new ReliableEventsOptions()
-            .GetRetryDelay(delivery.Attempt, Random.Shared);
+        var delay = options.GetRetryDelay(delivery.Attempt, Random.Shared);
         if (delay <= TimeSpan.Zero)
         {
             delay = TimeSpan.FromMilliseconds(1);
@@ -122,7 +132,9 @@ public static class OrdersModule
             now.Add(delay),
             failureCategory,
             failureDetail,
+            options,
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -131,15 +143,19 @@ public static class OrdersModule
         ReliableEventDelivery delivery,
         string failureCategory,
         string? failureDetail,
+        ReliableEventsOptions options,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCategory);
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<OrdersDbContext>();
+        var diagnostics = scope.ServiceProvider
+            .GetRequiredService<ReliableEventsDiagnostics>();
         return await ReliableEventsLeaseCoordinator.FailAsync(
             dbContext,
             delivery.MessageId,
@@ -147,7 +163,9 @@ public static class OrdersModule
             delivery.LeaseId,
             failureCategory,
             failureDetail,
+            options,
             timeProvider,
+            diagnostics,
             cancellationToken);
     }
 
@@ -192,7 +210,8 @@ public static class OrdersModule
                 options.AddInterceptors(
                     new EntityTimestampsSaveChangesInterceptor(
                         serviceProvider.GetRequiredService<TimeProvider>()),
-                    OrdersReliableEvents.CreateInterceptor());
+                    OrdersReliableEvents.CreateInterceptor(
+                        serviceProvider.GetRequiredService<ReliableEventsDiagnostics>()));
             });
     }
 

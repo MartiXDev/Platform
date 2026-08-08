@@ -51,6 +51,7 @@ public sealed class ReliableEventsSaveChangesInterceptor : SaveChangesIntercepto
         IReadOnlyList<DomainEventCapture>,
         IReadOnlyList<OutboxMessage>> stage;
     private readonly Action<DbContext, IReadOnlyList<DomainEventCapture>> acknowledge;
+    private readonly ReliableEventsDiagnostics diagnostics;
     private readonly ConditionalWeakTable<DbContext, PendingCapture> pending = new();
 
     /// <summary>Initializes the module-owned event capture pipeline.</summary>
@@ -60,14 +61,17 @@ public sealed class ReliableEventsSaveChangesInterceptor : SaveChangesIntercepto
             DbContext,
             IReadOnlyList<DomainEventCapture>,
             IReadOnlyList<OutboxMessage>> stage,
-        Action<DbContext, IReadOnlyList<DomainEventCapture>> acknowledge)
+        Action<DbContext, IReadOnlyList<DomainEventCapture>> acknowledge,
+        ReliableEventsDiagnostics diagnostics)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(stage);
         ArgumentNullException.ThrowIfNull(acknowledge);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         this.snapshot = snapshot;
         this.stage = stage;
         this.acknowledge = acknowledge;
+        this.diagnostics = diagnostics;
     }
 
     /// <inheritdoc />
@@ -169,7 +173,7 @@ public sealed class ReliableEventsSaveChangesInterceptor : SaveChangesIntercepto
             context.Set<OutboxMessage>().Add(message);
         }
 
-        ReliableEventsDiagnostics.Captured.Add(messages.Count);
+        diagnostics.Captured.Add(messages.Count);
         pending.Add(context, new PendingCapture(captures, messages));
     }
 

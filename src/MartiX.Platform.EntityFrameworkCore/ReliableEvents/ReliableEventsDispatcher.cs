@@ -48,6 +48,7 @@ public sealed class ReliableEventsDispatcher : BackgroundService
         CancellationToken,
         ValueTask<bool>> fail;
     private readonly ILogger<ReliableEventsDispatcher> logger;
+    private readonly ReliableEventsDiagnostics diagnostics;
 
     /// <summary>Initializes one bounded dispatcher.</summary>
     public ReliableEventsDispatcher(
@@ -61,6 +62,7 @@ public sealed class ReliableEventsDispatcher : BackgroundService
             CancellationToken,
             ValueTask<ReliableEventDeliveryOutcome>> deliver,
         ILogger<ReliableEventsDispatcher> logger,
+        ReliableEventsDiagnostics diagnostics,
         Func<
             ReliableEventDelivery,
             CancellationToken,
@@ -82,6 +84,7 @@ public sealed class ReliableEventsDispatcher : BackgroundService
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(deliver);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(acknowledge);
         ArgumentNullException.ThrowIfNull(scheduleRetry);
         ArgumentNullException.ThrowIfNull(fail);
@@ -92,6 +95,7 @@ public sealed class ReliableEventsDispatcher : BackgroundService
         this.acknowledge = acknowledge;
         this.scheduleRetry = scheduleRetry;
         this.fail = fail;
+        this.diagnostics = diagnostics;
         this.logger = logger;
     }
 
@@ -113,8 +117,8 @@ public sealed class ReliableEventsDispatcher : BackgroundService
             catch (Exception exception)
             {
                 logger.LogWarning(
-                    exception,
-                    "Reliable event claim failed; durable work remains recoverable and the dispatcher will poll again.");
+                    "Reliable event claim failed with {ExceptionType}; durable work remains recoverable and the dispatcher will poll again.",
+                    exception.GetType().Name);
                 await Task.Delay(options.IdlePollInterval, stoppingToken);
                 continue;
             }
@@ -172,34 +176,27 @@ public sealed class ReliableEventsDispatcher : BackgroundService
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 logger.LogInformation(
-                    "Reliable event delivery was cancelled during host shutdown for message {MessageId}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                    delivery.MessageId,
-                    delivery.SubscriptionId,
-                    delivery.LeaseId,
+                    "Reliable event delivery was cancelled during host shutdown for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
+                    delivery.Envelope.EventName,
+                    delivery.Envelope.SchemaVersion,
                     delivery.Attempt);
                 return;
             }
             catch (OperationCanceledException)
             {
                 logger.LogWarning(
-                    "Reliable event delivery timed out for message {MessageId}, event {EventName} v{SchemaVersion}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                    delivery.MessageId,
+                    "Reliable event delivery timed out for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
                     delivery.Envelope.EventName,
                     delivery.Envelope.SchemaVersion,
-                    delivery.SubscriptionId,
-                    delivery.LeaseId,
                     delivery.Attempt);
                 outcome = ReliableEventDeliveryOutcome.TransientFailure;
             }
             catch (Exception exception)
             {
                 logger.LogError(
-                    "Reliable event consumer failed unexpectedly for message {MessageId}, event {EventName} v{SchemaVersion}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}, exception type {ExceptionType}.",
-                    delivery.MessageId,
+                    "Reliable event consumer failed unexpectedly for event {EventName} v{SchemaVersion}, attempt {Attempt}, exception type {ExceptionType}.",
                     delivery.Envelope.EventName,
                     delivery.Envelope.SchemaVersion,
-                    delivery.SubscriptionId,
-                    delivery.LeaseId,
                     delivery.Attempt,
                     exception.GetType().Name);
                 outcome = ReliableEventDeliveryOutcome.TransientFailure;
@@ -221,19 +218,16 @@ public sealed class ReliableEventsDispatcher : BackgroundService
             catch (Exception exception)
             {
                 logger.LogError(
-                    exception,
-                    "Reliable event settlement failed; message {MessageId}, event {EventName} v{SchemaVersion}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                    delivery.MessageId,
+                    "Reliable event settlement failed for event {EventName} v{SchemaVersion}, attempt {Attempt}, exception type {ExceptionType}.",
                     delivery.Envelope.EventName,
                     delivery.Envelope.SchemaVersion,
-                    delivery.SubscriptionId,
-                    delivery.LeaseId,
-                    delivery.Attempt);
+                    delivery.Attempt,
+                    exception.GetType().Name);
             }
         }
         finally
         {
-            ReliableEventsDiagnostics.AttemptDuration.Record(
+            diagnostics.AttemptDuration.Record(
                 Stopwatch.GetElapsedTime(attemptStarted).TotalSeconds);
             limiter.Release();
         }
@@ -251,10 +245,9 @@ public sealed class ReliableEventsDispatcher : BackgroundService
                 if (!await acknowledge(delivery, cancellationToken))
                 {
                     logger.LogWarning(
-                        "Reliable event acknowledgement was fenced for message {MessageId}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                        delivery.MessageId,
-                        delivery.SubscriptionId,
-                        delivery.LeaseId,
+                        "Reliable event acknowledgement was fenced for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
+                        delivery.Envelope.EventName,
+                        delivery.Envelope.SchemaVersion,
                         delivery.Attempt);
                 }
 
@@ -277,20 +270,17 @@ public sealed class ReliableEventsDispatcher : BackgroundService
                         cancellationToken))
                 {
                     logger.LogWarning(
-                        "Reliable event retry was fenced for message {MessageId}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                        delivery.MessageId,
-                        delivery.SubscriptionId,
-                        delivery.LeaseId,
+                        "Reliable event retry was fenced for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
+                        delivery.Envelope.EventName,
+                        delivery.Envelope.SchemaVersion,
                         delivery.Attempt);
                 }
                 else
                 {
                     logger.LogWarning(
-                        "Reliable event delivery requires retry for message {MessageId}, event {EventName} v{SchemaVersion}, subscription {SubscriptionId}, attempt {Attempt}.",
-                        delivery.MessageId,
+                        "Reliable event delivery requires retry for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
                         delivery.Envelope.EventName,
                         delivery.Envelope.SchemaVersion,
-                        delivery.SubscriptionId,
                         delivery.Attempt);
                 }
 
@@ -304,10 +294,9 @@ public sealed class ReliableEventsDispatcher : BackgroundService
                 return;
             case ReliableEventDeliveryOutcome.Cancelled:
                 logger.LogInformation(
-                    "Reliable event delivery was cancelled before acknowledgement for message {MessageId}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                    delivery.MessageId,
-                    delivery.SubscriptionId,
-                    delivery.LeaseId,
+                    "Reliable event delivery was cancelled before acknowledgement for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
+                    delivery.Envelope.EventName,
+                    delivery.Envelope.SchemaVersion,
                     delivery.Attempt);
                 return;
             default:
@@ -324,20 +313,17 @@ public sealed class ReliableEventsDispatcher : BackgroundService
         if (!await fail(delivery, failureCategory, failureDetail, cancellationToken))
         {
             logger.LogWarning(
-                "Reliable event terminal failure was fenced for message {MessageId}, subscription {SubscriptionId}, lease {LeaseId}, attempt {Attempt}.",
-                delivery.MessageId,
-                delivery.SubscriptionId,
-                delivery.LeaseId,
+                "Reliable event terminal failure was fenced for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
+                delivery.Envelope.EventName,
+                delivery.Envelope.SchemaVersion,
                 delivery.Attempt);
             return;
         }
 
         logger.LogError(
-            "Reliable event delivery reached terminal failure for message {MessageId}, event {EventName} v{SchemaVersion}, subscription {SubscriptionId}, attempt {Attempt}.",
-            delivery.MessageId,
+            "Reliable event delivery reached terminal failure for event {EventName} v{SchemaVersion}, attempt {Attempt}.",
             delivery.Envelope.EventName,
             delivery.Envelope.SchemaVersion,
-            delivery.SubscriptionId,
             delivery.Attempt);
     }
 }

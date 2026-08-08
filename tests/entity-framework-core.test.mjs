@@ -34,6 +34,7 @@ test("the EF Core package exposes only the admitted persistence policy surface",
     options,
     diagnostics,
     retention,
+    serviceCollection,
   ] =
     await Promise.all([
       readPackageFile("MartiX.Platform.EntityFrameworkCore.csproj"),
@@ -66,10 +67,18 @@ test("the EF Core package exposes only the admitted persistence policy surface",
       readPackageFile("ReliableEvents", "ReliableEventsOptions.cs"),
       readPackageFile("ReliableEvents", "ReliableEventsDiagnostics.cs"),
       readPackageFile("ReliableEvents", "ReliableEventsRetention.cs"),
+      readPackageFile(
+        "ReliableEvents",
+        "ReliableEventsServiceCollectionExtensions.cs",
+      ),
     ]);
 
   assert.match(project, /<PackageId>MartiX\.Platform\.EntityFrameworkCore<\/PackageId>/);
   assert.match(project, /Microsoft\.EntityFrameworkCore/);
+  assert.match(
+    project,
+    /<PackageReference Include="Microsoft\.Extensions\.Diagnostics" /,
+  );
   assert.doesNotMatch(
     project,
     /<PackageReference\b[^>]*Include="(?:[^"]*(?:AspNetCore|Npgsql|SqlServer|IUnitOfWork|Repository))/,
@@ -132,6 +141,12 @@ test("the EF Core package exposes only the admitted persistence policy surface",
   assert.match(diagnostics, /CreatePendingGauge/);
   assert.match(retention, /CleanupAsync/);
   assert.match(retention, /OutboxDeliveryStatus\.Delivered/);
+  assert.match(serviceCollection, /AddMetrics\(\)/);
+  assert.match(serviceCollection, /TryAddSingleton<ReliableEventsOptions>\(\)/);
+  assert.match(
+    serviceCollection,
+    /TryAddSingleton<ReliableEventsDiagnostics>\(\)/,
+  );
   assert.doesNotMatch(
     [
       domainEvents,
@@ -145,6 +160,7 @@ test("the EF Core package exposes only the admitted persistence policy surface",
       options,
       diagnostics,
       retention,
+      serviceCollection,
     ].join("\n"),
     /IOutboxStore|InMemoryOutboxStore|IIntegrationEventHandler/,
   );
