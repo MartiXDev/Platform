@@ -168,7 +168,7 @@
       "cadences": [
         "release-candidate"
       ],
-      "purpose": "Real-provider transaction rollback, leased queue expiry, crash redelivery, and transactional Inbox deduplication prove one durable business effect."
+      "purpose": "Real-provider transaction rollback, optimistic concurrency, leased queue expiry, crash redelivery, and transactional Inbox deduplication prove one durable business effect."
     },
     {
       "id": "modular-monolith.release-evidence",

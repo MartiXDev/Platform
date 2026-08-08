@@ -29,9 +29,10 @@ npm run verify:api
 The `modular-monolith-alpha` profile is release-candidate-only and requires
 separate PostgreSQL and SQL Server application and migration database inputs.
 `npm run verify:modular-monolith-alpha` packs the first-party artifacts once,
-restores both generated variants from the isolated feed, runs migration and
-real-provider reliability evidence, and writes immutable Experimental candidate
-evidence. Its `supportClaims` remain empty.
+restores each generated variant from the isolated feed into its own cache, runs
+migration and real-provider reliability evidence for rollback, optimistic
+concurrency, lease expiry, and Inbox deduplication, and writes immutable
+Experimental candidate evidence. Its `supportClaims` remain empty.
 
 The target roadmap later calls for one .NET file-based Verification Entrypoint
 with the same cadence contract. Until that tracer is implemented, the

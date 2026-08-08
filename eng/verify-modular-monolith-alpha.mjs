@@ -72,9 +72,17 @@ const PROVIDER_APIS = Object.freeze({
   postgresql: "UseNpgsql",
   sqlserver: "UseSqlServer",
 });
+const PROVIDER_LEASE_IMPLEMENTATIONS = Object.freeze({
+  postgresql: "ReliableEventsProvider.PostgreSql",
+  sqlserver: "ReliableEventsProvider.SqlServer",
+});
 const FORBIDDEN_PROVIDER_APIS = Object.freeze({
   postgresql: "UseSqlServer",
   sqlserver: "UseNpgsql",
+});
+const FORBIDDEN_PROVIDER_LEASE_IMPLEMENTATIONS = Object.freeze({
+  postgresql: "ReliableEventsProvider.SqlServer",
+  sqlserver: "ReliableEventsProvider.PostgreSql",
 });
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
@@ -488,13 +496,29 @@ async function verifyGeneratedSolution(rootDir, generatedRoot, result) {
     !testSource.includes("Real_provider_transaction_and_crash_redelivery_are_idempotent") ||
     !testSource.includes("MARTIX_MODULAR_MONOLITH_DATABASE") ||
     !testSource.includes("DuplicateSuppressed") ||
-    !testSource.includes("InboxReceipts")
+    !testSource.includes("InboxReceipts") ||
+    !testSource.includes("DbUpdateConcurrencyException") ||
+    !testSource.includes("concurrencyConflictObserved")
   ) {
-    fail("Generated alpha tests must exercise a real provider Inbox redelivery path.");
+    fail(
+      "Generated alpha tests must exercise real-provider concurrency, Inbox redelivery, and deduplication paths.",
+    );
   }
   if (allSource.includes(FORBIDDEN_PROVIDER_APIS[result.plan.relationalProvider])) {
     fail(
       `Generated ${result.plan.relationalProvider} solution contains the other provider API.`,
+    );
+  }
+  if (
+    !allSource.includes(
+      PROVIDER_LEASE_IMPLEMENTATIONS[result.plan.relationalProvider],
+    ) ||
+    allSource.includes(
+      FORBIDDEN_PROVIDER_LEASE_IMPLEMENTATIONS[result.plan.relationalProvider],
+    )
+  ) {
+    fail(
+      `Generated ${result.plan.relationalProvider} solution does not use its provider-specific reliable-event lease implementation.`,
     );
   }
 
@@ -561,7 +585,7 @@ async function runMigrationEvidence({
     runMigrationOperation,
   });
   const apply = await runMigrationOperation("apply");
-  const validate = await runMigrationOperation("validate");
+  const historicalValidation = await runMigrationOperation("validate");
   const script = await runMigrationOperation("script");
   if (!/create\s+(schema|table)/i.test(script.stdout ?? "")) {
     fail("Migration script evidence did not contain relational DDL.");
@@ -570,7 +594,8 @@ async function runMigrationEvidence({
   return {
     freshValidation,
     applyDigest: sha256(apply.stdout ?? ""),
-    validateDigest: sha256(validate.stdout ?? ""),
+    historicalValidationDigest: sha256(historicalValidation.stdout ?? ""),
+    validateDigest: sha256(historicalValidation.stdout ?? ""),
     scriptDigest: sha256(script.stdout ?? ""),
     idempotentApplyDigest: sha256(idempotentApply.stdout ?? ""),
   };
@@ -584,10 +609,15 @@ async function runProviderVariant({
   packageCache,
   provider,
   providerInputs,
+  environment,
   run,
   packages,
 }) {
   const generatedRoot = join(temporaryRoot, `generated-${provider}`);
+  const providerEnvironment = {
+    ...environment,
+    NUGET_PACKAGES: packageCache,
+  };
   const result = await generateModularMonolithPreset({
     applicationName: APPLICATION_NAME,
     businessModules: BUSINESS_MODULES,
@@ -604,6 +634,7 @@ async function runProviderVariant({
   await run(
     ["restore", paths.tests, "--configfile", configPath, "--nologo"],
     generatedRoot,
+    providerEnvironment,
   );
   await verifyPackageCacheIdentity(packageCache, packages);
   for (const project of [paths.api, paths.migrator, paths.tests]) {
@@ -619,11 +650,12 @@ async function runProviderVariant({
         "-warnaserror",
       ],
       generatedRoot,
+      providerEnvironment,
     );
   }
 
-  const environment = {
-    ...process.env,
+  const providerRuntimeEnvironment = {
+    ...providerEnvironment,
     MARTIX_MODULAR_MONOLITH_DATABASE: providerInputs.database,
     ConnectionStrings__Database: providerInputs.database,
     ConnectionStrings__MigrationDatabase: providerInputs.migrationDatabase,
@@ -632,7 +664,7 @@ async function runProviderVariant({
     run,
     generatedRoot,
     migrator: paths.migrator,
-    environment,
+    environment: providerRuntimeEnvironment,
   });
   const testRun = await run(
     [
@@ -647,7 +679,7 @@ async function runProviderVariant({
       "--disable-logo",
     ],
     generatedRoot,
-    environment,
+    providerRuntimeEnvironment,
   );
   const solutionDigest = await digestDirectory(
     generatedRoot,
@@ -774,14 +806,20 @@ export async function verifyModularMonolithAlpha({
     );
     const variants = [];
     for (const provider of MODULAR_MONOLITH_ALPHA_PROVIDERS) {
+      const providerPackageCache = join(
+        temporaryRoot,
+        "packages",
+        provider,
+      );
       const variant = await runProviderVariant({
         rootDir: repositoryRoot,
         temporaryRoot,
         packageFeed,
         configPath,
-        packageCache,
+        packageCache: providerPackageCache,
         provider,
         providerInputs: providerInputs[provider],
+        environment,
         run,
         packages,
       });

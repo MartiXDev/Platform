@@ -31,6 +31,14 @@ const RELATIONAL_PROVIDER_APIS = Object.freeze({
   postgresql: "UseNpgsql",
   sqlserver: "UseSqlServer",
 });
+const RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS = Object.freeze({
+  postgresql: "ReliableEventsProvider.PostgreSql",
+  sqlserver: "ReliableEventsProvider.SqlServer",
+});
+const FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS = Object.freeze({
+  postgresql: "ReliableEventsProvider.SqlServer",
+  sqlserver: "ReliableEventsProvider.PostgreSql",
+});
 const MANIFEST_PRESETS = new Set(["api", "modular-monolith", "full-stack"]);
 const BOOTSTRAP_GATE_IDS = [
   "bootstrap.manifest",
@@ -826,10 +834,12 @@ async function validateModularMonolithComposition(
       "DuplicateSuppressed",
       "RollbackAsync",
       "LeaseDuration",
+      "DbUpdateConcurrencyException",
+      "concurrencyConflictObserved",
     ].every((fragment) => testSource.includes(fragment))
   ) {
     fail(
-      "Modular Monolith acceptance tests must exercise real-provider rollback, lease expiry, and Inbox deduplication.",
+      "Modular Monolith acceptance tests must exercise real-provider rollback, concurrency conflict, lease expiry, and Inbox deduplication.",
     );
   }
 
@@ -1036,10 +1046,16 @@ async function validateModularMonolithComposition(
       !hasExplicitConcurrencyMapping ||
       !persistenceModelSource.includes(
         `${module.name}ReliableEvents.Configure(modelBuilder)`,
+      ) ||
+      !compositionSource.includes(
+        RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS[relationalProvider],
+      ) ||
+      compositionSource.includes(
+        FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS[relationalProvider],
       )
     ) {
       fail(
-        `Business Module ${module.name} must use an explicit configuration with portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
+        `Business Module ${module.name} must select one provider-specific lease implementation and use portable relational naming with concurrency mapping in ${persistenceModelPath}.`,
       );
     }
     if (

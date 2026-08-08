@@ -161,3 +161,62 @@ test("generation omits a fake reliability test without a module consumer", async
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("generated provider evidence includes an optimistic concurrency conflict", async () => {
+  const root = await mkdtemp(join(tmpdir(), "martix-modular-monolith-alpha-"));
+
+  try {
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Alpha",
+      businessModules: ["Orders", "Billing"],
+      moduleDependencies: { Billing: ["Orders"] },
+      relationalProvider: "postgresql",
+      outputDirectory: root,
+    });
+    const testSource = await readFile(
+      join(
+        root,
+        "tests",
+        "MartiX.Alpha.Tests",
+        "ModularMonolithCompositionTests.cs",
+      ),
+      "utf8",
+    );
+
+    assert.match(testSource, /DbUpdateConcurrencyException/);
+    assert.match(testSource, /concurrencyConflictObserved/);
+    assert.match(testSource, /CreateAsyncScope\(\)/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("alpha evidence rejects package and compatibility omissions", () => {
+  assert.throws(
+    () =>
+      createModularMonolithAlphaEvidence({
+        ...alphaInput,
+        artifacts: [
+          ...alphaInput.artifacts,
+          {
+            id: "Unexpected.Package",
+            version: "0.1.0-preview.1",
+            digest: digest("e"),
+          },
+        ],
+      }),
+    /exactly 4 first-party artifacts|unexpected package/i,
+  );
+
+  assert.throws(
+    () =>
+      createModularMonolithAlphaEvidence({
+        ...alphaInput,
+        compatibility: {
+          ...alphaInput.compatibility,
+          invalidSelections: ["sqlite"],
+        },
+      }),
+    /mixed-relational-providers/i,
+  );
+});

@@ -86,6 +86,36 @@ public sealed class ModularMonolithCompositionTests
                 .SingleAsync(candidate => candidate.Name == "Orders");
             await Assert.That(aggregate.ConcurrencyToken).IsEqualTo(originalToken);
 
+            await using (var firstConcurrencyScope = services.CreateAsyncScope())
+            await using (var secondConcurrencyScope = services.CreateAsyncScope())
+            {
+                var firstConcurrencyContext = firstConcurrencyScope.ServiceProvider
+                    .GetRequiredService<OrdersDbContext>();
+                var secondConcurrencyContext = secondConcurrencyScope.ServiceProvider
+                    .GetRequiredService<OrdersDbContext>();
+                var firstConcurrencyAggregate = await firstConcurrencyContext.Aggregates
+                    .SingleAsync(candidate => candidate.Name == "Orders");
+                var secondConcurrencyAggregate = await secondConcurrencyContext.Aggregates
+                    .SingleAsync(candidate => candidate.Name == "Orders");
+                firstConcurrencyAggregate.RecordSubmitted(Guid.CreateVersion7());
+                secondConcurrencyAggregate.RecordSubmitted(Guid.CreateVersion7());
+                await firstConcurrencyContext.SaveChangesAsync();
+
+                var concurrencyConflictObserved = false;
+                try
+                {
+                    await secondConcurrencyContext.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    concurrencyConflictObserved = true;
+                }
+
+                await Assert.That(concurrencyConflictObserved).IsTrue();
+            }
+            dbContext.ChangeTracker.Clear();
+            aggregate = await dbContext.Aggregates
+                .SingleAsync(candidate => candidate.Name == "Orders");
             aggregate.RaiseSubmitted(DateTimeOffset.UtcNow);
             await dbContext.SaveChangesAsync();
             messageId = await dbContext.OutboxMessages
@@ -113,14 +143,29 @@ public sealed class ModularMonolithCompositionTests
 
         // The consumer commits before acknowledgement; redelivery has no
         // duplicate business effect after the producer crash.
-        await Task.Delay(options.LeaseDuration + TimeSpan.FromMilliseconds(250));
-        var redeliveries = await OrdersModule.ClaimReliableEventsAsync(
-            services,
-            10,
-            options,
-            timeProvider,
-            CancellationToken.None);
-        var secondDelivery = redeliveries.Single(delivery => delivery.MessageId == messageId);
+        var redeliveryDeadline = timeProvider.GetUtcNow().AddSeconds(15);
+        ReliableEventDelivery? secondDelivery = null;
+        while (secondDelivery is null)
+        {
+            var redeliveries = await OrdersModule.ClaimReliableEventsAsync(
+                services,
+                10,
+                options,
+                timeProvider,
+                CancellationToken.None);
+            secondDelivery = redeliveries.SingleOrDefault(
+                delivery => delivery.MessageId == messageId);
+            if (secondDelivery is not null)
+            {
+                break;
+            }
+            if (timeProvider.GetUtcNow() >= redeliveryDeadline)
+            {
+                throw new InvalidOperationException(
+                    "The leased delivery did not become available for redelivery within the evidence budget.");
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+        }
         var duplicateOutcome = await BillingModule.DispatchReliableEventAsync(
             services,
             secondDelivery,

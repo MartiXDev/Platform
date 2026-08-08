@@ -154,6 +154,11 @@ function normalizeArtifacts(value) {
       };
     },
   );
+  if (artifacts.length !== FIRST_PARTY_ARTIFACT_IDS.length) {
+    fail(
+      `artifacts must contain exactly ${FIRST_PARTY_ARTIFACT_IDS.length} first-party artifacts.`,
+    );
+  }
   if (new Set(artifacts.map((artifact) => artifact.id)).size !== artifacts.length) {
     fail("artifacts must contain unique package identities.");
   }
@@ -296,8 +301,12 @@ function normalizeCompatibility(value) {
     value.invalidSelections,
     "compatibility.invalidSelections",
   );
-  if (!invalidSelections.includes("sqlite")) {
-    fail("compatibility.invalidSelections must record sqlite as unsupported.");
+  for (const invalidSelection of ["mixed-relational-providers", "sqlite"]) {
+    if (!invalidSelections.includes(invalidSelection)) {
+      fail(
+        `compatibility.invalidSelections must record ${invalidSelection} as unsupported.`,
+      );
+    }
   }
 
   return {
