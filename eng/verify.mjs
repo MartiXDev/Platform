@@ -866,6 +866,46 @@ async function validateModularMonolithComposition(
       relationalProvider === "postgresql"
         ? 'type: "character varying(200)"'
         : 'type: "nvarchar(200)"';
+    const hasExplicitAggregateConfiguration = [
+      `internal sealed class ${module.name}AggregateConfiguration`,
+      `IEntityTypeConfiguration<${module.name}Aggregate>`,
+      `ApplyConfiguration(new ${module.name}AggregateConfiguration())`,
+    ].every((fragment) => persistenceModelSource.includes(fragment));
+    const hasExplicitConcurrencyMapping =
+      /HasColumnName\("concurrency_token"\)[\s\S]*?IsConcurrencyToken\(\)[\s\S]*?ValueGeneratedNever\(\)/.test(
+        persistenceModelSource,
+      );
+    const hasSeparatePersistenceConfigurations = [
+      'AddPersistence(services, configuration, "Database")',
+      'AddPersistence(services, configuration, "MigrationDatabase")',
+    ].every((fragment) => compositionSource.includes(fragment));
+    const hasDeterministicMigrationAndSnapshot = [
+      `[Migration("20260101000000_Initial${module.name}")]`,
+      `EnsureSchema(name: "${schema}")`,
+      `name: "${table}"`,
+      "concurrency_token = table.Column<Guid>",
+      expectedTextType,
+      "created_at = table.Column",
+      "updated_at = table.Column",
+      "protected override void Down",
+      "DropTable(",
+    ].every((fragment) => migrationSource.includes(fragment)) &&
+      [
+        `internal partial class ${module.name}DbContextModelSnapshot : ModelSnapshot`,
+        `HasDefaultSchema("${schema}")`,
+        'Property<Guid>("ConcurrencyToken")',
+        "IsConcurrencyToken()",
+      ].every((fragment) => snapshotSource.includes(fragment));
+    const hasMigrationOperations = [
+      "CanConnectAsync",
+      "GetAppliedMigrationsAsync",
+      "GetPendingMigrationsAsync",
+      "HasPendingModelChanges",
+      "GenerateScript(",
+      "MigrationsSqlGenerationOptions.Idempotent",
+      "MigrateAsync",
+      "ApplyAndValidateAsync",
+    ].every((fragment) => compositionSource.includes(fragment));
     if (
       !new RegExp(
         `internal\\s+sealed\\s+class\\s+${escapeRegExp(module.name)}Aggregate`,
@@ -901,13 +941,13 @@ async function validateModularMonolithComposition(
       );
     }
     if (
+      !hasExplicitAggregateConfiguration ||
       !persistenceModelSource.includes(`ToTable("${table}", "${schema}")`) ||
       !persistenceModelSource.includes("HasEntityTimestamps()") ||
-      !persistenceModelSource.includes(`HasColumnName("concurrency_token")`) ||
-      !persistenceModelSource.includes("IsConcurrencyToken()")
+      !hasExplicitConcurrencyMapping
     ) {
       fail(
-        `Business Module ${module.name} must use explicit portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
+        `Business Module ${module.name} must use an explicit configuration with portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
       );
     }
     if (
@@ -916,27 +956,17 @@ async function validateModularMonolithComposition(
       !compositionSource.includes(
         `MigrationsHistoryTable("__ef_migrations_history", "${schema}")`,
       ) ||
+      !hasSeparatePersistenceConfigurations ||
       !compositionSource.includes(
         "public static void AddMigrationServices",
       )
     ) {
       fail(
-        `Business Module ${module.name} must select one provider and compose its migration history explicitly.`,
+        `Business Module ${module.name} must select one provider, compose its migration history explicitly, and keep runtime Database separate from MigrationDatabase configuration.`,
       );
     }
     if (
-      !migrationSource.includes(
-        `[Migration("20260101000000_Initial${module.name}")]`,
-      ) ||
-      !migrationSource.includes(`EnsureSchema(name: "${schema}")`) ||
-      !migrationSource.includes(`name: "${table}"`) ||
-      !migrationSource.includes(expectedTextType) ||
-      !migrationSource.includes('created_at = table.Column') ||
-      !migrationSource.includes('updated_at = table.Column') ||
-      !snapshotSource.includes(
-        `internal partial class ${module.name}DbContextModelSnapshot : ModelSnapshot`,
-      ) ||
-      !snapshotSource.includes(`HasDefaultSchema("${schema}")`)
+      !hasDeterministicMigrationAndSnapshot
     ) {
       fail(
         `Business Module ${module.name} must include deterministic migrations and a matching snapshot.`,
@@ -954,14 +984,9 @@ async function validateModularMonolithComposition(
         `Business Module ${module.name} must expose direct DbContext persistence operations with UTC timestamps and opt-in concurrency.`,
       );
     }
-    if (
-      !compositionSource.includes("GetPendingMigrationsAsync") ||
-      !compositionSource.includes("GenerateScript(") ||
-      !compositionSource.includes("MigrationsSqlGenerationOptions.Idempotent") ||
-      !compositionSource.includes("MigrateAsync")
-    ) {
+    if (!hasMigrationOperations) {
       fail(
-        `Business Module ${module.name} migration composition must implement validate, script, and apply.`,
+        `Business Module ${module.name} migration composition must validate connectivity, migration history, model state, idempotent scripts, and post-apply state.`,
       );
     }
     if (/\b(?:IUnitOfWork|UnitOfWork|IRepository|Repository)\b/.test(persistenceSource)) {

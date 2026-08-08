@@ -970,34 +970,42 @@ function modulePersistenceModelFile(plan, moduleName) {
   return `using ${moduleNamespace(plan, moduleName)}.Domain;
 using MartiX.Platform.EntityFrameworkCore.EntityTimestamps;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+
+internal sealed class ${moduleName}AggregateConfiguration :
+    IEntityTypeConfiguration<${moduleName}Aggregate>
+{
+    public void Configure(EntityTypeBuilder<${moduleName}Aggregate> entity)
+    {
+        entity.ToTable("${schema}_aggregate", "${schema}");
+        entity.HasKey(aggregate => aggregate.Id)
+            .HasName("pk_${schema}_aggregate");
+        entity.Property(aggregate => aggregate.Id)
+            .HasColumnName("id")
+            .ValueGeneratedNever();
+        entity.Property(aggregate => aggregate.Name)
+            .HasColumnName("name")
+            .HasMaxLength(200)
+            .IsRequired();
+        entity.HasEntityTimestamps();
+        entity.Property(aggregate => aggregate.ConcurrencyToken)
+            .HasColumnName("concurrency_token")
+            .IsConcurrencyToken()
+            .ValueGeneratedNever()
+            .IsRequired();
+        entity.HasIndex(aggregate => aggregate.Name)
+            .HasDatabaseName("ix_${schema}_aggregate_name")
+            .IsUnique();
+    }
+}
 
 internal static class ${moduleName}PersistenceModel
 {
     public static void Configure(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<${moduleName}Aggregate>(entity =>
-        {
-            entity.ToTable("${schema}_aggregate", "${schema}");
-            entity.HasKey(aggregate => aggregate.Id)
-                .HasName("pk_${schema}_aggregate");
-            entity.Property(aggregate => aggregate.Id)
-                .HasColumnName("id")
-                .ValueGeneratedNever();
-            entity.Property(aggregate => aggregate.Name)
-                .HasColumnName("name")
-                .HasMaxLength(200)
-                .IsRequired();
-            entity.HasEntityTimestamps();
-            entity.Property(aggregate => aggregate.ConcurrencyToken)
-                .HasColumnName("concurrency_token")
-                .IsConcurrencyToken()
-                .IsRequired();
-            entity.HasIndex(aggregate => aggregate.Name)
-                .HasDatabaseName("ix_${schema}_aggregate_name")
-                .IsUnique();
-        });
+        modelBuilder.ApplyConfiguration(new ${moduleName}AggregateConfiguration());
     }
 }
 `;
@@ -1094,6 +1102,7 @@ internal partial class ${moduleName}DbContextModelSnapshot : ModelSnapshot
             entity.Property<Guid>("ConcurrencyToken")
                 .HasColumnName("concurrency_token")
                 .IsConcurrencyToken()
+                .ValueGeneratedNever()
                 .IsRequired();
             entity.Property<DateTimeOffset>("CreatedAt")
                 .HasColumnName("created_at")
@@ -1294,7 +1303,7 @@ public static class ${moduleName}Module
             "validate" => await ValidateAsync(dbContext, cancellationToken),
             "script" => dbContext.Database.GenerateScript(
                 options: MigrationsSqlGenerationOptions.Idempotent),
-            "apply" => await ApplyAsync(dbContext, cancellationToken),
+            "apply" => await ApplyAndValidateAsync(dbContext, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
     }
@@ -1327,23 +1336,49 @@ ${providerRegistration}
         ${moduleName}DbContext dbContext,
         CancellationToken cancellationToken)
     {
-        var pending = (await dbContext.Database
-                .GetPendingMigrationsAsync(cancellationToken))
-            .ToArray();
-        if (pending.Length > 0)
+        if (!await dbContext.Database.CanConnectAsync(cancellationToken))
         {
             throw new InvalidOperationException(
-                $"${moduleName} has pending migrations: {string.Join(", ", pending)}");
+                "${moduleName} database connectivity validation failed.");
+        }
+
+        var availableMigrations = dbContext.Database.GetMigrations().ToArray();
+        var appliedMigrations = (await dbContext.Database
+                .GetAppliedMigrationsAsync(cancellationToken))
+            .ToArray();
+        var pendingMigrations = (await dbContext.Database
+                .GetPendingMigrationsAsync(cancellationToken))
+            .ToArray();
+        var unexpectedMigrations = appliedMigrations
+            .Except(availableMigrations)
+            .ToArray();
+        if (unexpectedMigrations.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"${moduleName} has unexpected migrations: {string.Join(", ", unexpectedMigrations)}");
+        }
+
+        if (pendingMigrations.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"${moduleName} has pending migrations: {string.Join(", ", pendingMigrations)}");
+        }
+
+        if (dbContext.Database.HasPendingModelChanges())
+        {
+            throw new InvalidOperationException(
+                "${moduleName} has pending model changes.");
         }
 
         return "validated: ${moduleName}";
     }
 
-    private static async Task<string> ApplyAsync(
+    private static async Task<string> ApplyAndValidateAsync(
         ${moduleName}DbContext dbContext,
         CancellationToken cancellationToken)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await ValidateAsync(dbContext, cancellationToken);
         return "applied: ${moduleName}";
     }
 }

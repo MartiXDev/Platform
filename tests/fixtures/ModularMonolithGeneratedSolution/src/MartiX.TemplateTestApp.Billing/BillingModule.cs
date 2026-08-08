@@ -45,7 +45,7 @@ public static class BillingModule
             "validate" => await ValidateAsync(dbContext, cancellationToken),
             "script" => dbContext.Database.GenerateScript(
                 options: MigrationsSqlGenerationOptions.Idempotent),
-            "apply" => await ApplyAsync(dbContext, cancellationToken),
+            "apply" => await ApplyAndValidateAsync(dbContext, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
     }
@@ -80,23 +80,49 @@ public static class BillingModule
         BillingDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        var pending = (await dbContext.Database
-                .GetPendingMigrationsAsync(cancellationToken))
-            .ToArray();
-        if (pending.Length > 0)
+        if (!await dbContext.Database.CanConnectAsync(cancellationToken))
         {
             throw new InvalidOperationException(
-                $"Billing has pending migrations: {string.Join(", ", pending)}");
+                "Billing database connectivity validation failed.");
+        }
+
+        var availableMigrations = dbContext.Database.GetMigrations().ToArray();
+        var appliedMigrations = (await dbContext.Database
+                .GetAppliedMigrationsAsync(cancellationToken))
+            .ToArray();
+        var pendingMigrations = (await dbContext.Database
+                .GetPendingMigrationsAsync(cancellationToken))
+            .ToArray();
+        var unexpectedMigrations = appliedMigrations
+            .Except(availableMigrations)
+            .ToArray();
+        if (unexpectedMigrations.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"Billing has unexpected migrations: {string.Join(", ", unexpectedMigrations)}");
+        }
+
+        if (pendingMigrations.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"Billing has pending migrations: {string.Join(", ", pendingMigrations)}");
+        }
+
+        if (dbContext.Database.HasPendingModelChanges())
+        {
+            throw new InvalidOperationException(
+                "Billing has pending model changes.");
         }
 
         return "validated: Billing";
     }
 
-    private static async Task<string> ApplyAsync(
+    private static async Task<string> ApplyAndValidateAsync(
         BillingDbContext dbContext,
         CancellationToken cancellationToken)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await ValidateAsync(dbContext, cancellationToken);
         return "applied: Billing";
     }
 }

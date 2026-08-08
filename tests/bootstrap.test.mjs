@@ -268,6 +268,24 @@ test("modular monolith verification rejects repository persistence wrappers", as
   });
 });
 
+test("modular monolith verification requires a separate migration database configuration", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const modulePath = modularMonolithFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.TemplateTestApp.Orders",
+      "OrdersModule.cs",
+    );
+    const module = await readFile(modulePath, "utf8");
+    await writeFile(modulePath, module.replaceAll('"MigrationDatabase"', '"Database"'));
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /separate .*MigrationDatabase/i,
+    );
+  });
+});
+
 test("modular monolith verification rejects a provider manifest that disagrees with generated code", async () => {
   await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const manifestPath = modularMonolithFixturePath(

@@ -190,8 +190,19 @@ test("generation emits module-owned relational persistence for each provider", a
         "utf8",
       );
       assert.match(ordersModel, /ToTable\("orders_aggregate", "orders"\)/);
+      assert.match(
+        ordersModel,
+        /internal sealed class OrdersAggregateConfiguration\s*:\s*IEntityTypeConfiguration<OrdersAggregate>/,
+      );
+      assert.match(
+        ordersModel,
+        /ApplyConfiguration\(new OrdersAggregateConfiguration\(\)\)/,
+      );
       assert.match(ordersModel, /HasEntityTimestamps\(\)/);
-      assert.match(ordersModel, /IsConcurrencyToken\(\)/);
+      assert.match(
+        ordersModel,
+        /HasColumnName\("concurrency_token"\)[\s\S]*?IsConcurrencyToken\(\)[\s\S]*?ValueGeneratedNever\(\)/,
+      );
       assert.match(ordersModule, /AddDbContext<OrdersDbContext>/);
       assert.match(
         ordersModule,
@@ -213,10 +224,23 @@ test("generation emits module-owned relational persistence for each provider", a
           ? /type: "character varying\(200\)"/
           : /type: "nvarchar\(200\)"/,
       );
+      assert.match(migration, /concurrency_token = table.Column<Guid>/);
+      assert.match(migration, /protected override void Down/);
+      assert.match(migration, /DropTable\(/);
+      assert.match(
+        migration,
+        /created_at = table.Column[\s\S]*updated_at = table.Column/,
+      );
       assert.match(migrator, /validate/);
       assert.match(migrator, /script/);
       assert.match(migrator, /apply/);
       assert.match(ordersModule, /MigrationsSqlGenerationOptions\.Idempotent/);
+      assert.match(ordersModule, /CanConnectAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /GetAppliedMigrationsAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /GetPendingMigrationsAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /HasPendingModelChanges\(\)/);
+      assert.match(ordersModule, /MigrateAsync\(cancellationToken\)/);
+      assert.match(ordersModule, /ApplyAndValidateAsync/);
       assert.doesNotMatch(api, /\.Migrate(?:Async)?\(|EnsureCreated|UseSeeding/);
     }
   } finally {

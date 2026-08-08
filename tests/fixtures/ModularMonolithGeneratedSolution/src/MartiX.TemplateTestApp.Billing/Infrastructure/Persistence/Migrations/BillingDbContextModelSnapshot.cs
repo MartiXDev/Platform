@@ -23,6 +23,7 @@ internal partial class BillingDbContextModelSnapshot : ModelSnapshot
             entity.Property<Guid>("ConcurrencyToken")
                 .HasColumnName("concurrency_token")
                 .IsConcurrencyToken()
+                .ValueGeneratedNever()
                 .IsRequired();
             entity.Property<DateTimeOffset>("CreatedAt")
                 .HasColumnName("created_at")
