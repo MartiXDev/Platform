@@ -41,6 +41,18 @@
       "state": "selected"
     },
     {
+      "id": "api.versioned-contract",
+      "state": "selected"
+    },
+    {
+      "id": "api.generated-client",
+      "state": "selected"
+    },
+    {
+      "id": "api.lifecycle",
+      "state": "selected"
+    },
+    {
       "id": "modular-monolith.business-modules",
       "state": "selected"
     },

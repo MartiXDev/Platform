@@ -452,8 +452,12 @@ function expectedGeneratedFiles(applicationName) {
     `${applicationName}.slnx`,
     "README.md",
     "martix.platform.json",
+    "contracts/openapi-v1.json",
     `src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    `src/${applicationName}.Api/Orders/Orders.cs`,
     `src/${applicationName}.Api/Program.cs`,
+    `src/${applicationName}.Client/${applicationName}.Client.cs`,
+    `src/${applicationName}.Client/${applicationName}.Client.csproj`,
     `tests/${applicationName}.Tests/ApiContractTests.cs`,
     `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
   ].sort();
@@ -526,6 +530,13 @@ async function verifyGeneratedProjectShape(generatedRoot, applicationName) {
   );
   const apiProjectContents = await readFile(apiProject, "utf8");
   const testProjectContents = await readFile(testProject, "utf8");
+  const clientProject = join(
+    generatedRoot,
+    "src",
+    `${applicationName}.Client`,
+    `${applicationName}.Client.csproj`,
+  );
+  const clientProjectContents = await readFile(clientProject, "utf8");
   for (const [label, contents] of [
     ["generated API project", apiProjectContents],
     ["generated TUnit project", testProjectContents],
@@ -544,8 +555,13 @@ async function verifyGeneratedProjectShape(generatedRoot, applicationName) {
   ) {
     fail("Generated consumer must not reference Platform source projects.");
   }
+  if (/<(?:ProjectReference|PackageReference)\b[^>]*MartiX\.Platform/i.test(
+    clientProjectContents,
+  )) {
+    fail("Generated client must not reference Platform assemblies.");
+  }
 
-  return { apiProject, testProject };
+  return { apiProject, testProject, clientProject };
 }
 
 async function verifyPublicApi(rootDir) {

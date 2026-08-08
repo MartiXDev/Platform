@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj" />
+    <ProjectReference Include="../../src/MartiX.TemplateTestApp.Client/MartiX.TemplateTestApp.Client.csproj" />
     <ProjectReference Include="../../src/MartiX.TemplateTestApp.Migrator/MartiX.TemplateTestApp.Migrator.csproj" />
     <ProjectReference Include="../../src/MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj" />
     <ProjectReference Include="../../src/MartiX.TemplateTestApp.Billing/MartiX.TemplateTestApp.Billing.csproj" />

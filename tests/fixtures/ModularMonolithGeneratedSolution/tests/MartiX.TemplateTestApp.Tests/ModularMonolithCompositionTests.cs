@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using MartiX.TemplateTestApp.Client;
 using MartiX.TemplateTestApp.Orders.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Billing.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Orders;
@@ -25,13 +26,13 @@ public sealed class ModularMonolithCompositionTests
         await using var host = await ApiHost.StartAsync();
 
         using var ordersResponse =
-            await host.Client.GetAsync("/orders/status");
+            await host.Client.GetAsync("/api/v1/orders/status");
         using var ordersDocument =
             JsonDocument.Parse(await ordersResponse.Content.ReadAsStringAsync());
         await Assert.That(ordersResponse.StatusCode)
             .IsEqualTo(HttpStatusCode.OK);
         using var billingResponse =
-            await host.Client.GetAsync("/billing/status");
+            await host.Client.GetAsync("/api/v1/billing/status");
         using var billingDocument =
             JsonDocument.Parse(await billingResponse.Content.ReadAsStringAsync());
         await Assert.That(billingResponse.StatusCode)
@@ -230,6 +231,17 @@ public sealed class ModularMonolithCompositionTests
 
         var status = host.Services.GetRequiredService<IOrdersStatus>();
         var result = await status.GetStatusAsync(CancellationToken.None);
+
+        await Assert.That(result.Module).IsEqualTo("Orders");
+    }
+
+    [Test]
+    public async Task The_generated_client_consumes_the_versioned_module_contract()
+    {
+        await using var host = await ApiHost.StartAsync();
+        var client = new GeneratedApiClient(host.Client);
+        var result = await client.GetOrdersStatusAsync(
+            CancellationToken.None);
 
         await Assert.That(result.Module).IsEqualTo("Orders");
     }

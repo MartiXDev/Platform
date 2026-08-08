@@ -15,6 +15,7 @@ README.md
 AGENTS.md
 CONTEXT.md
 martix.platform.json
+contracts/openapi-v1.json
 global.json
 Directory.Build.props
 Directory.Packages.props
@@ -23,6 +24,7 @@ docs/architecture/README.md
 docs/architecture/decisions/
 src/
   MartiX.Planner.Api/
+  MartiX.Planner.Client/
   MartiX.Planner.Migrator/
   MartiX.Planner.Orders/
   MartiX.Planner.Billing/
@@ -30,8 +32,9 @@ src/
 tests/MartiX.Planner.Tests/
 ```
 
-This is five production projects: one API host, one required one-shot
-Migrator, and one project per genuine Business Module. `full-stack` adds
+This is six production projects: one API host, one standalone generated client,
+one required one-shot Migrator, and one project per genuine Business Module.
+`full-stack` adds
 exactly `src/MartiX.Planner.Web/` for the selected UI provider. A persistence-
 free `api` has only `src/MartiX.Planner.Api/`; relational persistence adds the
 Migrator. Empty directories and placeholder projects are not generated.
@@ -44,8 +47,10 @@ README.md
 AGENTS.md
 CONTEXT.md
 martix.platform.json
+contracts/openapi-v1.json
 src/
   <name>.Api/
+  <name>.Client/
 tests/
   <name>.Tests/
 ```
@@ -179,7 +184,10 @@ Durable Jobs, notifications, and real-time delivery remain separate protocols.
 Minimal APIs are canonical. An optional FastEndpoints provider must preserve
 black-box behavioral parity. Endpoints use explicit URL major versions, typed
 success DTOs, OpenAPI 3.1, and one RFC 9457 Problem Details contract with stable
-Application Error codes. Kernel Result types never become wire payloads.
+Application Error codes. The generated OpenAPI document is authoritative and
+the standalone client project consumes only that document; neither may become a
+second backend or Module Contract seam. Kernel Result types never become wire
+payloads.
 
 Authentication is optional and separate from authorization. Business code
 consumes an immutable provider-independent Actor snapshot and permission policy,

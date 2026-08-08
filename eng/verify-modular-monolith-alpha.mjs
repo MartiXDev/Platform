@@ -433,6 +433,7 @@ async function verifyPackageCacheIdentity(packageCache, packages) {
 function projectPaths(applicationName) {
   return {
     api: `src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    client: `src/${applicationName}.Client/${applicationName}.Client.csproj`,
     migrator: `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
     tests: `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
   };

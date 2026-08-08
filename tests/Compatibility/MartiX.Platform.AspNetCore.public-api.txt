@@ -2,6 +2,13 @@ MartiX.Platform.AspNetCore.MartiXProblemDetailsExtensions
   static IServiceCollection AddMartiXProblemDetails(IServiceCollection)
   static OpenApiOptions AddMartiXProblemDetailsContract(OpenApiOptions)
   static RouteHandlerBuilder ProducesMartiXProblemDetails(RouteHandlerBuilder, params ErrorKind[])
+MartiX.Platform.AspNetCore.MartiXHttpContractExtensions
+  static ProblemHttpResult ToMartiXProtocolProblem(HttpContext, int, string, string, string, string)
+  static RouteHandlerBuilder WithMartiXLifecycle(RouteHandlerBuilder, DateTimeOffset, Uri, DateTimeOffset?)
+MartiX.Platform.AspNetCore.MartiXLifecycleMetadata
+  DateTimeOffset Deprecation
+  Uri MigrationLink
+  DateTimeOffset? Sunset
 MartiX.Platform.AspNetCore.MartiXResultExtensions
   static ProblemHttpResult ToProblemDetails(Result, HttpContext)
   static ProblemHttpResult ToProblemDetails<T>(Result<T>, HttpContext)

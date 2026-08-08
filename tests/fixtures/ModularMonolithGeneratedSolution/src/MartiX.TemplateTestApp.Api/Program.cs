@@ -40,8 +40,11 @@ public static class ApiComposition
             .WithName("Health")
             .Produces<HealthResponse>(StatusCodes.Status200OK)
             .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
-        OrdersModule.MapEndpoints(app);
-        BillingModule.MapEndpoints(app);
+        var versionOne = app
+            .MapGroup("/api/v1")
+            .WithGroupName("v1");
+        OrdersModule.MapEndpoints(versionOne);
+        BillingModule.MapEndpoints(versionOne);
     }
 }
 

@@ -30,5 +30,9 @@ or startup seeding runs in the API process. Each module owns its EF Core context
 portable schema/table naming, migrations, and snapshot under
 `Infrastructure/Persistence`.
 
+Business endpoints use the explicit `/api/v1` route group. The authoritative
+OpenAPI 3.1 contract is `contracts/openapi-v1.json`, and the standalone
+`MartiX.TemplateTestApp.Client` project is generated only from that contract.
+
 The generated source is application-owned. Review `martix.platform.json` for
 the exact origin, provider, module list, and dependency graph.

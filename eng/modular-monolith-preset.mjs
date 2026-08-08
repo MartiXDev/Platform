@@ -6,6 +6,10 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
+import {
+  createModularMonolithHttpContractDocument,
+  renderCSharpClient,
+} from "./openapi-client.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -49,6 +53,21 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
   }),
   Object.freeze({
     id: "api.safe-failure",
+    classification: "required",
+    provider: null,
+  }),
+  Object.freeze({
+    id: "api.versioned-contract",
+    classification: "required",
+    provider: null,
+  }),
+  Object.freeze({
+    id: "api.generated-client",
+    classification: "required",
+    provider: null,
+  }),
+  Object.freeze({
+    id: "api.lifecycle",
     classification: "required",
     provider: null,
   }),
@@ -610,6 +629,7 @@ function createPlan(
     ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
+      `src/${applicationName}.Client/${applicationName}.Client.csproj`,
       `src/${projectNames.migrator}/${projectNames.migrator}.csproj`,
       ...projectNames.modules.map(
         ({ project }) => `src/${project}/${project}.csproj`,
@@ -825,6 +845,7 @@ ${persistencePackageReferences(plan)}
 function testProjectFile(plan) {
   const references = [
     `../../src/${plan.applicationName}.Api/${plan.applicationName}.Api.csproj`,
+    `../../src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj`,
     `../../src/${plan.applicationName}.Migrator/${plan.applicationName}.Migrator.csproj`,
     ...plan.businessModules.map(
       ({ name }) =>
@@ -850,6 +871,35 @@ ${renderPackageReferences(TEST_PACKAGE_REFERENCES, [])}
 `;
 }
 
+function clientProjectFile(plan) {
+  return `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>${plan.applicationName}.Client</RootNamespace>
+    <AssemblyName>${plan.applicationName}.Client</AssemblyName>
+  </PropertyGroup>
+</Project>
+`;
+}
+
+function clientSourceFile(plan) {
+  const document = createModularMonolithHttpContractDocument(plan);
+  return renderCSharpClient(document, {
+    namespace: `${plan.applicationName}.Client`,
+  });
+}
+
+function clientContractFile(plan) {
+  return `${JSON.stringify(
+    createModularMonolithHttpContractDocument(plan),
+    null,
+    2,
+  )}\n`;
+}
+
 function apiProgramFile(plan) {
   const moduleUsings = plan.businessModules
     .map((module) => `using ${moduleNamespace(plan, module.name)};`)
@@ -861,7 +911,7 @@ function apiProgramFile(plan) {
     )
     .join("\n");
   const endpointComposition = plan.businessModules
-    .map((module) => `        ${module.name}Module.MapEndpoints(app);`)
+    .map((module) => `        ${module.name}Module.MapEndpoints(versionOne);`)
     .join("\n");
 
   return `${moduleUsings}
@@ -904,6 +954,9 @@ ${serviceComposition}
             .WithName("Health")
             .Produces<HealthResponse>(StatusCodes.Status200OK)
             .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+        var versionOne = app
+            .MapGroup("/api/v1")
+            .WithGroupName("v1");
 ${endpointComposition}
     }
 }
@@ -1859,6 +1912,8 @@ ${operationMethod}
 using ${moduleNamespace(plan, moduleName)}.Contracts.ModuleContracts;
 using ${moduleNamespace(plan, moduleName)}.Domain;
 using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
+using MartiX.Platform.AspNetCore;
+using MartiX.Platform.Results;
 using MartiX.Platform.EntityFrameworkCore.Specifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -1903,7 +1958,9 @@ internal static class ${moduleName}StatusEndpoint
                     CancellationToken cancellationToken) =>
                     status.GetStatusAsync(cancellationToken))
             .WithName("${plan.applicationName}.${moduleName}.Status")
-            .Produces<${moduleName}StatusResponse>(StatusCodes.Status200OK);
+            .WithSummary("Read ${moduleName} status")
+            .Produces<${moduleName}StatusResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
     }
 }
 `;
@@ -2309,7 +2366,7 @@ using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
     .map(
       (module) =>
         `        using var ${module.name.toLowerCase()}Response =
-            await host.Client.GetAsync("/${routeName(module.name)}/status");
+            await host.Client.GetAsync("/api/v1/${routeName(module.name)}/status");
         using var ${module.name.toLowerCase()}Document =
             JsonDocument.Parse(await ${module.name.toLowerCase()}Response.Content.ReadAsStringAsync());
         await Assert.That(${module.name.toLowerCase()}Response.StatusCode)
@@ -2503,6 +2560,7 @@ using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
 
   return `using System.Net;
 using System.Text.Json;
+using ${plan.applicationName}.Client;
 ${moduleUsings}
 ${realEvidenceUsings}
 using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
@@ -2533,6 +2591,17 @@ ${crashRedeliveryScenario}
 
         var status = host.Services.GetRequiredService<I${firstModule.name}Status>();
         var result = await status.GetStatusAsync(CancellationToken.None);
+
+        await Assert.That(result.Module).IsEqualTo("${firstModule.name}");
+    }
+
+    [Test]
+    public async Task The_generated_client_consumes_the_versioned_module_contract()
+    {
+        await using var host = await ApiHost.StartAsync();
+        var client = new GeneratedApiClient(host.Client);
+        var result = await client.Get${firstModule.name}StatusAsync(
+            CancellationToken.None);
 
         await Assert.That(result.Module).IsEqualTo("${firstModule.name}");
     }
@@ -2676,6 +2745,10 @@ or startup seeding runs in the API process. Each module owns its EF Core context
 portable schema/table naming, migrations, and snapshot under
 \`Infrastructure/Persistence\`.
 
+Business endpoints use the explicit \`/api/v1\` route group. The authoritative
+OpenAPI 3.1 contract is \`contracts/openapi-v1.json\`, and the standalone
+\`${plan.applicationName}.Client\` project is generated only from that contract.
+
 The generated source is application-owned. Review \`martix.platform.json\` for
 the exact origin, provider, module list, and dependency graph.
 `;
@@ -2726,6 +2799,15 @@ function createFiles(plan, manifest) {
       `src/${plan.applicationName}.Api/Program.cs`,
       apiProgramFile(plan),
     ],
+    [
+      `src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj`,
+      clientProjectFile(plan),
+    ],
+    [
+      `src/${plan.applicationName}.Client/${plan.applicationName}.Client.cs`,
+      clientSourceFile(plan),
+    ],
+    ["contracts/openapi-v1.json", clientContractFile(plan)],
     [
       `src/${plan.applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
       apiReliableEventsFile(plan),

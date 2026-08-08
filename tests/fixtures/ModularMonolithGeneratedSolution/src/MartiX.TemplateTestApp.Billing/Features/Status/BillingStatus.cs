@@ -2,6 +2,8 @@ using OrdersStatus = MartiX.TemplateTestApp.Orders.Contracts.ModuleContracts.IOr
 using MartiX.TemplateTestApp.Billing.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Billing.Domain;
 using MartiX.TemplateTestApp.Billing.Infrastructure.Persistence;
+using MartiX.Platform.AspNetCore;
+using MartiX.Platform.Results;
 using MartiX.Platform.EntityFrameworkCore.Specifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -64,6 +66,8 @@ internal static class BillingStatusEndpoint
                     CancellationToken cancellationToken) =>
                     status.GetStatusAsync(cancellationToken))
             .WithName("MartiX.TemplateTestApp.Billing.Status")
-            .Produces<BillingStatusResponse>(StatusCodes.Status200OK);
+            .WithSummary("Read Billing status")
+            .Produces<BillingStatusResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
     }
 }

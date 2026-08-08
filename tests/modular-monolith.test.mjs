@@ -78,6 +78,7 @@ test("the modular monolith plan is deterministic and records the Contracts graph
   ]);
   assert.deepEqual(firstPlan.projects, [
     "src/MartiX.Planner.Api/MartiX.Planner.Api.csproj",
+    "src/MartiX.Planner.Client/MartiX.Planner.Client.csproj",
     "src/MartiX.Planner.Migrator/MartiX.Planner.Migrator.csproj",
     "src/MartiX.Planner.Orders/MartiX.Planner.Orders.csproj",
     "src/MartiX.Planner.Billing/MartiX.Planner.Billing.csproj",
@@ -324,6 +325,44 @@ test("generation emits module-owned relational persistence for each provider", a
   }
 });
 
+test("generated module endpoints inherit the versioned HTTP contract", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const output = join(root, "generated");
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders", "Billing"],
+      moduleDependencies: { Billing: ["Orders"] },
+      outputDirectory: output,
+    });
+
+    const api = await readFile(
+      join(output, "src", "MartiX.Planner.Api", "Program.cs"),
+      "utf8",
+    );
+    const orders = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.Orders",
+        "Features",
+        "Status",
+        "OrdersStatus.cs",
+      ),
+      "utf8",
+    );
+
+    assert.match(api, /MapGroup\("\/api\/v1"\)/);
+    assert.match(api, /WithGroupName\("v1"\)/);
+    assert.match(orders, /MapGroup\("\/orders"\)/);
+    assert.match(orders, /WithSummary\(/);
+    assert.match(orders, /ProducesMartiXProblemDetails/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("generated relational identifiers are deterministic lowercase snake_case", async () => {
   const root = await createTemporaryDirectory();
 
@@ -512,7 +551,7 @@ test("generation emits only executable, module, and consolidated test boundaries
     });
 
     assert.deepEqual(first.files, second.files);
-    assert.equal(first.files.length, 34);
+    assert.equal(first.files.length, 37);
     assert.deepEqual(
       await listFiles(join(firstRoot, "generated")),
       first.files,
@@ -568,7 +607,7 @@ test("generation emits only executable, module, and consolidated test boundaries
       "utf8",
     );
     assert.match(apiSource, /OrdersModule\.AddServices\(services, configuration\)/);
-    assert.match(apiSource, /BillingModule\.MapEndpoints\(app\)/);
+    assert.match(apiSource, /BillingModule\.MapEndpoints\(versionOne\)/);
     assert.doesNotMatch(apiSource, /Assembly\.|GetTypes|MediatR|IModule/);
 
     const generatedText = source.join("\n");
@@ -584,6 +623,7 @@ test("generation emits only executable, module, and consolidated test boundaries
       [
         "src/MartiX.Planner.Api/MartiX.Planner.Api.csproj",
         "src/MartiX.Planner.Billing/MartiX.Planner.Billing.csproj",
+        "src/MartiX.Planner.Client/MartiX.Planner.Client.csproj",
         "src/MartiX.Planner.Migrator/MartiX.Planner.Migrator.csproj",
         "src/MartiX.Planner.Orders/MartiX.Planner.Orders.csproj",
         "tests/MartiX.Planner.Tests/MartiX.Planner.Tests.csproj",

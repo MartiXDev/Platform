@@ -167,9 +167,13 @@ test("generation writes only the selected API composition and manifest", async (
       "CONTEXT.md",
       "Contoso.Inventory.slnx",
       "README.md",
+      "contracts/openapi-v1.json",
       "martix.platform.json",
       "src/Contoso.Inventory.Api/Contoso.Inventory.Api.csproj",
+      "src/Contoso.Inventory.Api/Orders/Orders.cs",
       "src/Contoso.Inventory.Api/Program.cs",
+      "src/Contoso.Inventory.Client/Contoso.Inventory.Client.cs",
+      "src/Contoso.Inventory.Client/Contoso.Inventory.Client.csproj",
       "tests/Contoso.Inventory.Tests/ApiContractTests.cs",
       "tests/Contoso.Inventory.Tests/Contoso.Inventory.Tests.csproj",
     ]);
@@ -206,6 +210,21 @@ test("generation writes only the selected API composition and manifest", async (
       apiSource,
       /\.ProducesMartiXProblemDetails\(ErrorKind\.Unexpected\)/,
     );
+    const ordersSource = await readFile(
+      join(
+        firstRoot,
+        "generated",
+        "src",
+        "Contoso.Inventory.Api",
+        "Orders",
+        "Orders.cs",
+      ),
+      "utf8",
+    );
+    assert.match(
+      ordersSource,
+      /endpoints\.MapGet\("\/legacy-orders", ListAsync\)/,
+    );
 
     const source = await Promise.all(
       first.files.map((file) =>
@@ -235,5 +254,55 @@ test("generation writes only the selected API composition and manifest", async (
       rm(firstRoot, { recursive: true, force: true }),
       rm(secondRoot, { recursive: true, force: true }),
     ]);
+  }
+});
+
+test("generation includes a versioned OpenAPI contract and OpenAPI-only client", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const output = join(root, "generated");
+    const result = await generateApiPreset({
+      applicationName: "Contoso.Inventory",
+      outputDirectory: output,
+    });
+
+    assert.ok(result.files.includes("contracts/openapi-v1.json"));
+    assert.ok(
+      result.files.includes(
+        "src/Contoso.Inventory.Client/Contoso.Inventory.Client.cs",
+      ),
+    );
+    const openApi = JSON.parse(
+      await readFile(join(output, "contracts", "openapi-v1.json"), "utf8"),
+    );
+    assert.equal(openApi.openapi, "3.1.0");
+    assert.ok(openApi.paths["/api/v1/orders"]);
+    assert.ok(openApi.paths["/api/v1/orders/{id}"]);
+    assert.equal(openApi.paths["/api/v1/legacy-orders"].get.deprecated, true);
+    assert.ok(openApi.paths["/api/v1/legacy-orders"].get.responses["200"]
+      .headers.Deprecation);
+    assert.ok(openApi.paths["/api/v1/legacy-orders"].get.responses["200"]
+      .headers.Link);
+    assert.ok(openApi.paths["/api/v1/orders"].get.responses["200"]);
+    assert.ok(openApi.paths["/api/v1/orders"].post.responses["201"]);
+    assert.ok(openApi.paths["/api/v1/orders"].post.responses["400"]);
+    assert.ok(openApi.paths["/api/v1/orders/{id}"].put.responses["412"]);
+    assert.ok(openApi.paths["/api/v1/orders/{id}"].put.responses["428"]);
+
+    const client = await readFile(
+      join(
+        output,
+        "src",
+        "Contoso.Inventory.Client",
+        "Contoso.Inventory.Client.cs",
+      ),
+      "utf8",
+    );
+    assert.match(client, /HttpClient/);
+    assert.match(client, /\/api\/v1\/orders/);
+    assert.doesNotMatch(client, /MartiX\.Platform|ProjectReference|EntityFramework/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

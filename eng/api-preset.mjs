@@ -4,6 +4,10 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
+import {
+  createApiHttpContractDocument,
+  renderCSharpClient,
+} from "./openapi-client.mjs";
 
 export const API_PRESET = "api";
 export const API_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -46,6 +50,21 @@ export const API_CAPABILITY_MATRIX = Object.freeze([
   }),
   Object.freeze({
     id: "api.safe-failure",
+    classification: "required",
+    provider: null,
+  }),
+  Object.freeze({
+    id: "api.versioned-contract",
+    classification: "required",
+    provider: null,
+  }),
+  Object.freeze({
+    id: "api.generated-client",
+    classification: "required",
+    provider: null,
+  }),
+  Object.freeze({
+    id: "api.lifecycle",
     classification: "required",
     provider: null,
   }),
@@ -431,8 +450,9 @@ ${renderPackageReferences(packageReferences, plan.packageReferences)}
 `;
 }
 
-function apiProgramFile() {
-  return `using MartiX.Platform.AspNetCore;
+function apiProgramFile(plan) {
+  return `using ${plan.applicationName}.Api.Orders;
+using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -453,6 +473,7 @@ public static class ApiComposition
         services.AddMartiXProblemDetails();
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
+        services.AddSingleton<OrderStore>();
     }
 
     public static void Configure(WebApplication app)
@@ -465,11 +486,610 @@ public static class ApiComposition
             .WithName("Health")
             .Produces<HealthResponse>(StatusCodes.Status200OK)
             .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+        var versionOne = app
+            .MapGroup("/api/v1")
+            .WithGroupName("v1");
+        OrdersEndpoints.Map(versionOne);
     }
 }
 
 public sealed record HealthResponse(string Status);
 `;
+}
+
+function ordersFile(plan) {
+  return `using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using MartiX.Platform.AspNetCore;
+using MartiX.Platform.Results;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
+
+namespace ${plan.applicationName}.Api.Orders;
+
+public sealed record CreateOrderRequest(string Description);
+
+public sealed record ReplaceOrderRequest(string Description);
+
+public sealed record OrderResponse(
+    Guid Id,
+    string Description,
+    DateTimeOffset CreatedAt);
+
+public sealed record OrderPage(
+    IReadOnlyList<OrderResponse> Items,
+    string? NextCursor,
+    bool HasMore);
+
+internal sealed class OrderRecord
+{
+    public Guid Id { get; } = Guid.CreateVersion7();
+
+    public required string Description { get; set; }
+
+    public DateTimeOffset CreatedAt { get; } = DateTimeOffset.UtcNow;
+
+    public Guid Version { get; set; } = Guid.CreateVersion7();
+}
+
+internal sealed record CursorState(int Index, string Filter, string Sort);
+
+internal sealed record CreateOrderResult(
+    OrderRecord Order,
+    bool Replayed);
+
+internal enum OrderMutationOutcome
+{
+    Succeeded,
+    NotFound,
+    Stale,
+}
+
+internal sealed class OrderStore
+{
+    private readonly object gate = new();
+    private readonly Dictionary<Guid, OrderRecord> orders = new();
+    private readonly Dictionary<string, (string Description, OrderRecord Order)> idempotency =
+        new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CursorState> cursors = new(
+        StringComparer.Ordinal);
+
+    internal CreateOrderResult Create(
+        CreateOrderRequest request,
+        string idempotencyKey)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        lock (gate)
+        {
+            if (idempotency.TryGetValue(
+                    idempotencyKey,
+                    out var previous))
+            {
+                if (!string.Equals(
+                        previous.Description,
+                        request.Description,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "The idempotency key was reused for a different request.");
+                }
+
+                return new CreateOrderResult(previous.Order, true);
+            }
+
+            var order = new OrderRecord
+            {
+                Description = request.Description
+            };
+            orders.Add(order.Id, order);
+            idempotency.Add(idempotencyKey, (request.Description, order));
+            return new CreateOrderResult(order, false);
+        }
+    }
+
+    internal OrderRecord? Find(Guid id)
+    {
+        lock (gate)
+        {
+            return orders.GetValueOrDefault(id);
+        }
+    }
+
+    internal OrderPage GetPage(
+        string? cursor,
+        int pageSize,
+        string filter,
+        string sort,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CursorState? state = null;
+        if (cursor is not null &&
+            !cursors.TryGetValue(cursor, out state))
+        {
+            throw new FormatException("The cursor is invalid.");
+        }
+
+        if (state is not null &&
+            (!string.Equals(state.Filter, filter, StringComparison.Ordinal) ||
+             !string.Equals(state.Sort, sort, StringComparison.Ordinal)))
+        {
+            throw new FormatException("The cursor is not valid for this query.");
+        }
+
+        List<OrderRecord> snapshot;
+        lock (gate)
+        {
+            snapshot = orders.Values.ToList();
+        }
+
+        IEnumerable<OrderRecord> query = snapshot;
+        if (filter.Length > 0)
+        {
+            query = query.Where(order =>
+                order.Description.Contains(
+                    filter,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        query = sort switch
+        {
+            "-createdAt" => query
+                .OrderByDescending(order => order.CreatedAt)
+                .ThenByDescending(order => order.Id),
+            "createdAt" => query
+                .OrderBy(order => order.CreatedAt)
+                .ThenBy(order => order.Id),
+            _ => throw new ArgumentException("The sort field is invalid.", nameof(sort))
+        };
+
+        var start = state?.Index ?? 0;
+        var page = query.Skip(start).Take(pageSize + 1).ToArray();
+        var hasMore = page.Length > pageSize;
+        var items = page
+            .Take(pageSize)
+            .Select(ToResponse)
+            .ToArray();
+        string? nextCursor = null;
+        if (hasMore)
+        {
+            nextCursor = CreateCursor(
+                new CursorState(start + pageSize, filter, sort));
+        }
+
+        return new OrderPage(items, nextCursor, hasMore);
+    }
+
+    internal OrderMutationOutcome Replace(
+        Guid id,
+        string description,
+        string ifMatch)
+    {
+        lock (gate)
+        {
+            if (!orders.TryGetValue(id, out var order))
+            {
+                return OrderMutationOutcome.NotFound;
+            }
+            if (!string.Equals(FormatEtag(order), ifMatch, StringComparison.Ordinal))
+            {
+                return OrderMutationOutcome.Stale;
+            }
+
+            order.Description = description;
+            order.Version = Guid.CreateVersion7();
+            return OrderMutationOutcome.Succeeded;
+        }
+    }
+
+    internal OrderMutationOutcome Delete(Guid id, string ifMatch)
+    {
+        lock (gate)
+        {
+            if (!orders.TryGetValue(id, out var order))
+            {
+                return OrderMutationOutcome.NotFound;
+            }
+            if (!string.Equals(FormatEtag(order), ifMatch, StringComparison.Ordinal))
+            {
+                return OrderMutationOutcome.Stale;
+            }
+
+            orders.Remove(id);
+            return OrderMutationOutcome.Succeeded;
+        }
+    }
+
+    internal static string FormatEtag(OrderRecord order) =>
+        $"\\\"{order.Version:N}\\\"";
+
+    internal static OrderResponse ToResponse(OrderRecord order) =>
+        new(order.Id, order.Description, order.CreatedAt);
+
+    private string CreateCursor(CursorState state)
+    {
+        Span<byte> bytes = stackalloc byte[32];
+        RandomNumberGenerator.Fill(bytes);
+        var token = Convert.ToBase64String(bytes)
+            .Replace("+", "-", StringComparison.Ordinal)
+            .Replace("/", "_", StringComparison.Ordinal)
+            .TrimEnd('=');
+        cursors[token] = state;
+        return token;
+    }
+}
+
+internal static class OrdersEndpoints
+{
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
+        var group = endpoints
+            .MapGroup("/orders")
+            .WithTags("Orders");
+        group.MapGet("", ListAsync)
+            .WithName("${plan.applicationName}.Orders.ListV1")
+            .WithSummary("List orders")
+            .Produces<OrderPage>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.Validation,
+                ErrorKind.Unexpected);
+        group.MapGet("/{id:guid}", GetAsync)
+            .WithName("${plan.applicationName}.Orders.GetV1")
+            .WithSummary("Get an order")
+            .Produces<OrderResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.NotFound,
+                ErrorKind.Unexpected);
+        group.MapPost("", CreateAsync)
+            .WithName("${plan.applicationName}.Orders.CreateV1")
+            .WithSummary("Create an order")
+            .Produces<OrderResponse>(StatusCodes.Status201Created)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.Validation,
+                ErrorKind.Conflict,
+                ErrorKind.Unexpected);
+        group.MapPut("/{id:guid}", ReplaceAsync)
+            .WithName("${plan.applicationName}.Orders.ReplaceV1")
+            .WithSummary("Replace an order")
+            .Produces<OrderResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.Validation,
+                ErrorKind.NotFound,
+                ErrorKind.Unexpected)
+            .Produces(StatusCodes.Status412PreconditionFailed, "application/problem+json")
+            .Produces(StatusCodes.Status428PreconditionRequired, "application/problem+json");
+        group.MapPatch("/{id:guid}", ReplaceAsync)
+            .WithName("${plan.applicationName}.Orders.UpdateV1")
+            .WithSummary("Update an order")
+            .Produces<OrderResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.Validation,
+                ErrorKind.NotFound,
+                ErrorKind.Unexpected)
+            .Produces(StatusCodes.Status412PreconditionFailed, "application/problem+json")
+            .Produces(StatusCodes.Status428PreconditionRequired, "application/problem+json");
+        group.MapDelete("/{id:guid}", DeleteAsync)
+            .WithName("${plan.applicationName}.Orders.DeleteV1")
+            .WithSummary("Delete an order")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.NotFound,
+                ErrorKind.Unexpected)
+            .Produces(StatusCodes.Status412PreconditionFailed, "application/problem+json")
+            .Produces(StatusCodes.Status428PreconditionRequired, "application/problem+json");
+        endpoints.MapGet("/legacy-orders", ListAsync)
+            .WithName("${plan.applicationName}.Orders.LegacyListV1")
+            .WithSummary("List legacy orders")
+            .WithMartiXLifecycle(
+                DateTimeOffset.Parse("2030-01-01T00:00:00+00:00"),
+                new Uri("https://docs.martix.dev/guides/orders-v1"))
+            .Produces<OrderPage>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(
+                ErrorKind.Validation,
+                ErrorKind.Unexpected);
+    }
+
+    private static Results<Ok<OrderPage>, ProblemHttpResult> ListAsync(
+        OrderStore store,
+        HttpContext httpContext,
+        string? cursor,
+        int? pageSize,
+        string? filter,
+        string? sort,
+        CancellationToken cancellationToken)
+    {
+        var effectivePageSize = pageSize ?? 20;
+        if (effectivePageSize is < 1 or > 100)
+        {
+            return Problem(
+                httpContext,
+                "api.page-size-invalid",
+                ErrorKind.Validation,
+                "pageSize must be between 1 and 100.",
+                "pageSize");
+        }
+
+        var effectiveFilter = filter ?? string.Empty;
+        if (effectiveFilter.Length > 100)
+        {
+            return Problem(
+                httpContext,
+                "api.filter-too-long",
+                ErrorKind.Validation,
+                "filter must contain at most 100 characters.",
+                "filter");
+        }
+
+        var effectiveSort = sort ?? "createdAt";
+        if (effectiveSort is not ("createdAt" or "-createdAt"))
+        {
+            return Problem(
+                httpContext,
+                "api.sort-invalid",
+                ErrorKind.Validation,
+                "sort must be createdAt or -createdAt.",
+                "sort");
+        }
+
+        try
+        {
+            var page = store.GetPage(
+                cursor,
+                effectivePageSize,
+                effectiveFilter,
+                effectiveSort,
+                cancellationToken);
+            httpContext.Response.Headers.CacheControl = "private, max-age=30";
+            httpContext.Response.Headers.Vary = "Accept";
+            return TypedResults.Ok(page);
+        }
+        catch (FormatException)
+        {
+            return Problem(
+                httpContext,
+                "api.cursor-invalid",
+                ErrorKind.Validation,
+                "cursor is invalid for this query.",
+                "cursor");
+        }
+        catch (ArgumentException)
+        {
+            return Problem(
+                httpContext,
+                "api.sort-invalid",
+                ErrorKind.Validation,
+                "sort must be createdAt or -createdAt.",
+                "sort");
+        }
+    }
+
+    private static Results<Ok<OrderResponse>, ProblemHttpResult> GetAsync(
+        OrderStore store,
+        Guid id,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var order = store.Find(id);
+        if (order is null)
+        {
+            return Problem(
+                httpContext,
+                "api.order-not-found",
+                ErrorKind.NotFound,
+                "The requested order was not found.");
+        }
+
+        httpContext.Response.Headers.ETag = OrderStore.FormatEtag(order);
+        return TypedResults.Ok(OrderStore.ToResponse(order));
+    }
+
+    private static Results<Created<OrderResponse>, ProblemHttpResult> CreateAsync(
+        OrderStore store,
+        CreateOrderRequest? request,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request is null ||
+            string.IsNullOrWhiteSpace(request.Description) ||
+            request.Description.Length > 200)
+        {
+            return Problem(
+                httpContext,
+                "api.order-invalid",
+                ErrorKind.Validation,
+                "description must contain between 1 and 200 characters.",
+                "description");
+        }
+        if (!httpContext.Request.Headers.TryGetValue(
+                "Idempotency-Key",
+                out var keyValues))
+        {
+            return Problem(
+                httpContext,
+                "idempotency.key-required",
+                ErrorKind.Validation,
+                "Idempotency-Key is required.");
+        }
+
+        var idempotencyKey = keyValues.ToString();
+        if (idempotencyKey.Length is < 1 or > 128)
+        {
+            return Problem(
+                httpContext,
+                "idempotency.key-invalid",
+                ErrorKind.Validation,
+                "Idempotency-Key must contain between 1 and 128 characters.");
+        }
+
+        CreateOrderResult result;
+        try
+        {
+            result = store.Create(request, idempotencyKey);
+        }
+        catch (InvalidOperationException)
+        {
+            return Problem(
+                httpContext,
+                "idempotency.key-reused",
+                ErrorKind.Conflict,
+                "Idempotency-Key was already used for a different request.");
+        }
+
+        httpContext.Response.Headers.ETag = OrderStore.FormatEtag(result.Order);
+        if (result.Replayed)
+        {
+            httpContext.Response.Headers["Idempotency-Replayed"] = "true";
+        }
+        return TypedResults.Created(
+            $"/api/v1/orders/{result.Order.Id}",
+            OrderStore.ToResponse(result.Order));
+    }
+
+    private static Results<Ok<OrderResponse>, ProblemHttpResult> ReplaceAsync(
+        OrderStore store,
+        Guid id,
+        ReplaceOrderRequest? request,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request is null ||
+            string.IsNullOrWhiteSpace(request.Description) ||
+            request.Description.Length > 200)
+        {
+            return Problem(
+                httpContext,
+                "api.order-invalid",
+                ErrorKind.Validation,
+                "description must contain between 1 and 200 characters.",
+                "description");
+        }
+        var ifMatch = RequiredIfMatch(httpContext);
+        if (ifMatch is null)
+        {
+            return httpContext.ToMartiXProtocolProblem(
+                StatusCodes.Status428PreconditionRequired,
+                "/problems/precondition-required",
+                "Precondition required",
+                "concurrency.precondition-required",
+                "If-Match is required.");
+        }
+
+        var outcome = store.Replace(id, request.Description, ifMatch);
+        return outcome switch
+        {
+            OrderMutationOutcome.NotFound => Problem(
+                httpContext,
+                "api.order-not-found",
+                ErrorKind.NotFound,
+                "The requested order was not found."),
+            OrderMutationOutcome.Stale => httpContext.ToMartiXProtocolProblem(
+                StatusCodes.Status412PreconditionFailed,
+                "/problems/precondition-failed",
+                "Precondition failed",
+                "concurrency.precondition-failed",
+                "If-Match does not identify the current order."),
+            _ => Updated(store, id, httpContext),
+        };
+    }
+
+    private static Results<NoContent, ProblemHttpResult> DeleteAsync(
+        OrderStore store,
+        Guid id,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var ifMatch = RequiredIfMatch(httpContext);
+        if (ifMatch is null)
+        {
+            return httpContext.ToMartiXProtocolProblem(
+                StatusCodes.Status428PreconditionRequired,
+                "/problems/precondition-required",
+                "Precondition required",
+                "concurrency.precondition-required",
+                "If-Match is required.");
+        }
+
+        var outcome = store.Delete(id, ifMatch);
+        return outcome switch
+        {
+            OrderMutationOutcome.NotFound => Problem(
+                httpContext,
+                "api.order-not-found",
+                ErrorKind.NotFound,
+                "The requested order was not found."),
+            OrderMutationOutcome.Stale => httpContext.ToMartiXProtocolProblem(
+                StatusCodes.Status412PreconditionFailed,
+                "/problems/precondition-failed",
+                "Precondition failed",
+                "concurrency.precondition-failed",
+                "If-Match does not identify the current order."),
+            _ => TypedResults.NoContent(),
+        };
+    }
+
+    private static Results<Ok<OrderResponse>, ProblemHttpResult> Updated(
+        OrderStore store,
+        Guid id,
+        HttpContext httpContext)
+    {
+        var order = store.Find(id)
+            ?? throw new InvalidOperationException("The updated order disappeared.");
+        httpContext.Response.Headers.ETag = OrderStore.FormatEtag(order);
+        return TypedResults.Ok(OrderStore.ToResponse(order));
+    }
+
+    private static string? RequiredIfMatch(HttpContext httpContext)
+    {
+        return httpContext.Request.Headers.TryGetValue("If-Match", out var values)
+            && !string.IsNullOrWhiteSpace(values.ToString())
+            ? values.ToString()
+            : null;
+    }
+
+    private static ProblemHttpResult Problem(
+        HttpContext httpContext,
+        string code,
+        ErrorKind kind,
+        string detail,
+        string? target = null)
+    {
+        return Result.Failure(
+                Error.Create(code, kind, detail, target))
+            .ToProblemDetails(httpContext);
+    }
+}
+`;
+}
+
+function clientProjectFile(plan) {
+  return `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>${plan.applicationName}.Client</RootNamespace>
+    <AssemblyName>${plan.applicationName}.Client</AssemblyName>
+  </PropertyGroup>
+</Project>
+`;
+}
+
+function clientSourceFile(plan) {
+  const document = createApiHttpContractDocument();
+  return renderCSharpClient(document, {
+    namespace: `${plan.applicationName}.Client`,
+  });
+}
+
+function contractFile() {
+  return `${JSON.stringify(createApiHttpContractDocument(), null, 2)}\n`;
 }
 
 function testProjectFile(plan) {
@@ -491,15 +1111,17 @@ function testProjectFile(plan) {
 
   <ItemGroup>
     <ProjectReference Include="../../src/${projectNames.api}/${projectNames.api}.csproj" />
+    <ProjectReference Include="../../src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj" />
 ${renderPackageReferences(packageReferences, plan.packageReferences)}
   </ItemGroup>
 </Project>
 `;
 }
 
-function testSourceFile() {
+function testSourceFile(plan) {
   return `using System.Net;
 using System.Text.Json;
+using ${plan.applicationName}.Client;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using Microsoft.AspNetCore.Builder;
@@ -525,6 +1147,32 @@ public sealed class ApiContractTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(document.RootElement.GetProperty("status").GetString())
             .IsEqualTo("ok");
+    }
+
+    [Test]
+    public async Task The_generated_client_consumes_versioned_success_and_problem_contracts()
+    {
+        await using var host = await ApiHost.StartAsync();
+        var client = new GeneratedApiClient(host.Client);
+
+        var page = await client.ListOrdersAsync(
+            pageSize: 10,
+            cancellationToken: CancellationToken.None);
+        await Assert.That(page.Items).IsEmpty();
+
+        try
+        {
+            await client.GetOrderAsync(Guid.CreateVersion7());
+            throw new InvalidOperationException(
+                "The generated client unexpectedly accepted a missing order.");
+        }
+        catch (ApiProblemDetailsException exception)
+        {
+            await Assert.That(exception.StatusCode)
+                .IsEqualTo(HttpStatusCode.NotFound);
+            await Assert.That(exception.Problem.Code)
+                .IsEqualTo("api.order-not-found");
+        }
     }
 
     [Test]
@@ -749,6 +1397,7 @@ function solutionFile(plan) {
 
   return `<Solution>
   <Project Path="src/${projectNames.api}/${projectNames.api}.csproj" />
+  <Project Path="src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj" />
   <Project Path="tests/${projectNames.tests}/${projectNames.tests}.csproj" />
 </Solution>
 `;
@@ -809,10 +1458,20 @@ function createFiles(plan, manifest) {
       `src/${projectNames.api}/${projectNames.api}.csproj`,
       apiProjectFile(plan),
     ],
-    [`src/${projectNames.api}/Program.cs`, apiProgramFile()],
+    [`src/${projectNames.api}/Program.cs`, apiProgramFile(plan)],
+    [`src/${projectNames.api}/Orders/Orders.cs`, ordersFile(plan)],
+    [
+      `src/${plan.applicationName}.Client/${plan.applicationName}.Client.csproj`,
+      clientProjectFile(plan),
+    ],
+    [
+      `src/${plan.applicationName}.Client/${plan.applicationName}.Client.cs`,
+      clientSourceFile(plan),
+    ],
+    ["contracts/openapi-v1.json", contractFile()],
     [
       `tests/${projectNames.tests}/ApiContractTests.cs`,
-      testSourceFile(),
+      testSourceFile(plan),
     ],
     [
       `tests/${projectNames.tests}/${projectNames.tests}.csproj`,

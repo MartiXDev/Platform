@@ -2,6 +2,8 @@
 using MartiX.TemplateTestApp.Orders.Contracts.ModuleContracts;
 using MartiX.TemplateTestApp.Orders.Domain;
 using MartiX.TemplateTestApp.Orders.Infrastructure.Persistence;
+using MartiX.Platform.AspNetCore;
+using MartiX.Platform.Results;
 using MartiX.Platform.EntityFrameworkCore.Specifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -61,6 +63,8 @@ internal static class OrdersStatusEndpoint
                     CancellationToken cancellationToken) =>
                     status.GetStatusAsync(cancellationToken))
             .WithName("MartiX.TemplateTestApp.Orders.Status")
-            .Produces<OrdersStatusResponse>(StatusCodes.Status200OK);
+            .WithSummary("Read Orders status")
+            .Produces<OrdersStatusResponse>(StatusCodes.Status200OK)
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
     }
 }

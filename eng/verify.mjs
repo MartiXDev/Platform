@@ -85,6 +85,9 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Program.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/contracts/openapi-v1.json`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Client/MartiX.TemplateTestApp.Client.csproj`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Client/MartiX.TemplateTestApp.Client.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Migrator/MartiX.TemplateTestApp.Migrator.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Migrator/Program.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Orders/MartiX.TemplateTestApp.Orders.csproj`,
@@ -442,9 +445,12 @@ function modularMonolithExpectedFiles(manifest) {
     `${applicationName}.slnx`,
     "README.md",
     "martix.platform.json",
+    "contracts/openapi-v1.json",
     `src/${applicationName}.Api/${applicationName}.Api.csproj`,
     `src/${applicationName}.Api/Program.cs`,
     `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
+    `src/${applicationName}.Client/${applicationName}.Client.csproj`,
+    `src/${applicationName}.Client/${applicationName}.Client.cs`,
     `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
     `src/${applicationName}.Migrator/Program.cs`,
     `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
@@ -705,10 +711,47 @@ async function validateModularMonolithComposition(
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
   );
+  const clientProjectPath = `src/${applicationName}.Client/${applicationName}.Client.csproj`;
+  const clientProject = await readSolutionFile(clientProjectPath);
+  const clientSourcePath = `src/${applicationName}.Client/${applicationName}.Client.cs`;
+  const clientSource = await readSolutionFile(clientSourcePath);
+  const openApiContractPath = "contracts/openapi-v1.json";
+  const openApiContract = JSON.parse(
+    await readSolutionFile(openApiContractPath),
+  );
+  if (
+    openApiContract.openapi !== "3.1.0" ||
+    !modules.every((module) =>
+      openApiContract.paths?.[
+        `/api/v1/${module.name.toLowerCase()}/status`
+      ],
+    )
+  ) {
+    fail(
+      `Modular Monolith OpenAPI contract must describe the versioned module status routes: ${openApiContractPath}.`,
+    );
+  }
+  validateProjectReferences(clientProject, [], clientProjectPath);
+  if (
+    /\b(?:MartiX\.Platform|EntityFramework|Backend)\b/i.test(clientSource)
+  ) {
+    fail(
+      `Generated Modular Monolith client must remain an OpenAPI-only isolated project: ${clientSourcePath}.`,
+    );
+  }
+  if (!modules.every((module) =>
+    clientSource.includes(`Get${module.name}StatusAsync`),
+  )) {
+    fail(
+      `Generated Modular Monolith client is missing the Orders status operation: ${clientSourcePath}.`,
+    );
+  }
   const apiReliableEventsSource = await readSolutionFile(
     `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
   );
   if (
+    !apiSource.includes('MapGroup("/api/v1")') ||
+    !apiSource.includes('WithGroupName("v1")') ||
     !apiSource.includes("ReliableEventsComposition.AddServices(services);") ||
     !apiReliableEventsSource.includes("ReliableEventsDispatcher") ||
     !apiReliableEventsSource.includes("ClaimAsync") ||
@@ -724,7 +767,7 @@ async function validateModularMonolithComposition(
         `API composition is missing ${module.name}Module.AddServices(services, configuration).`,
       );
     }
-    if (!apiSource.includes(`${module.name}Module.MapEndpoints(app);`)) {
+    if (!apiSource.includes(`${module.name}Module.MapEndpoints(versionOne);`)) {
       fail(
         `API composition is missing ${module.name}Module.MapEndpoints(app).`,
       );
@@ -780,6 +823,7 @@ async function validateModularMonolithComposition(
     testProject,
     [
       `../../src/${applicationName}.Api/${applicationName}.Api.csproj`,
+      `../../src/${applicationName}.Client/${applicationName}.Client.csproj`,
       `../../src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
       ...modules.map(
         (module) =>
@@ -803,6 +847,16 @@ async function validateModularMonolithComposition(
   if (!/\[Test\]/.test(testSource) || !/await\s+Assert\.That/.test(testSource)) {
     fail(
       "Modular Monolith acceptance tests must use TUnit tests with awaited assertions.",
+    );
+  }
+  if (
+    !testSource.includes("GeneratedApiClient") ||
+    !modules.every((module) =>
+      testSource.includes(`/api/v1/${module.name.toLowerCase()}/status`),
+    )
+  ) {
+    fail(
+      "Modular Monolith acceptance tests must consume the versioned generated client contract.",
     );
   }
   if (testSource.includes("CrashRedeliveryProbe")) {

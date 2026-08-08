@@ -56,6 +56,39 @@ internal static class MartiXProblemDetailsFactory
         return TypedResults.Problem(problemDetails);
     }
 
+    internal static ProblemHttpResult CreateProtocolFailure(
+        HttpContext httpContext,
+        int statusCode,
+        string type,
+        string title,
+        string code,
+        string detail)
+    {
+        var problemDetails = new ProblemDetails
+        {
+            Type = type,
+            Title = title,
+            Status = statusCode,
+            Detail = detail,
+            Instance = httpContext.Request.Path.HasValue
+                ? httpContext.Request.Path.Value
+                : null,
+        };
+
+        problemDetails.Extensions["code"] = code;
+        problemDetails.Extensions["traceId"] = GetTraceId(httpContext);
+        problemDetails.Extensions["errors"] = new[]
+        {
+            new Dictionary<string, object?>
+            {
+                ["code"] = code,
+                ["message"] = detail,
+            },
+        };
+
+        return TypedResults.Problem(problemDetails);
+    }
+
     private static ProblemDetails CreateProblemDetails(
         ProblemDescriptor descriptor,
         string code,
@@ -97,7 +130,7 @@ internal static class MartiXProblemDetailsFactory
         return extension;
     }
 
-    private static string GetTraceId(HttpContext httpContext)
+    internal static string GetTraceId(HttpContext httpContext)
     {
         return Activity.Current?.TraceId.ToString()
             ?? httpContext.TraceIdentifier;
