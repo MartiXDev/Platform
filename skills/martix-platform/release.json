@@ -1,0 +1,8 @@
+{
+  "skillId": "martix-platform",
+  "skillVersion": "1.0.0-beta.1",
+  "platformVersion": "1.0.0-beta.1",
+  "contextSchemaVersion": "1.0.0",
+  "source": "MartiXDev/Platform/skills/martix-platform",
+  "contentDigest": "sha256:86970d1aab501d1a89e8761424fdd87736babb3d33c0fa42b1760ae9abb55f8a"
+}

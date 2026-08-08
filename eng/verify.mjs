@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
+import { verifyAgentReadiness } from "./agent-readiness.mjs";
 import {
   FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
   MODULAR_MONOLITH_ALPHA_GATE_IDS,
@@ -41,6 +42,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
+  "bootstrap.agent-readiness",
 ];
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
 const MANIFEST_REQUIRED_PROPERTIES = [
@@ -67,8 +69,14 @@ const MANIFEST_ALLOWED_PROPERTIES = [
 export const REQUIRED_BOOTSTRAP_INPUTS = [
   "martix.platform.json",
   "schemas/martix.platform.schema.json",
+  "schemas/agent-context.schema.json",
   "schemas/quality-gates.schema.json",
   "eng/quality-gates.json",
+  "eng/agent-context.mjs",
+  "eng/agent-readiness.mjs",
+  "skills/martix-platform/SKILL.md",
+  "skills/martix-platform/agents/openai.yaml",
+  "skills/martix-platform/release.json",
   "README.md",
   "AGENTS.md",
   "LICENSE",
@@ -116,6 +124,16 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/Migrations/BillingDbContextModelSnapshot.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/MartiX.TemplateTestApp.Tests.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/ModularMonolithCompositionTests.cs`,
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/README.md",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/martix.platform.json",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/src/MartiX.AlphaRehearsal.Api/MartiX.AlphaRehearsal.Api.csproj",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/src/MartiX.AlphaRehearsal.Api/OwnerComposition.cs",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/src/MartiX.AlphaRehearsal.Orders/MartiX.AlphaRehearsal.Orders.csproj",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/src/MartiX.AlphaRehearsal.Orders/OrdersModule.cs",
+  "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/tests/MartiX.AlphaRehearsal.Tests/MartiX.AlphaRehearsal.Tests.csproj",
 ];
 
 const FORBIDDEN_SECRET_KEY =
@@ -1448,6 +1466,7 @@ export async function verifyBootstrap({
   const manifest = parseJson("martix.platform.json");
   const manifestSchema = parseJson("schemas/martix.platform.schema.json");
   const qualityGateSchema = parseJson("schemas/quality-gates.schema.json");
+  const agentContextSchema = parseJson("schemas/agent-context.schema.json");
   const qualityPolicy = parseJson("eng/quality-gates.json");
   const generatedManifest = parseJson(
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
@@ -1457,6 +1476,19 @@ export async function verifyBootstrap({
   );
 
   validateManifestSchema(manifestSchema);
+  requireRecord(agentContextSchema, "schemas/agent-context.schema.json");
+  if (agentContextSchema.type !== "object") {
+    fail("schemas/agent-context.schema.json.type must be object.");
+  }
+  validateClosedObjectSchemas(
+    agentContextSchema,
+    "schemas/agent-context.schema.json",
+  );
+  assertSecretFree(
+    agentContextSchema,
+    "schemas/agent-context.schema.json",
+    "Agent context schema",
+  );
   requireRecord(qualityGateSchema, "schemas/quality-gates.schema.json");
   if (qualityGateSchema.type !== "object") {
     fail("schemas/quality-gates.schema.json.type must be object.");
@@ -1506,6 +1538,10 @@ export async function verifyBootstrap({
   validateQualityGatePolicy(qualityPolicy);
   validateGovernanceDocuments(documents);
   await validateModularMonolithSolution(root, modularMonolithManifest);
+  const agentReadiness = await verifyAgentReadiness({
+    rootDir: root,
+    platformRoot: root,
+  });
 
   const gates = qualityPolicy.gates
     .filter(
@@ -1525,6 +1561,7 @@ export async function verifyBootstrap({
     gates,
     generatedSolution: GENERATED_SOLUTION_NAME,
     modularMonolithSolution: MODULAR_MONOLITH_SOLUTION_NAME,
+    agentReadiness,
   };
 }
 

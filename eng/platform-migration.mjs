@@ -1525,6 +1525,7 @@ function parseCliArguments(argumentsList) {
     cursor++;
   }
   const command = argumentsList[cursor++];
+  const subcommand = command === "agent" ? argumentsList[cursor++] : undefined;
   const options = {};
   while (cursor < argumentsList.length) {
     const argument = argumentsList[cursor++];
@@ -1558,11 +1559,14 @@ function parseCliArguments(argumentsList) {
       case "--plan":
         options.planPath = value;
         break;
+      case "--format":
+        options.format = value;
+        break;
       default:
         fail(`Unknown migration option ${name}.`);
     }
   }
-  return { command, options };
+  return { command, subcommand, options };
 }
 
 export async function runPlatformMigrationCli(
@@ -1576,6 +1580,7 @@ export async function runPlatformMigrationCli(
         "       node eng/platform-migration.mjs migrate plan --to <exact-version> --output <plan-file>",
         "       node eng/platform-migration.mjs migrate apply --plan <plan-file> --root <repository>",
         "       node eng/platform-migration.mjs migrate verify --root <repository>",
+        "       node eng/platform-migration.mjs agent context --format json --root <repository>",
       ].join("\n"),
     );
     return { status: "help" };
@@ -1603,9 +1608,27 @@ export async function runPlatformMigrationCli(
     case "verify":
       result = await verifyMigration(parsed.options);
       break;
+    case "agent": {
+      if (parsed.subcommand !== "context") {
+        fail(
+          `Unknown agent command ${parsed.subcommand ?? "(missing)"}; expected context.`,
+        );
+      }
+      if (
+        parsed.options.format !== undefined &&
+        parsed.options.format !== "json"
+      ) {
+        fail("Agent context format must be json.");
+      }
+      const { createAgentContext } = await import("./agent-context.mjs");
+      result = await createAgentContext({
+        rootDir: parsed.options.rootDir ?? process.cwd(),
+      });
+      break;
+    }
     default:
       fail(
-        `Unknown migration command ${parsed.command}; expected inspect, plan, apply, or verify.`,
+        `Unknown migration command ${parsed.command}; expected inspect, plan, apply, verify, or agent.`,
       );
   }
   console.log(renderedJson(result));

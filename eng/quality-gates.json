@@ -134,6 +134,19 @@
       "purpose": "Bootstrap metadata declares external-only secret delivery and contains no secret values."
     },
     {
+      "id": "bootstrap.agent-readiness",
+      "family": "agent-readiness",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "Generated Solutions expose deterministic, secret-free, authority-routed context and safe maintenance, migration, and hostile-input evidence."
+    },
+    {
       "id": "modular-monolith.generated-solution",
       "family": "template-generation",
       "owner": "platform-maintainers",

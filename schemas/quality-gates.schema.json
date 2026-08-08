@@ -114,6 +114,7 @@
             "repository-integrity",
             "security-supply-chain",
             "security-observability",
+            "agent-readiness",
             "template-generation",
             "architecture",
             "provider-integration",

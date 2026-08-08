@@ -30,8 +30,12 @@ approved target is not a Supported Capability claim.
 Repository Bootstrap establishes this minimum structure:
 
 - `martix.platform.json` is the exact, secret-free composition manifest.
+- `node eng/platform-migration.mjs agent context --format json` projects
+  deterministic, secret-free context without a committed agent manifest.
 - `eng/quality-gates.json` is the machine-readable verification policy.
 - `eng/verify.mjs` is the cross-platform verification entrypoint.
+- `skills/martix-platform/` is the canonical replaceable workflow router; it
+  does not own architecture or composition decisions.
 - `eng/generate-api.mjs` exposes the deterministic `martix-app --preset api`
   generation seam, and `eng/verify-api.mjs` verifies its packed consumer.
 - `tests/fixtures/RepositoryBootstrapGeneratedSolution/` is the temporary named
@@ -55,6 +59,7 @@ evidence. Generated API solutions carry their own resolved `api` manifest.
 | Question | Authority |
 | --- | --- |
 | Exact repository composition and migration state | [`martix.platform.json`](../../martix.platform.json) and [`schemas/`](../../schemas/) |
+| Ephemeral agent context contract | [`schemas/agent-context.schema.json`](../../schemas/agent-context.schema.json) and the exact Platform Tool |
 | Quality Gate identities, policy, and cadences | [`eng/quality-gates.json`](../../eng/quality-gates.json) |
 | Verification execution | [`eng/verify.mjs`](../../eng/verify.mjs) |
 | Platform vocabulary | [`CONTEXT.md`](../../CONTEXT.md) |
