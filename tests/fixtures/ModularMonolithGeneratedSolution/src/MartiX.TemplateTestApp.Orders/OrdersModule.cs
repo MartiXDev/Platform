@@ -45,7 +45,7 @@ public static class OrdersModule
             "validate" => await ValidateAsync(dbContext, cancellationToken),
             "script" => dbContext.Database.GenerateScript(
                 options: MigrationsSqlGenerationOptions.Idempotent),
-            "apply" => await ApplyAsync(dbContext, cancellationToken),
+            "apply" => await ApplyAndValidateAsync(dbContext, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
     }
@@ -80,23 +80,47 @@ public static class OrdersModule
         OrdersDbContext dbContext,
         CancellationToken cancellationToken)
     {
+        if (!await dbContext.Database.CanConnectAsync(cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Orders database connectivity validation failed.");
+        }
+
+        var migrations = dbContext.Database.GetMigrations().ToArray();
+        var applied = (await dbContext.Database
+                .GetAppliedMigrationsAsync(cancellationToken))
+            .ToArray();
         var pending = (await dbContext.Database
                 .GetPendingMigrationsAsync(cancellationToken))
             .ToArray();
+        var unexpected = applied.Except(migrations).ToArray();
+        if (unexpected.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"Orders has unexpected migrations: {string.Join(", ", unexpected)}");
+        }
+
         if (pending.Length > 0)
         {
             throw new InvalidOperationException(
                 $"Orders has pending migrations: {string.Join(", ", pending)}");
         }
 
+        if (dbContext.Database.HasPendingModelChanges())
+        {
+            throw new InvalidOperationException(
+                "Orders has pending model changes.");
+        }
+
         return "validated: Orders";
     }
 
-    private static async Task<string> ApplyAsync(
+    private static async Task<string> ApplyAndValidateAsync(
         OrdersDbContext dbContext,
         CancellationToken cancellationToken)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await ValidateAsync(dbContext, cancellationToken);
         return "applied: Orders";
     }
 }

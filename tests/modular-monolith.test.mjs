@@ -190,8 +190,19 @@ test("generation emits module-owned relational persistence for each provider", a
         "utf8",
       );
       assert.match(ordersModel, /ToTable\("orders_aggregate", "orders"\)/);
+      assert.match(
+        ordersModel,
+        /internal sealed class OrdersAggregateConfiguration\s*:\s*IEntityTypeConfiguration<OrdersAggregate>/,
+      );
+      assert.match(
+        ordersModel,
+        /ApplyConfiguration\(new OrdersAggregateConfiguration\(\)\)/,
+      );
       assert.match(ordersModel, /HasEntityTimestamps\(\)/);
-      assert.match(ordersModel, /IsConcurrencyToken\(\)/);
+      assert.match(
+        ordersModel,
+        /HasColumnName\("concurrency_token"\)[\s\S]*?IsConcurrencyToken\(\)[\s\S]*?ValueGeneratedNever\(\)/,
+      );
       assert.match(ordersModule, /AddDbContext<OrdersDbContext>/);
       assert.match(
         ordersModule,
@@ -213,6 +224,13 @@ test("generation emits module-owned relational persistence for each provider", a
           ? /type: "character varying\(200\)"/
           : /type: "nvarchar\(200\)"/,
       );
+      assert.match(migration, /concurrency_token = table.Column<Guid>/);
+      assert.match(migration, /protected override void Down/);
+      assert.match(migration, /DropTable\(/);
+      assert.match(
+        migration,
+        /created_at = table.Column[\s\S]*updated_at = table.Column/,
+      );
       assert.match(migrator, /validate/);
       assert.match(migrator, /script/);
       assert.match(migrator, /apply/);
@@ -223,6 +241,35 @@ test("generation emits module-owned relational persistence for each provider", a
     await Promise.all(
       roots.map((root) => rm(root, { recursive: true, force: true })),
     );
+  }
+});
+
+test("generated migration operations validate connectivity and post-apply state", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const output = join(root, "generated");
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      outputDirectory: output,
+    });
+
+    const module = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.Orders",
+        "OrdersModule.cs",
+      ),
+      "utf8",
+    );
+
+    assert.match(module, /CanConnectAsync\(cancellationToken\)/);
+    assert.match(module, /GetAppliedMigrationsAsync\(cancellationToken\)/);
+    assert.match(module, /ApplyAndValidateAsync/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

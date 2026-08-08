@@ -901,13 +901,23 @@ async function validateModularMonolithComposition(
       );
     }
     if (
+      !persistenceModelSource.includes(
+        `internal sealed class ${module.name}AggregateConfiguration`,
+      ) ||
+      !persistenceModelSource.includes(
+        `IEntityTypeConfiguration<${module.name}Aggregate>`,
+      ) ||
+      !persistenceModelSource.includes(
+        `ApplyConfiguration(new ${module.name}AggregateConfiguration())`,
+      ) ||
       !persistenceModelSource.includes(`ToTable("${table}", "${schema}")`) ||
       !persistenceModelSource.includes("HasEntityTimestamps()") ||
-      !persistenceModelSource.includes(`HasColumnName("concurrency_token")`) ||
-      !persistenceModelSource.includes("IsConcurrencyToken()")
+      !/HasColumnName\("concurrency_token"\)[\s\S]*?IsConcurrencyToken\(\)[\s\S]*?ValueGeneratedNever\(\)/.test(
+        persistenceModelSource,
+      )
     ) {
       fail(
-        `Business Module ${module.name} must use explicit portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
+        `Business Module ${module.name} must use an explicit configuration with portable relational naming and concurrency mapping in ${persistenceModelPath}.`,
       );
     }
     if (
@@ -917,11 +927,17 @@ async function validateModularMonolithComposition(
         `MigrationsHistoryTable("__ef_migrations_history", "${schema}")`,
       ) ||
       !compositionSource.includes(
+        'AddPersistence(services, configuration, "Database")',
+      ) ||
+      !compositionSource.includes(
+        'AddPersistence(services, configuration, "MigrationDatabase")',
+      ) ||
+      !compositionSource.includes(
         "public static void AddMigrationServices",
       )
     ) {
       fail(
-        `Business Module ${module.name} must select one provider and compose its migration history explicitly.`,
+        `Business Module ${module.name} must select one provider, compose its migration history explicitly, and keep runtime Database separate from MigrationDatabase configuration.`,
       );
     }
     if (
@@ -930,13 +946,18 @@ async function validateModularMonolithComposition(
       ) ||
       !migrationSource.includes(`EnsureSchema(name: "${schema}")`) ||
       !migrationSource.includes(`name: "${table}"`) ||
+      !migrationSource.includes("concurrency_token = table.Column<Guid>") ||
       !migrationSource.includes(expectedTextType) ||
       !migrationSource.includes('created_at = table.Column') ||
       !migrationSource.includes('updated_at = table.Column') ||
+      !migrationSource.includes("protected override void Down") ||
+      !migrationSource.includes("DropTable(") ||
       !snapshotSource.includes(
         `internal partial class ${module.name}DbContextModelSnapshot : ModelSnapshot`,
       ) ||
-      !snapshotSource.includes(`HasDefaultSchema("${schema}")`)
+      !snapshotSource.includes(`HasDefaultSchema("${schema}")`) ||
+      !snapshotSource.includes('Property<Guid>("ConcurrencyToken")') ||
+      !snapshotSource.includes("IsConcurrencyToken()")
     ) {
       fail(
         `Business Module ${module.name} must include deterministic migrations and a matching snapshot.`,
@@ -955,13 +976,17 @@ async function validateModularMonolithComposition(
       );
     }
     if (
+      !compositionSource.includes("CanConnectAsync") ||
+      !compositionSource.includes("GetAppliedMigrationsAsync") ||
       !compositionSource.includes("GetPendingMigrationsAsync") ||
+      !compositionSource.includes("HasPendingModelChanges") ||
       !compositionSource.includes("GenerateScript(") ||
       !compositionSource.includes("MigrationsSqlGenerationOptions.Idempotent") ||
-      !compositionSource.includes("MigrateAsync")
+      !compositionSource.includes("MigrateAsync") ||
+      !compositionSource.includes("ApplyAndValidateAsync")
     ) {
       fail(
-        `Business Module ${module.name} migration composition must implement validate, script, and apply.`,
+        `Business Module ${module.name} migration composition must validate connectivity, migration history, model state, idempotent scripts, and post-apply state.`,
       );
     }
     if (/\b(?:IUnitOfWork|UnitOfWork|IRepository|Repository)\b/.test(persistenceSource)) {

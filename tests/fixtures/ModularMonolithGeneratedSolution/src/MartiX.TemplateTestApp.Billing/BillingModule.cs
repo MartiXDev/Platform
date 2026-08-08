@@ -45,7 +45,7 @@ public static class BillingModule
             "validate" => await ValidateAsync(dbContext, cancellationToken),
             "script" => dbContext.Database.GenerateScript(
                 options: MigrationsSqlGenerationOptions.Idempotent),
-            "apply" => await ApplyAsync(dbContext, cancellationToken),
+            "apply" => await ApplyAndValidateAsync(dbContext, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
     }
@@ -80,23 +80,47 @@ public static class BillingModule
         BillingDbContext dbContext,
         CancellationToken cancellationToken)
     {
+        if (!await dbContext.Database.CanConnectAsync(cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Billing database connectivity validation failed.");
+        }
+
+        var migrations = dbContext.Database.GetMigrations().ToArray();
+        var applied = (await dbContext.Database
+                .GetAppliedMigrationsAsync(cancellationToken))
+            .ToArray();
         var pending = (await dbContext.Database
                 .GetPendingMigrationsAsync(cancellationToken))
             .ToArray();
+        var unexpected = applied.Except(migrations).ToArray();
+        if (unexpected.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"Billing has unexpected migrations: {string.Join(", ", unexpected)}");
+        }
+
         if (pending.Length > 0)
         {
             throw new InvalidOperationException(
                 $"Billing has pending migrations: {string.Join(", ", pending)}");
         }
 
+        if (dbContext.Database.HasPendingModelChanges())
+        {
+            throw new InvalidOperationException(
+                "Billing has pending model changes.");
+        }
+
         return "validated: Billing";
     }
 
-    private static async Task<string> ApplyAsync(
+    private static async Task<string> ApplyAndValidateAsync(
         BillingDbContext dbContext,
         CancellationToken cancellationToken)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await ValidateAsync(dbContext, cancellationToken);
         return "applied: Billing";
     }
 }
