@@ -1106,7 +1106,9 @@ async function validateModularMonolithComposition(
 
 async function validateModularMonolithSolution(rootDir, manifest) {
   const solutionRoot = resolve(rootDir, MODULAR_MONOLITH_SOLUTION_ROOT);
-  const actualFiles = await listFiles(solutionRoot);
+  const actualFiles = await listFiles(solutionRoot, {
+    ignoredDirectories: ["bin", "obj"],
+  });
   const expectedFiles = modularMonolithExpectedFiles(manifest);
   if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
     const missing = expectedFiles.filter((file) => !actualFiles.includes(file));
