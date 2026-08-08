@@ -5,8 +5,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
-  using System.Security.Authentication;
-  using System.Security.Cryptography.X509Certificates;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 using System.Threading.RateLimiting;
 using MartiX.Platform.Security;
@@ -366,7 +366,7 @@ internal static class HostSecurity
         return options;
     }
 
-    private static IPNetwork ParseNetwork(string value)
+    internal static IPNetwork ParseNetwork(string value)
     {
         var segments = value.Split('/', 2, StringSplitOptions.TrimEntries);
         if (segments.Length != 2
@@ -444,12 +444,7 @@ internal sealed class HostSecurityOptions
                 "Production hosts must require HTTPS.");
         }
 
-        if (!Uri.TryCreate(PublicOrigin, UriKind.Absolute, out var publicOrigin)
-            || publicOrigin.Scheme != Uri.UriSchemeHttps
-            || publicOrigin.UserInfo.Length != 0
-            || publicOrigin.AbsolutePath != "/"
-            || publicOrigin.Query.Length != 0
-            || publicOrigin.Fragment.Length != 0)
+        if (!IsSafeHttpsOrigin(PublicOrigin))
         {
             throw new InvalidOperationException(
                 "Host:Security:PublicOrigin must be an HTTPS origin without user information.");
@@ -487,7 +482,7 @@ internal sealed class HostSecurityOptions
         }
         foreach (var network in ForwardedHeaders.KnownNetworks)
         {
-            ParseNetwork(network);
+            HostSecurity.ParseNetwork(network);
         }
 
         if (ForwardedHeaders.ForwardLimit is < 1 or > 5)
@@ -503,12 +498,7 @@ internal sealed class HostSecurityOptions
             RequireSafeList(Cors.AllowedHeaders, "Host:Security:Cors:AllowedHeaders");
             foreach (var origin in Cors.AllowedOrigins)
             {
-                if (!Uri.TryCreate(origin, UriKind.Absolute, out var corsOrigin)
-                    || corsOrigin.Scheme != Uri.UriSchemeHttps
-                    || corsOrigin.UserInfo.Length != 0
-                    || corsOrigin.AbsolutePath != "/"
-                    || corsOrigin.Query.Length != 0
-                    || corsOrigin.Fragment.Length != 0)
+                if (!IsSafeHttpsOrigin(origin))
                 {
                     throw new InvalidOperationException(
                         "Production CORS origins must be explicit HTTPS origins.");
@@ -590,6 +580,16 @@ internal sealed class HostSecurityOptions
             throw new InvalidOperationException(
                 "Outbound HTTP timeouts must be bounded.");
         }
+    }
+
+    private static bool IsSafeHttpsOrigin(string? value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var origin)
+            && origin.Scheme == Uri.UriSchemeHttps
+            && origin.UserInfo.Length == 0
+            && origin.AbsolutePath == "/"
+            && origin.Query.Length == 0
+            && origin.Fragment.Length == 0;
     }
 
     private static void RequireText(string? value, string path)
@@ -949,11 +949,23 @@ internal static class HostSecurityOptionsOutbound
 
     private static bool IsPublicAddress(IPAddress address)
     {
-        return !IPAddress.IsLoopback(address)
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            return !IPAddress.IsLoopback(address)
+                && !IsPrivateIpv4(address);
+        }
+
+        return address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+            && !IPAddress.IsLoopback(address)
             && !IsIpv6LinkLocal(address)
             && !IsIpv6SiteLocal(address)
             && !IsUniqueLocal(address)
-            && !IsPrivateIpv4(address);
+            && IsGlobalIpv6(address);
     }
 
     private static bool IsIpv6LinkLocal(IPAddress address)
@@ -987,7 +999,11 @@ internal static class HostSecurityOptionsOutbound
                 || bytes[0] == 127
                 || (bytes[0] == 169 && bytes[1] == 254)
                 || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
-                || (bytes[0] == 192 && bytes[1] == 168));
+                || (bytes[0] == 192 && bytes[1] == 168)
+                || (bytes[0] == 192 && bytes[1] == 0)
+                || (bytes[0] == 198 && bytes[1] is 18 or 19)
+                || (bytes[0] == 100 && bytes[1] is >= 64 and <= 127)
+                || bytes[0] >= 224);
     }
 
     private static bool IsUniqueLocal(IPAddress address)
@@ -998,6 +1014,12 @@ internal static class HostSecurityOptionsOutbound
         }
 
         return (address.GetAddressBytes()[0] & 0xFE) == 0xFC;
+    }
+
+    private static bool IsGlobalIpv6(IPAddress address)
+    {
+        var firstByte = address.GetAddressBytes()[0];
+        return firstByte is >= 0x20 and < 0xFC;
     }
 }
 
