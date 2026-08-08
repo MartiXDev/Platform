@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>MartiX.Platform.AspNetCore.FastEndpoints</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>MartiXDev</Authors>
+    <Description>FastEndpoints adapter for the MartiX Platform HTTP contract.</Description>
+    <PackageTags>MartiX;Platform;ASP.NET;FastEndpoints;ProblemDetails;Results;Errors</PackageTags>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/MartiXDev/Platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <MartiXPlatformVersion>0.1.0-preview.1</MartiXPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MartiX.Platform.AspNetCore" Version="$(MartiXPlatformVersion)" />
+    <PackageReference Include="FastEndpoints" Version="8.3.0-beta.19" />
+    <PackageReference Include="FastEndpoints.OpenApi" Version="8.3.0-beta.19" />
+  </ItemGroup>
+</Project>

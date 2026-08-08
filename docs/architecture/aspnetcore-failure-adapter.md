@@ -69,3 +69,17 @@ Problem Details schema. Run it with:
 ```text
 npm run verify:aspnetcore
 ```
+
+The optional FastEndpoints adapter has a separate named acceptance seam at
+`tests/Compatibility/FastEndpointsAdapterGeneratedSolution/`. It packs the
+adapter into an isolated feed, runs a TUnit black-box host, checks the shared
+Problem Details, lifecycle, failure-redaction, and OpenAPI behavior, and
+records the declared support matrix. Run it with:
+
+```text
+npm run verify:fastendpoints
+```
+
+FastEndpoints reflection discovery is declared JIT-only in this preview.
+Trimmed and Native AOT combinations are reported as `Invalid`, not treated as
+passing or silently omitted.
