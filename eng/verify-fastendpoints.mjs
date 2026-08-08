@@ -131,73 +131,42 @@ export async function verifyFastEndpoints({ rootDir = process.cwd() } = {}) {
       "FastEndpoints adapter",
       environment,
     );
+  const restoreProject = (project) =>
+    runCommand([
+      "restore",
+      project,
+      "--source",
+      packageFeed,
+      "--source",
+      NUGET_SOURCE,
+      "--ignore-failed-sources",
+      "--nologo",
+    ]);
+  const packProject = (project, { noRestore = false } = {}) =>
+    runCommand([
+      "pack",
+      project,
+      "--configuration",
+      "Release",
+      "--output",
+      packageFeed,
+      ...(noRestore ? ["--no-restore"] : []),
+      "--nologo",
+    ]);
 
   try {
-    await runCommand([
-      "pack",
-      KERNEL_PROJECT,
-      "--configuration",
-      "Release",
-      "--output",
-      packageFeed,
-      "--nologo",
-    ]);
-    await runCommand([
-      "restore",
-      ASPNETCORE_PROJECT,
-      "--source",
-      packageFeed,
-      "--source",
-      NUGET_SOURCE,
-      "--ignore-failed-sources",
-      "--nologo",
-    ]);
-    await runCommand([
-      "pack",
-      ASPNETCORE_PROJECT,
-      "--configuration",
-      "Release",
-      "--output",
-      packageFeed,
-      "--no-restore",
-      "--nologo",
-    ]);
-    await runCommand([
-      "restore",
-      ADAPTER_PROJECT,
-      "--source",
-      packageFeed,
-      "--source",
-      NUGET_SOURCE,
-      "--ignore-failed-sources",
-      "--nologo",
-    ]);
-    await runCommand([
-      "pack",
-      ADAPTER_PROJECT,
-      "--configuration",
-      "Release",
-      "--output",
-      packageFeed,
-      "--no-restore",
-      "--nologo",
-    ]);
+    await packProject(KERNEL_PROJECT);
+    await restoreProject(ASPNETCORE_PROJECT);
+    await packProject(ASPNETCORE_PROJECT, { noRestore: true });
+    await restoreProject(ADAPTER_PROJECT);
+    await packProject(ADAPTER_PROJECT, { noRestore: true });
 
     const packageEntries = await verifyPackageContent(
       adapterPackagePath,
       repositoryRoot,
     );
 
-    await runCommand([
-      "restore",
-      CONSUMER_PROJECT,
-      "--source",
-      packageFeed,
-      "--source",
-      NUGET_SOURCE,
-      "--ignore-failed-sources",
-      "--nologo",
-    ]);
+    await restoreProject(CONSUMER_PROJECT);
     await runCommand([
       "run",
       "--project",

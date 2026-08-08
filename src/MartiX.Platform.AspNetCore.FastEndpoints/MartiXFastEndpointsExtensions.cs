@@ -81,33 +81,7 @@ public static class MartiXFastEndpointsExtensions
         app.Use(
             (context, next) =>
             {
-                context.Response.OnStarting(
-                    static state =>
-                    {
-                        var httpContext = (HttpContext)state;
-                        if (httpContext.GetEndpoint()?.Metadata
-                                .GetMetadata<MartiXLifecycleMetadata>()
-                            is not { } lifecycle)
-                        {
-                            return Task.CompletedTask;
-                        }
-
-                        httpContext.Response.Headers["Deprecation"] =
-                            $"@{lifecycle.Deprecation.ToUnixTimeSeconds().ToString(
-                                CultureInfo.InvariantCulture)}";
-                        httpContext.Response.Headers["Link"] =
-                            $"<{lifecycle.MigrationLink.AbsoluteUri}>; rel=\"deprecation\"";
-                        if (lifecycle.Sunset is not null)
-                        {
-                            httpContext.Response.Headers["Sunset"] =
-                                lifecycle.Sunset.Value.ToUniversalTime().ToString(
-                                    "R",
-                                    CultureInfo.InvariantCulture);
-                        }
-
-                        return Task.CompletedTask;
-                    },
-                    context);
+                context.Response.OnStarting(WriteLifecycleHeaders, context);
                 return next();
             });
 
@@ -120,4 +94,29 @@ public static class MartiXFastEndpointsExtensions
             });
     }
 
+    private static Task WriteLifecycleHeaders(object state)
+    {
+        var httpContext = (HttpContext)state;
+        if (httpContext.GetEndpoint()?.Metadata
+                .GetMetadata<MartiXLifecycleMetadata>()
+            is not { } lifecycle)
+        {
+            return Task.CompletedTask;
+        }
+
+        httpContext.Response.Headers["Deprecation"] =
+            $"@{lifecycle.Deprecation.ToUnixTimeSeconds().ToString(
+                CultureInfo.InvariantCulture)}";
+        httpContext.Response.Headers["Link"] =
+            $"<{lifecycle.MigrationLink.AbsoluteUri}>; rel=\"deprecation\"";
+        if (lifecycle.Sunset is not null)
+        {
+            httpContext.Response.Headers["Sunset"] =
+                lifecycle.Sunset.Value.ToUniversalTime().ToString(
+                    "R",
+                    CultureInfo.InvariantCulture);
+        }
+
+        return Task.CompletedTask;
+    }
 }

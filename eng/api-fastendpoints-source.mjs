@@ -3,29 +3,32 @@ function fail(message) {
 }
 
 export function renderFastEndpointsOrdersSource(plan, minimalSource) {
-  const endpointMarker = "internal static class OrdersEndpoints";
-  const operationsMarker = "    private static Results<Ok<OrderPage>";
-  const endpointStart = minimalSource.indexOf(endpointMarker);
-  const operationsStart = minimalSource.indexOf(operationsMarker, endpointStart);
-  const classEnd = minimalSource.lastIndexOf("\n}");
+  const endpointClassMarker = "internal static class OrdersEndpoints";
+  const firstOperationMarker = "    private static Results<Ok<OrderPage>";
+  const endpointClassStart = minimalSource.indexOf(endpointClassMarker);
+  const operationsStart = minimalSource.indexOf(
+    firstOperationMarker,
+    endpointClassStart,
+  );
+  const endpointClassEnd = minimalSource.lastIndexOf("\n}");
 
   if (
-    endpointStart === -1 ||
+    endpointClassStart === -1 ||
     operationsStart === -1 ||
-    classEnd === -1 ||
-    operationsStart >= classEnd
+    endpointClassEnd === -1 ||
+    operationsStart >= endpointClassEnd
   ) {
     fail("The canonical Minimal API endpoint source is incomplete.");
   }
 
   const sharedSource = minimalSource
-    .slice(0, endpointStart)
+    .slice(0, endpointClassStart)
     .replace(
       "using Microsoft.AspNetCore.Routing;",
-       "using MartiX.Platform.AspNetCore.FastEndpoints;",
+      "using MartiX.Platform.AspNetCore.FastEndpoints;",
     );
-  const operations = minimalSource
-    .slice(operationsStart, classEnd)
+  const operationSource = minimalSource
+    .slice(operationsStart, endpointClassEnd)
     .replaceAll(
       "    private static Results<",
       "    internal static Results<",
@@ -34,7 +37,7 @@ export function renderFastEndpointsOrdersSource(plan, minimalSource) {
   return `${sharedSource}
 internal static class OrdersEndpoints
 {
-${operations}
+${operationSource}
 }
 
 public sealed class ListOrdersRequest

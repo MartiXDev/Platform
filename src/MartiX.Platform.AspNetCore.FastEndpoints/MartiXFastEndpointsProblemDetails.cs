@@ -12,6 +12,8 @@ namespace MartiX.Platform.AspNetCore.FastEndpoints;
 
 internal static class MartiXFastEndpointsProblemDetails
 {
+    private const string ValidationCode = "api.validation";
+
     internal static ProblemHttpResult CreateValidation(
         IReadOnlyList<ValidationFailure> failures,
         HttpContext httpContext)
@@ -38,7 +40,7 @@ internal static class MartiXFastEndpointsProblemDetails
                 : null,
         };
 
-        problemDetails.Extensions["code"] = "api.validation";
+        problemDetails.Extensions["code"] = ValidationCode;
         problemDetails.Extensions["traceId"] =
             Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
         problemDetails.Extensions["errors"] = failures
@@ -53,7 +55,7 @@ internal static class MartiXFastEndpointsProblemDetails
     {
         var extension = new Dictionary<string, object?>
         {
-            ["code"] = "api.validation",
+            ["code"] = ValidationCode,
             ["message"] = failure.ErrorMessage,
         };
         if (!string.IsNullOrWhiteSpace(failure.PropertyName))

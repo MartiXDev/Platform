@@ -354,10 +354,11 @@ function validateApiSelections({
 function createPlan(applicationName, selectedProvider) {
   const projectNames = getProjectNames(applicationName);
   const baselineCapabilities = [...API_BASELINE_CAPABILITIES];
+  const endpointProvider = selectedProvider ?? "minimal-api";
   const providerDefinition = API_PROVIDER_MATRIX.find(
     ({ id }) => id === selectedProvider,
   );
-  const packageReference = selectedProvider === null
+  const providerPackageReferences = selectedProvider === null
     ? []
     : [API_PROVIDER_PACKAGE_REFERENCES.get(selectedProvider)];
 
@@ -381,10 +382,10 @@ function createPlan(applicationName, selectedProvider) {
           state: "selected",
         }],
     persistence: "none",
-    endpointProvider: selectedProvider ?? "minimal-api",
+    endpointProvider,
     packageReferences: [
       ...API_PACKAGE_REFERENCES,
-      ...packageReference,
+      ...providerPackageReferences,
     ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
@@ -393,7 +394,7 @@ function createPlan(applicationName, selectedProvider) {
     selected: {
       applicationUi: false,
       businessModules: false,
-      endpointProvider: selectedProvider ?? "minimal-api",
+      endpointProvider,
       relationalPersistence: false,
     },
   };
@@ -545,7 +546,10 @@ public sealed record HealthResponse(string Status);
 }
 
 function fastEndpointsApiProgramFile(plan) {
- return `using MartiX.Platform.AspNetCore;
+  return `using System;
+using System.Collections.Generic;
+using ${plan.applicationName}.Api.Orders;
+using MartiX.Platform.AspNetCore;
 using MartiX.Platform.AspNetCore.FastEndpoints;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.OpenApi;
@@ -563,8 +567,18 @@ public static class ApiComposition
     public static void ConfigureServices(IServiceCollection services)
     {
         services.AddMartiXProblemDetails();
-        services.AddMartiXFastEndpoints();
-        services.AddSingleton<${plan.applicationName}.Api.Orders.OrderStore>();
+        services.AddMartiXFastEndpoints(new List<Type>
+        {
+            typeof(ListOrdersEndpoint),
+            typeof(GetOrderEndpoint),
+            typeof(CreateOrderEndpoint),
+            typeof(ReplaceOrderEndpoint),
+            typeof(UpdateOrderEndpoint),
+            typeof(DeleteOrderEndpoint),
+            typeof(LegacyListOrdersEndpoint),
+            typeof(HealthEndpoint),
+        });
+        services.AddSingleton<OrderStore>();
     }
 
     public static void Configure(WebApplication app)

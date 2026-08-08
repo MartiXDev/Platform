@@ -134,6 +134,8 @@ test("FastEndpoints selection is explicit and deterministic", async () => {
     ).join("\n");
     assert.match(productionText, /FastEndpoints/);
     assert.match(productionText, /Endpoint</);
+    assert.match(productionText, /AddMartiXFastEndpoints\(new List<Type>/);
+    assert.doesNotMatch(productionText, /AddMartiXFastEndpoints\(\);/);
     assert.doesNotMatch(
       productionText,
       /app\.Map(?:Get|Post|Put|Patch|Delete)\s*\(/,
