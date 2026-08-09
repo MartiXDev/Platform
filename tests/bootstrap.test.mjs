@@ -71,6 +71,24 @@ function valkeyFixturePath(rootDir, ...segments) {
   );
 }
 
+async function assertValkeyProgramChangeRejected(search, replacement) {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const sourcePath = valkeyFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.ValkeyDistributedCacheTestApp.Api",
+      "Program.cs",
+    );
+    const source = await readFile(sourcePath, "utf8");
+    await writeFile(sourcePath, source.replace(search, replacement));
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Valkey API composition must use direct framework cache interfaces/,
+    );
+  });
+}
+
 test("fast cadence verifies the repository bootstrap contract", async () => {
   const result = await verifyBootstrap({
     cadence: "fast",
@@ -158,72 +176,24 @@ test("the named Provider Admission fixture proves selection, absence, and invali
 });
 
 test("Valkey verification rejects cache-facade residue", async () => {
-  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
-    const sourcePath = valkeyFixturePath(
-      temporaryRoot,
-      "src",
-      "MartiX.ValkeyDistributedCacheTestApp.Api",
-      "Program.cs",
-    );
-    const source = await readFile(sourcePath, "utf8");
-    await writeFile(
-      sourcePath,
-      source.replace(
-        "services.AddStackExchangeRedisCache",
-        "services.AddDistributedMemoryCache",
-      ),
-    );
-
-    await assert.rejects(
-      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
-      /Valkey API composition must use direct framework cache interfaces/,
-    );
-  });
+  await assertValkeyProgramChangeRejected(
+    "services.AddStackExchangeRedisCache",
+    "services.AddDistributedMemoryCache",
+  );
 });
 
 test("Valkey verification rejects cache-coupled global readiness", async () => {
-  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
-    const sourcePath = valkeyFixturePath(
-      temporaryRoot,
-      "src",
-      "MartiX.ValkeyDistributedCacheTestApp.Api",
-      "Program.cs",
-    );
-    const source = await readFile(sourcePath, "utf8");
-    await writeFile(
-      sourcePath,
-      source.replace(
-        'Predicate = check => check.Tags.Contains("ready")',
-        'Predicate = check => check.Tags.Contains("ready") && check.Tags.Contains("cache")',
-      ),
-    );
-
-    await assert.rejects(
-      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
-      /Valkey API composition must use direct framework cache interfaces/,
-    );
-  });
+  await assertValkeyProgramChangeRejected(
+    'Predicate = check => check.Tags.Contains("ready")',
+    'Predicate = check => check.Tags.Contains("ready") && check.Tags.Contains("cache")',
+  );
 });
 
 test("Valkey verification rejects missing direct cache registration", async () => {
-  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
-    const sourcePath = valkeyFixturePath(
-      temporaryRoot,
-      "src",
-      "MartiX.ValkeyDistributedCacheTestApp.Api",
-      "Program.cs",
-    );
-    const source = await readFile(sourcePath, "utf8");
-    await writeFile(
-      sourcePath,
-      source.replace("services.AddStackExchangeRedisCache", "services.AddSingleton"),
-    );
-
-    await assert.rejects(
-      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
-      /Valkey API composition must use direct framework cache interfaces/,
-    );
-  });
+  await assertValkeyProgramChangeRejected(
+    "services.AddStackExchangeRedisCache",
+    "services.AddSingleton",
+  );
 });
 
 test("Full Stack verification rejects UI contract version drift", async () => {

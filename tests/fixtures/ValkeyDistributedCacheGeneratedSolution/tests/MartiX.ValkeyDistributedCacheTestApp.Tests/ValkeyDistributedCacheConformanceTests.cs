@@ -10,26 +10,27 @@ using Testcontainers.Redis;
 
 public sealed class ValkeyDistributedCacheConformanceTests
 {
-    private static readonly RedisContainer Valkey = new RedisBuilder()
+    private static readonly RedisContainer valkeyContainer = new RedisBuilder()
         .WithImage("valkey/valkey:9.1.0")
         .Build();
 
     [Before(Class)]
     public static async Task StartValkeyAsync()
     {
-        await Valkey.StartAsync();
+        await valkeyContainer.StartAsync();
     }
 
     [After(Class)]
     public static async Task StopValkeyAsync()
     {
-        await Valkey.DisposeAsync();
+        await valkeyContainer.DisposeAsync();
     }
 
     [Test, NotInParallel("valkey-conformance")]
     public async Task The_framework_cache_preserves_serialization_and_expiry()
     {
-        await using var host = await ApiHost.StartAsync(Valkey.GetConnectionString());
+        await using var host = await ApiHost.StartAsync(
+            valkeyContainer.GetConnectionString());
         var cache = host.Services.GetRequiredService<IDistributedCache>();
         var value = new CachedValue("json", 42);
         var options = new DistributedCacheEntryOptions
@@ -57,9 +58,9 @@ public sealed class ValkeyDistributedCacheConformanceTests
     public async Task A_second_host_observes_the_first_host_entry()
     {
         await using var firstHost = await ApiHost.StartAsync(
-            Valkey.GetConnectionString());
+            valkeyContainer.GetConnectionString());
         await using var secondHost = await ApiHost.StartAsync(
-            Valkey.GetConnectionString());
+            valkeyContainer.GetConnectionString());
         var firstCache = firstHost.Services.GetRequiredService<IDistributedCache>();
         var secondCache = secondHost.Services.GetRequiredService<IDistributedCache>();
 
@@ -75,7 +76,8 @@ public sealed class ValkeyDistributedCacheConformanceTests
     [Test, NotInParallel("valkey-conformance")]
     public async Task Cache_keys_do_not_overwrite_each_other()
     {
-        await using var host = await ApiHost.StartAsync(Valkey.GetConnectionString());
+        await using var host = await ApiHost.StartAsync(
+            valkeyContainer.GetConnectionString());
         var cache = host.Services.GetRequiredService<IDistributedCache>();
 
         await cache.SetStringAsync("conformance:key-isolation:a", "value-a");
@@ -92,8 +94,9 @@ public sealed class ValkeyDistributedCacheConformanceTests
     [Test, NotInParallel("valkey-conformance")]
     public async Task Cache_outage_preserves_business_authorization_and_readiness()
     {
-        await using var host = await ApiHost.StartAsync(Valkey.GetConnectionString());
-        await Valkey.StopAsync();
+        await using var host = await ApiHost.StartAsync(
+            valkeyContainer.GetConnectionString());
+        await valkeyContainer.StopAsync();
         try
         {
             using var businessResponse = await host.Client.GetAsync(
@@ -118,7 +121,7 @@ public sealed class ValkeyDistributedCacheConformanceTests
         }
         finally
         {
-            await Valkey.StartAsync();
+            await valkeyContainer.StartAsync();
         }
 
         var cache = host.Services.GetRequiredService<IDistributedCache>();
@@ -131,7 +134,8 @@ public sealed class ValkeyDistributedCacheConformanceTests
     [Test, NotInParallel("valkey-conformance")]
     public async Task Cancellation_reaches_the_framework_cache_call()
     {
-        await using var host = await ApiHost.StartAsync(Valkey.GetConnectionString());
+        await using var host = await ApiHost.StartAsync(
+            valkeyContainer.GetConnectionString());
         var cache = host.Services.GetRequiredService<IDistributedCache>();
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
@@ -174,8 +178,7 @@ public sealed class ValkeyDistributedCacheConformanceTests
             ValkeyComposition.ConfigureBuilder(builder);
             ValkeyComposition.ConfigureServices(
                 builder.Services,
-                builder.Configuration,
-                builder.Environment);
+                builder.Configuration);
 
             var app = builder.Build();
             ValkeyComposition.Configure(app);

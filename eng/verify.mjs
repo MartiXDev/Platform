@@ -2635,6 +2635,8 @@ const VALKEY_CONFORMANCE_EXPECTED_FILES = Object.freeze([
   "tests/MartiX.ValkeyDistributedCacheTestApp.Tests/ValkeyDistributedCacheConformanceTests.cs",
   "valkey-conformance.json",
 ]);
+const DISALLOWED_EXCEPTION_CATCH =
+  /catch\s*\(\s*(?:OperationCanceledException\b|Exception(?:\s+\w+)?\s*\)(?!\s*when\b))/;
 
 export async function validateValkeyDistributedCacheFixture({
   rootDir,
@@ -2850,7 +2852,7 @@ export async function validateValkeyDistributedCacheFixture({
     /AddDistributedMemoryCache|Microsoft\.NET\.Test\.Sdk|coverlet|ICacheService|CacheService\b|MartiX\.Cache(?:Service|Facade)/i.test(
       apiSource,
     ) ||
-    /catch\s*\(\s*(?:Exception|OperationCanceledException)\b/.test(apiSource)
+    DISALLOWED_EXCEPTION_CATCH.test(apiSource)
   ) {
     fail(
       `Valkey API composition must use direct framework cache interfaces, explicit semantics, cancellation, and narrow failure handling: ${apiSourcePath}.`,
@@ -2861,7 +2863,7 @@ export async function validateValkeyDistributedCacheFixture({
     !healthSource.includes("GetAsync") ||
     !healthSource.includes("HealthCheckResult.Unhealthy") ||
     healthSource.includes("SetAsync") ||
-    /catch\s*\(\s*(?:Exception|OperationCanceledException)\b/.test(healthSource)
+    DISALLOWED_EXCEPTION_CATCH.test(healthSource)
   ) {
     fail(
       `Valkey health must be a read-only, bounded cache signal with explicit provider failures: ${healthSourcePath}.`,
@@ -2886,7 +2888,7 @@ export async function validateValkeyDistributedCacheFixture({
   if (
     requiredTestFragments.some((fragment) => !testSource.includes(fragment)) ||
     /Microsoft\.NET\.Test\.Sdk|coverlet/i.test(testSource) ||
-    /catch\s*\(\s*(?:Exception|OperationCanceledException)\b/.test(testSource)
+    DISALLOWED_EXCEPTION_CATCH.test(testSource)
   ) {
     fail(
       `Valkey TUnit conformance tests must cover the pinned service, cancellation, outage, reconnect, and multi-instance behavior: ${testSourcePath}.`,

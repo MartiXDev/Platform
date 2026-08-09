@@ -1,19 +1,16 @@
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -22,8 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 ValkeyComposition.ConfigureBuilder(builder);
 ValkeyComposition.ConfigureServices(
     builder.Services,
-    builder.Configuration,
-    builder.Environment);
+    builder.Configuration);
 
 var app = builder.Build();
 ValkeyComposition.Configure(app);
@@ -38,20 +34,18 @@ public static class ValkeyComposition
     public const string MeterName = "MartiX.ValkeyDistributedCache";
     public const string HealthProbeKey = "__martix/health";
 
+    private const string StatusCacheKeyPrefix = "status:v1:";
     private static readonly Meter Meter = new(MeterName);
     private static readonly Counter<long> CacheFailures =
         Meter.CreateCounter<long>("martix.cache.failures");
 
     public static void ConfigureBuilder(WebApplicationBuilder builder)
     {
-        ValidateStartup(builder.Configuration, builder.Environment);
+        ValidateStartup(builder.Configuration);
     }
 
-    public static void ValidateStartup(
-        IConfiguration configuration,
-        IHostEnvironment environment)
+    public static void ValidateStartup(IConfiguration configuration)
     {
-        _ = environment;
         _ = RequireConnectionString(configuration);
         if (!string.Equals(
                 configuration["DistributedCache:Provider"],
@@ -65,10 +59,9 @@ public static class ValkeyComposition
 
     public static void ConfigureServices(
         IServiceCollection services,
-        IConfiguration configuration,
-        IHostEnvironment environment)
+        IConfiguration configuration)
     {
-        ValidateStartup(configuration, environment);
+        ValidateStartup(configuration);
         var options = CreateConfigurationOptions(
             RequireConnectionString(configuration));
 
@@ -145,7 +138,7 @@ public static class ValkeyComposition
     {
         var logger = loggerFactory.CreateLogger("ValkeyDistributedCache");
         var normalizedKey = NormalizeKey(key);
-        var cacheKey = $"{CacheInstanceName}status:v1:{normalizedKey}";
+        var cacheKey = $"{StatusCacheKeyPrefix}{normalizedKey}";
         var cached = await TryGetAsync(
             cache,
             cacheKey,
@@ -163,10 +156,9 @@ public static class ValkeyComposition
                     return TypedResults.Ok(cachedStatus);
                 }
             }
-            catch (JsonException exception)
+            catch (JsonException)
             {
                 logger.LogWarning(
-                    exception,
                     "The distributed cache returned an invalid status payload.");
             }
         }
@@ -197,14 +189,9 @@ public static class ValkeyComposition
         {
             return await cache.GetAsync(cacheKey, cancellationToken);
         }
-        catch (RedisException exception)
+        catch (Exception exception) when (IsCacheFailure(exception))
         {
-            RecordCacheFailure(logger, exception, "get");
-            return null;
-        }
-        catch (TimeoutException exception)
-        {
-            RecordCacheFailure(logger, exception, "get");
+            RecordCacheFailure(logger, "get");
             return null;
         }
     }
@@ -228,26 +215,25 @@ public static class ValkeyComposition
                 },
                 cancellationToken);
         }
-        catch (RedisException exception)
+        catch (Exception exception) when (IsCacheFailure(exception))
         {
-            RecordCacheFailure(logger, exception, "set");
+            RecordCacheFailure(logger, "set");
         }
-        catch (TimeoutException exception)
-        {
-            RecordCacheFailure(logger, exception, "set");
-        }
+    }
+
+    private static bool IsCacheFailure(Exception exception)
+    {
+        return exception is RedisException or TimeoutException;
     }
 
     private static void RecordCacheFailure(
         ILogger logger,
-        Exception exception,
         string operation)
     {
         CacheFailures.Add(
             1,
             new KeyValuePair<string, object?>("operation", operation));
         logger.LogWarning(
-            exception,
             "Distributed cache {CacheOperation} failed; the business result remains authoritative.",
             operation);
     }
@@ -288,9 +274,9 @@ public static class ValkeyComposition
     }
 }
 
-public sealed record BusinessStatus(string Key, string Value);
+internal sealed record BusinessStatus(string Key, string Value);
 
-public sealed class BusinessStatusStore
+internal sealed class BusinessStatusStore
 {
     public BusinessStatus Read(string key)
     {
