@@ -14,6 +14,44 @@ async function readPackageFile(name) {
   return readFile(join(packageRoot, name), "utf8");
 }
 
+async function readPackageFiles(names) {
+  return Promise.all(names.map((name) => readPackageFile(name)));
+}
+
+test("RabbitMQ adapter centralizes subscription normalization", async () => {
+  const [options, topology, transport] = await readPackageFiles([
+    "RabbitMqTransportOptions.cs",
+    "RabbitMqTopology.cs",
+    "RabbitMqReliableEventsTransport.cs",
+  ]);
+
+  assert.match(options, /GetNormalizedSubscriptions/);
+  assert.match(options, /NormalizeConfiguredSubscription/);
+  assert.match(options, /Encoding\.UTF8\.GetByteCount/);
+  assert.match(options, /Contains\('\*'\)|Contains\('#'\)/);
+  assert.match(topology, /options\.GetNormalizedSubscriptions\(\)/);
+  assert.match(transport, /options\.GetNormalizedSubscriptions\(\)/);
+  assert.match(transport, /NormalizeDeliverySubscription/);
+});
+
+test("RabbitMQ adapter validates composition and cleans up host-owned resources", async () => {
+  const [connectionManager, registration] = await readPackageFiles([
+    "RabbitMqConnectionManager.cs",
+    "RabbitMqReliableEventsRegistration.cs",
+  ]);
+
+  assert.match(
+    connectionManager,
+    /CreateChannelOnConnectionAsync[\s\S]*connection\.DisposeAsync/,
+  );
+  assert.match(registration, /services\.AddReliableEvents\(\)/);
+  assert.match(registration, /callbacks\.ClaimAsync/);
+  assert.match(registration, /callbacks\.DeliverAsync/);
+  assert.match(registration, /callbacks\.AcknowledgeAsync/);
+  assert.match(registration, /callbacks\.ScheduleRetryAsync/);
+  assert.match(registration, /callbacks\.FailAsync/);
+});
+
 test("RabbitMQ adapter pins the provider and preserves durable transport boundaries", async () => {
   const [
     project,
@@ -25,15 +63,15 @@ test("RabbitMQ adapter pins the provider and preserves durable transport boundar
     registration,
     diagnostics,
   ] =
-    await Promise.all([
-      readPackageFile("MartiX.Platform.IntegrationEvents.RabbitMq.csproj"),
-      readPackageFile("RabbitMqTransportOptions.cs"),
-      readPackageFile("RabbitMqTopology.cs"),
-      readPackageFile("RabbitMqEnvelopeSerializer.cs"),
-      readPackageFile("RabbitMqConnectionManager.cs"),
-      readPackageFile("RabbitMqReliableEventsTransport.cs"),
-      readPackageFile("RabbitMqReliableEventsRegistration.cs"),
-      readPackageFile("RabbitMqTransportDiagnostics.cs"),
+    await readPackageFiles([
+      "MartiX.Platform.IntegrationEvents.RabbitMq.csproj",
+      "RabbitMqTransportOptions.cs",
+      "RabbitMqTopology.cs",
+      "RabbitMqEnvelopeSerializer.cs",
+      "RabbitMqConnectionManager.cs",
+      "RabbitMqReliableEventsTransport.cs",
+      "RabbitMqReliableEventsRegistration.cs",
+      "RabbitMqTransportDiagnostics.cs",
     ]);
 
   assert.match(project, /PackageId>MartiX\.Platform\.IntegrationEvents\.RabbitMq/);

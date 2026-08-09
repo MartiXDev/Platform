@@ -70,6 +70,11 @@ public static class RabbitMqReliableEventsServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(subscriptions);
         ArgumentNullException.ThrowIfNull(callbacks);
+        ArgumentNullException.ThrowIfNull(callbacks.ClaimAsync);
+        ArgumentNullException.ThrowIfNull(callbacks.DeliverAsync);
+        ArgumentNullException.ThrowIfNull(callbacks.AcknowledgeAsync);
+        ArgumentNullException.ThrowIfNull(callbacks.ScheduleRetryAsync);
+        ArgumentNullException.ThrowIfNull(callbacks.FailAsync);
 
         var options = new RabbitMqTransportOptions
         {
@@ -101,6 +106,7 @@ public static class RabbitMqReliableEventsServiceCollectionExtensions
         };
         options.Validate();
 
+        services.AddReliableEvents();
         services.AddSingleton(options);
         services.AddSingleton<RabbitMqTransportDiagnostics>();
         services.AddSingleton<RabbitMqConnectionManager>();

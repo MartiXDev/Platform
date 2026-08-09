@@ -17,7 +17,7 @@ internal static class RabbitMqTopology
     {
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(options);
-        options.Validate();
+        var subscriptions = options.GetNormalizedSubscriptions();
 
         await channel.ExchangeDeclareAsync(
             options.Exchange,
@@ -25,7 +25,7 @@ internal static class RabbitMqTopology
             durable: true,
             autoDelete: false,
             cancellationToken: cancellationToken).ConfigureAwait(false);
-        foreach (var subscription in options.Subscriptions)
+        foreach (var subscription in subscriptions)
         {
             var queue = GetQueueName(options.QueuePrefix, subscription);
             await channel.QueueDeclareAsync(

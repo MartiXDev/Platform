@@ -41,14 +41,11 @@ internal sealed class RabbitMqConnectionManager
             var connection = await factory
                 .CreateConnectionAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var channel = await connection
-                .CreateChannelAsync(
-                    new CreateChannelOptions(
-                        publisherConfirmationsEnabled: publisherConfirms,
-                        publisherConfirmationTrackingEnabled: publisherConfirms,
-                        consumerDispatchConcurrency: 1),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            var channel = await CreateChannelOnConnectionAsync(
+                connection,
+                publisherConfirms,
+                cancellationToken).ConfigureAwait(false);
+
             diagnostics.SetConnected(true);
             return new RabbitMqChannelLease(connection, channel);
         }
@@ -58,6 +55,39 @@ internal sealed class RabbitMqConnectionManager
             diagnostics.SetConnected(false);
             logger.LogWarning(
                 "RabbitMQ connection or channel creation failed; durable reliable-event state remains recoverable.");
+            throw;
+        }
+    }
+
+    private async Task<IChannel> CreateChannelOnConnectionAsync(
+        IConnection connection,
+        bool publisherConfirms,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await connection
+                .CreateChannelAsync(
+                    new CreateChannelOptions(
+                        publisherConfirmationsEnabled: publisherConfirms,
+                        publisherConfirmationTrackingEnabled: publisherConfirms,
+                        consumerDispatchConcurrency: 1),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            try
+            {
+                await connection.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception cleanupException)
+            {
+                logger.LogWarning(
+                    "RabbitMQ connection cleanup failed after channel creation failed with {ExceptionType}.",
+                    cleanupException.GetType().Name);
+            }
+
             throw;
         }
     }
