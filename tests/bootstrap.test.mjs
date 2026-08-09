@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   REQUIRED_BOOTSTRAP_INPUTS,
+  validateMailKitSmtpFixture,
   validateProviderAdmissionFixture,
   verifyBootstrap,
 } from "../eng/verify.mjs";
@@ -140,6 +141,28 @@ test("the named Provider Admission fixture proves selection, absence, and invali
     result.matrixCoordinate,
     "operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
   );
+});
+
+test("the named MailKit SMTP fixture proves durable notification delivery", async () => {
+  const fixtureRoot = join(
+    repositoryRoot,
+    "tests",
+    "fixtures",
+    "MailKitSmtpGeneratedSolution",
+  );
+  const fixture = JSON.parse(
+    await readFile(join(fixtureRoot, "mailkit-smtp.json"), "utf8"),
+  );
+  const manifest = JSON.parse(
+    await readFile(join(fixtureRoot, "martix.platform.json"), "utf8"),
+  );
+  const result = await validateMailKitSmtpFixture(fixture, manifest, {
+    rootDir: repositoryRoot,
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.providerCount, 2);
+  assert.equal(result.behavior.outcomeCount, 4);
 });
 
 test("Full Stack verification rejects UI contract version drift", async () => {

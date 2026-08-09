@@ -10,7 +10,7 @@
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
 [`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
 and [`martix.platform.json`](../../martix.platform.json).
-They define four cadences and eight required bootstrap gates while keeping
+They define four cadences and ten required bootstrap gates while keeping
 `supportClaims` empty:
 
 - `fast`
@@ -105,6 +105,11 @@ contracts. The selected UI client is derived from the same OpenAPI artifact as
 the standalone client, and the gate rejects missing operations or drifted UI
 contract metadata; shared styling remains a provider-neutral semantic-token
 seam.
+
+The `bootstrap.mailkit-smtp` gate uses the named
+`MailKitSmtpGeneratedSolution` fixture to prove durable notification intent,
+MailKit TLS/authentication, cancellation, classified outcomes, bounded
+recovery, redaction, observability, and selected-provider absence evidence.
 
 Generated solution tests use TUnit on Microsoft.Testing.Platform with isolated
 real resources and parallel execution by default. The current Kernel consumer

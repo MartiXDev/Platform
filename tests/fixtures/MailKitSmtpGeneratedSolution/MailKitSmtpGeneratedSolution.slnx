@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/MartiX.MailKitSmtpTestApp.Notifications/MartiX.MailKitSmtpTestApp.Notifications.csproj" />
+  <Project Path="tests/MartiX.MailKitSmtpTestApp.Tests/MartiX.MailKitSmtpTestApp.Tests.csproj" />
+</Solution>

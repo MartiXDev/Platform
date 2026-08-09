@@ -63,6 +63,8 @@ const FULL_STACK_SOLUTION_ROOT = `tests/fixtures/${FULL_STACK_SOLUTION_NAME}`;
 const PROVIDER_ADMISSION_SOLUTION_NAME = "ProviderAdmissionGeneratedSolution";
 const PROVIDER_ADMISSION_SOLUTION_ROOT =
   `tests/fixtures/${PROVIDER_ADMISSION_SOLUTION_NAME}`;
+const MAILKIT_SMTP_SOLUTION_NAME = "MailKitSmtpGeneratedSolution";
+const MAILKIT_SMTP_SOLUTION_ROOT = `tests/fixtures/${MAILKIT_SMTP_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -80,6 +82,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
+  "bootstrap.mailkit-smtp",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -236,6 +239,21 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/CONTEXT.md`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/README.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/AGENTS.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/CONTEXT.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/MailKitSmtpGeneratedSolution.slnx`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/evidence/mailpit.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MartiX.MailKitSmtpTestApp.Notifications.csproj`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryIntent.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/SmtpDeliveryOptions.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MailKitSmtpDelivery.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryDispatcher.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MartiX.MailKitSmtpTestApp.Tests.csproj`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
   "eng/provider-admission.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
@@ -2478,29 +2496,31 @@ function validateGovernanceDocuments(documents) {
 export async function validateProviderAdmissionFixture(
   fixture,
   manifest,
+  { solutionRoot = PROVIDER_ADMISSION_SOLUTION_ROOT } = {},
 ) {
-  const manifestPath = `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`;
+  const fixturePath = `${solutionRoot}/provider-admission.json`;
+  const manifestPath = `${solutionRoot}/martix.platform.json`;
   assertSecretFree(
     fixture,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+    fixturePath,
     "Provider admission fixture",
   );
-  requireRecord(fixture, `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`);
+  requireRecord(fixture, fixturePath);
   requireRecord(
     fixture.selection,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.selection`,
+    `${fixturePath}.selection`,
   );
   requireRecord(
     fixture.observed,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.observed`,
+    `${fixturePath}.observed`,
   );
   requireRecord(
     fixture.evidence,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.evidence`,
+    `${fixturePath}.evidence`,
   );
   requireArray(
     fixture.invalidSelections,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections`,
+    `${fixturePath}.invalidSelections`,
   );
   requireRecord(manifest, manifestPath);
   requireArray(manifest.providers, `${manifestPath}.providers`);
@@ -2522,7 +2542,7 @@ export async function validateProviderAdmissionFixture(
 
   if (JSON.stringify(result.evidence) !== JSON.stringify(fixture.evidence)) {
     fail(
-      `Provider admission fixture evidence does not match the resolved composition: ${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.`,
+      `Provider admission fixture evidence does not match the resolved composition: ${fixturePath}.`,
     );
   }
   if (manifest.preset !== fixture.selection.preset) {
@@ -2553,7 +2573,7 @@ export async function validateProviderAdmissionFixture(
 
   for (const [index, invalid] of fixture.invalidSelections.entries()) {
     const path =
-      `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections[${index}]`;
+      `${fixturePath}.invalidSelections[${index}]`;
     requireRecord(invalid, path);
     requireString(invalid.id, `${path}.id`);
     requireString(invalid.expectedCode, `${path}.expectedCode`);
@@ -2593,6 +2613,294 @@ export async function validateProviderAdmissionFixture(
     matrixCoordinate: result.evidence.matrix.coordinate,
     evidenceDigest: result.evidence.verification.evidenceDigest,
     invalidSelectionCount: fixture.invalidSelections.length,
+  };
+}
+
+function requireBoolean(value, path) {
+  if (typeof value !== "boolean") {
+    fail(`Invalid bootstrap value at ${path}: expected a boolean.`);
+  }
+}
+
+function requireNumber(value, path) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    fail(`Invalid bootstrap value at ${path}: expected a finite number.`);
+  }
+}
+
+function requireIncludes(values, expected, path) {
+  requireArray(values, path);
+  for (const value of expected) {
+    if (!values.includes(value)) {
+      fail(`Invalid bootstrap value at ${path}: missing ${value}.`);
+    }
+  }
+}
+
+function requireSourceIncludes(source, expected, path) {
+  for (const fragment of expected) {
+    if (!source.includes(fragment)) {
+      fail(`MailKit SMTP source ${path} is missing ${fragment}.`);
+    }
+  }
+}
+
+export async function validateMailKitSmtpFixture(
+  fixture,
+  manifest,
+  { rootDir = process.cwd() } = {},
+) {
+  const fixturePath = `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`;
+  assertSecretFree(fixture, fixturePath, "MailKit SMTP fixture");
+  requireRecord(fixture, fixturePath);
+  requireRecord(fixture.admission, `${fixturePath}.admission`);
+  requireRecord(fixture.behavior, `${fixturePath}.behavior`);
+
+  const admission = await validateProviderAdmissionFixture(
+    fixture.admission,
+    manifest,
+    { solutionRoot: MAILKIT_SMTP_SOLUTION_ROOT },
+  );
+  const behaviorPath = `${fixturePath}.behavior`;
+  const behavior = fixture.behavior;
+  const durableIntent = behavior.durableIntent;
+  requireRecord(durableIntent, `${behaviorPath}.durableIntent`);
+  for (const property of [
+    "recordedBeforeExternalSend",
+    "doesNotClaimTransactionalEmail",
+    "idempotencyAndCorrelation",
+    "boundedAttachmentReferences",
+  ]) {
+    requireBoolean(durableIntent[property], `${behaviorPath}.durableIntent.${property}`);
+  }
+  if (
+    JSON.stringify(durableIntent.stateMachine) !==
+    JSON.stringify([
+      "Pending",
+      "Accepted",
+      "TransientFailure",
+      "PermanentFailure",
+      "Cancelled",
+    ])
+  ) {
+    fail(
+      `MailKit SMTP durable intent state machine is incomplete at ${behaviorPath}.durableIntent.stateMachine.`,
+    );
+  }
+
+  const smtp = behavior.smtp;
+  requireRecord(smtp, `${behaviorPath}.smtp`);
+  requireBoolean(smtp.tlsRequired, `${behaviorPath}.smtp.tlsRequired`);
+  requireBoolean(smtp.authentication, `${behaviorPath}.smtp.authentication`);
+  requireBoolean(smtp.cancellation, `${behaviorPath}.smtp.cancellation`);
+  requireIncludes(
+    smtp.transportOperations,
+    ["ConnectAsync", "AuthenticateAsync", "SendAsync", "DisconnectAsync"],
+    `${behaviorPath}.smtp.transportOperations`,
+  );
+  requireIncludes(
+    smtp.outcomes,
+    ["accepted", "transient", "permanent", "cancelled"],
+    `${behaviorPath}.smtp.outcomes`,
+  );
+
+  const recovery = behavior.recovery;
+  requireRecord(recovery, `${behaviorPath}.recovery`);
+  requireNumber(
+    recovery.automaticAttemptLimit,
+    `${behaviorPath}.recovery.automaticAttemptLimit`,
+  );
+  if (
+    recovery.automaticAttemptLimit <= 0 ||
+    recovery.automaticAttemptLimit > 10
+  ) {
+    fail(
+      `MailKit SMTP automatic retry limit must be bounded at ${behaviorPath}.recovery.automaticAttemptLimit.`,
+    );
+  }
+  requireBoolean(recovery.boundedRetry, `${behaviorPath}.recovery.boundedRetry`);
+  requireBoolean(
+    recovery.operatorRequeue,
+    `${behaviorPath}.recovery.operatorRequeue`,
+  );
+
+  const security = behavior.security;
+  requireRecord(security, `${behaviorPath}.security`);
+  requireBoolean(
+    security.externalOnlyConfiguration,
+    `${behaviorPath}.security.externalOnlyConfiguration`,
+  );
+  requireIncludes(
+    security.redactedFields,
+    ["recipient", "subject", "body", "attachment", "provider-response"],
+    `${behaviorPath}.security.redactedFields`,
+  );
+
+  const observability = behavior.observability;
+  requireRecord(observability, `${behaviorPath}.observability`);
+  requireIncludes(
+    observability.signals,
+    [
+      "backlog-age",
+      "attempts",
+      "provider-acceptance",
+      "failure-class",
+      "latency",
+      "terminal-failure",
+    ],
+    `${behaviorPath}.observability.signals`,
+  );
+  requireIncludes(
+    observability.dataDimensionsExcluded,
+    ["recipient", "subject", "body", "attachment", "provider-response"],
+    `${behaviorPath}.observability.dataDimensionsExcluded`,
+  );
+
+  const mailpit = behavior.mailpit;
+  requireRecord(mailpit, `${behaviorPath}.mailpit`);
+  if (mailpit.version !== "1.30.0" || mailpit.commit !== "af8756a") {
+    fail(
+      `MailKit SMTP fixture must pin Mailpit 1.30.0 at ${behaviorPath}.mailpit.`,
+    );
+  }
+  requireBoolean(
+    mailpit.tlsAndAuthentication,
+    `${behaviorPath}.mailpit.tlsAndAuthentication`,
+  );
+  requireIncludes(
+    mailpit.controlledFailures,
+    ["451", "550"],
+    `${behaviorPath}.mailpit.controlledFailures`,
+  );
+  requireBoolean(mailpit.containerized, `${behaviorPath}.mailpit.containerized`);
+
+  if (behavior.aotPosture !== "jit-only-no-native-aot-claim") {
+    fail(
+      `MailKit SMTP fixture must keep Native AOT undeclared at ${behaviorPath}.aotPosture.`,
+    );
+  }
+
+  const sourcePaths = {
+    intent: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryIntent.cs`,
+    options: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/SmtpDeliveryOptions.cs`,
+    adapter: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MailKitSmtpDelivery.cs`,
+    dispatcher: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryDispatcher.cs`,
+    tests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
+    integrationTests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
+    evidence: `${MAILKIT_SMTP_SOLUTION_ROOT}/evidence/mailpit.md`,
+  };
+  const sources = new Map();
+  for (const [name, relativePath] of Object.entries(sourcePaths)) {
+    sources.set(name, await readRequiredFile(rootDir, relativePath));
+  }
+
+  if (sources.get("intent").includes("MimeMessage")) {
+    fail(
+      `MailKit SMTP intent must not expose MimeMessage: ${sourcePaths.intent}.`,
+    );
+  }
+  requireSourceIncludes(
+    sources.get("intent"),
+    [
+      "NotificationDeliveryIntent",
+      "IdempotencyKey",
+      "CorrelationId",
+      "AttachmentReferences",
+      "Pending",
+    ],
+    sourcePaths.intent,
+  );
+  requireSourceIncludes(
+    sources.get("options"),
+    [
+      "RequireTls",
+      "UseAuthentication",
+      "AutomaticAttemptLimit",
+      "Validate",
+      "external-only",
+    ],
+    sourcePaths.options,
+  );
+  requireSourceIncludes(
+    sources.get("adapter"),
+    [
+      "MailKit.Net.Smtp",
+      "MimeKit",
+      "ConnectAsync",
+      "AuthenticateAsync",
+      "SendAsync",
+      "DisconnectAsync",
+      "SecureSocketOptions.StartTls",
+      "OperationCanceledException",
+      "SmtpCommandException",
+      "SmtpProtocolException",
+      "SmtpDeliveryOutcome.Accepted",
+      "SmtpDeliveryOutcome.TransientFailure",
+      "SmtpDeliveryOutcome.PermanentFailure",
+      "SmtpDeliveryOutcome.Cancelled",
+    ],
+    sourcePaths.adapter,
+  );
+  requireSourceIncludes(
+    sources.get("dispatcher"),
+    [
+      "SaveChangesAsync",
+      "AutomaticAttemptLimit",
+      "RequeueAsync",
+      "TransientFailure",
+      "PermanentFailure",
+      "Cancelled",
+      "Meter",
+      "Redact",
+    ],
+    sourcePaths.dispatcher,
+  );
+  requireSourceIncludes(
+    sources.get("tests"),
+    [
+      "Mailpit 1.30.0",
+      "451",
+      "550",
+      "CancellationToken",
+      "RequireTls",
+      "Authentication",
+      "Redact",
+    ],
+    sourcePaths.tests,
+  );
+  requireSourceIncludes(
+    sources.get("integrationTests"),
+    [
+      "Testcontainers",
+      "axllent/mailpit:1.30.0",
+      "PortBinding",
+      "UntilPortIsAvailable",
+      "Explicit",
+    ],
+    sourcePaths.integrationTests,
+  );
+  requireSourceIncludes(
+    sources.get("evidence"),
+    [
+      "Mailpit",
+      "1.30.0",
+      "af8756a",
+      "STARTTLS",
+      "authentication",
+      "451",
+      "550",
+      "requeue",
+      "redaction",
+    ],
+    sourcePaths.evidence,
+  );
+
+  return {
+    ...admission,
+    behavior: {
+      outcomeCount: smtp.outcomes.length,
+      mailpitVersion: mailpit.version,
+    },
   };
 }
 
@@ -2643,6 +2951,12 @@ export async function verifyBootstrap({
   );
   const providerAdmissionFixture = parseJson(
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  );
+  const mailkitSmtpManifest = parseJson(
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const mailkitSmtpFixture = parseJson(
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`,
   );
 
   validateManifestSchema(manifestSchema);
@@ -2720,6 +3034,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    mailkitSmtpManifest,
+    "generated-solution",
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    mailkitSmtpManifest,
+    manifestSchema,
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -2732,6 +3056,11 @@ export async function verifyBootstrap({
   const providerAdmission = await validateProviderAdmissionFixture(
     providerAdmissionFixture,
     providerAdmissionManifest,
+  );
+  const mailkitSmtp = await validateMailKitSmtpFixture(
+    mailkitSmtpFixture,
+    mailkitSmtpManifest,
+    { rootDir: root },
   );
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
@@ -2759,6 +3088,8 @@ export async function verifyBootstrap({
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
     providerAdmission,
+    mailkitSmtpSolution: MAILKIT_SMTP_SOLUTION_NAME,
+    mailkitSmtp,
     agentReadiness,
   };
 }
