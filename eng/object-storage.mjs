@@ -51,6 +51,13 @@ const RETRYABLE_STATUS_CODES = Object.freeze([
   503,
   504,
 ]);
+const IDEMPOTENT_OPERATIONS = Object.freeze(["read", "head", "delete"]);
+const FORBIDDEN_CREDENTIAL_SOURCES = Object.freeze([
+  "account-key-in-source",
+  "sas-in-manifest",
+  "connection-string-in-manifest",
+]);
+const LOCAL_EMULATOR_HOSTS = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
 const CONTAINER_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/;
 const FORBIDDEN_REDACTED_DATA = Object.freeze([
   "object-name",
@@ -148,6 +155,15 @@ function canonicalJson(value) {
     .join(",")}}`;
 }
 
+function hasSameSequence(left, right) {
+  return (
+    Array.isArray(left) &&
+    Array.isArray(right) &&
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
 export function sha256(value) {
   return `sha256:${createHash("sha256")
     .update(typeof value === "string" ? value : canonicalJson(value))
@@ -209,7 +225,7 @@ export const AZURE_BLOB_OBJECT_STORAGE_CONTRACT = deepFreeze({
     maxAttempts: 3,
     maxDelayMs: 2000,
     retryableStatusCodes: RETRYABLE_STATUS_CODES,
-    idempotentOperations: ["read", "head", "delete"],
+    idempotentOperations: IDEMPOTENT_OPERATIONS,
     conditionalWriteOnly: true,
     unsafeWrite: "never",
   },
@@ -231,11 +247,7 @@ export const AZURE_BLOB_OBJECT_STORAGE_CONTRACT = deepFreeze({
       "external-token",
       "emulator-shared-key",
     ],
-    forbiddenSources: [
-      "account-key-in-source",
-      "sas-in-manifest",
-      "connection-string-in-manifest",
-    ],
+    forbiddenSources: FORBIDDEN_CREDENTIAL_SOURCES,
   },
   endpoint: {
     serviceUriConfigurationKey: "Azure:BlobServiceUri",
@@ -290,6 +302,28 @@ function profileChecks(value, label) {
   return checks;
 }
 
+function defaultProfileOutcome(id) {
+  if (id === "azurite") {
+    return "passed";
+  }
+
+  return "not-attested";
+}
+
+function defaultProfileFailure(id) {
+  if (id === "live-azure") {
+    return {
+      code: "live-evidence-required",
+      message: "Live-Azure parity evidence is required before a Supported claim.",
+    };
+  }
+
+  return {
+    code: "infrastructure-error",
+    message: "Azurite conformance did not produce a passed outcome.",
+  };
+}
+
 function createProfile({
   id,
   service,
@@ -300,32 +334,25 @@ function createProfile({
   checks,
   failure,
 }) {
-  const normalizedOutcome = outcome ?? (id === "azurite" ? "passed" : "not-attested");
+  const normalizedOutcome = outcome ?? defaultProfileOutcome(id);
   const profile = {
     id,
     service,
     version,
     required,
     outcome: normalizedOutcome,
-    contractDigest:
-      normalizedOutcome === "passed"
-        ? contractDigest ?? sha256(AZURE_BLOB_OBJECT_STORAGE_CONTRACT)
-        : null,
-    checks:
-      normalizedOutcome === "passed"
-        ? checks ?? [...OBJECT_STORAGE_CONFORMANCE_CHECKS]
-        : [],
+    contractDigest: null,
+    checks: [],
   };
-  if (normalizedOutcome !== "passed") {
-    profile.failure = failure ?? {
-      code: id === "live-azure" ? "live-evidence-required" : "infrastructure-error",
-      message:
-        id === "live-azure"
-          ? "Live-Azure parity evidence is required before a Supported claim."
-          : "Azurite conformance did not produce a passed outcome.",
-    };
+
+  if (normalizedOutcome === "passed") {
+    profile.contractDigest =
+      contractDigest ?? sha256(AZURE_BLOB_OBJECT_STORAGE_CONTRACT);
+    profile.checks = checks ?? [...OBJECT_STORAGE_CONFORMANCE_CHECKS];
+    return profile;
   }
 
+  profile.failure = failure ?? defaultProfileFailure(id);
   return profile;
 }
 
@@ -439,9 +466,11 @@ function validateContract(value) {
   });
   const expectedOperationIds = OBJECT_STORAGE_OPERATIONS.map(({ id }) => id);
   if (
-    JSON.stringify(operationIds) !== JSON.stringify(expectedOperationIds) ||
-    contract.operations.some((operation) => operation.bounded !== true) ||
-    contract.operations.some((operation) => operation.cancellable !== true)
+    !hasSameSequence(operationIds, expectedOperationIds) ||
+    contract.operations.some(
+      (operation) =>
+        operation.bounded !== true || operation.cancellable !== true,
+    )
   ) {
     fail(
       "Azure Blob object-storage operations must be bounded and cancellable.",
@@ -471,10 +500,8 @@ function validateContract(value) {
     );
   }
   if (
-    JSON.stringify(retry.retryableStatusCodes) !==
-      JSON.stringify(RETRYABLE_STATUS_CODES) ||
-    JSON.stringify(retry.idempotentOperations) !==
-      JSON.stringify(["read", "head", "delete"])
+    !hasSameSequence(retry.retryableStatusCodes, RETRYABLE_STATUS_CODES) ||
+    !hasSameSequence(retry.idempotentOperations, IDEMPOTENT_OPERATIONS)
   ) {
     fail(
       "Azure Blob retry policy is not the bounded idempotent policy.",
@@ -500,11 +527,7 @@ function validateContract(value) {
     authentication.forbiddenSources,
     "object-storage evidence.contract.authentication.forbiddenSources",
   );
-  for (const source of [
-    "account-key-in-source",
-    "sas-in-manifest",
-    "connection-string-in-manifest",
-  ]) {
+  for (const source of FORBIDDEN_CREDENTIAL_SOURCES) {
     if (!authentication.forbiddenSources.includes(source)) {
       fail(
         `Azure Blob credential policy must forbid ${source}.`,
@@ -666,9 +689,7 @@ function validateProfile(profile, expected) {
       value.checks,
       `object-storage evidence.profiles.${expected.id}.checks`,
     );
-    if (
-      JSON.stringify(checks) !== JSON.stringify(OBJECT_STORAGE_CONFORMANCE_CHECKS)
-    ) {
+    if (!hasSameSequence(checks, OBJECT_STORAGE_CONFORMANCE_CHECKS)) {
       fail(
         `Object-storage ${expected.id} evidence is missing ordered conformance checks.`,
         "incomplete-profile",
@@ -881,7 +902,7 @@ export function validateAzureBlobObjectStorageConfiguration(configuration) {
   if (
     environment !== "production" &&
     parsed.protocol === "http:" &&
-    !["127.0.0.1", "localhost", "0.0.0.0"].includes(parsed.hostname)
+    !LOCAL_EMULATOR_HOSTS.has(parsed.hostname)
   ) {
     fail(
       "Azure Blob http serviceUri is restricted to a local emulator.",
