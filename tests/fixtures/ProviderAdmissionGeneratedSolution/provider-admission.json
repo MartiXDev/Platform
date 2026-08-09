@@ -3,7 +3,9 @@
     "preset": "modular-monolith",
     "capabilities": [
       "relational-persistence",
-      "durable-jobs"
+      "durable-jobs",
+      "reliable-integration-events",
+      "broker-transport"
     ],
     "providers": [
       {
@@ -13,13 +15,18 @@
       {
         "capability": "durable-jobs",
         "id": "quartz"
+      },
+      {
+        "capability": "broker-transport",
+        "id": "rabbitmq"
       }
     ],
     "runtime": "net10.0",
     "operatingSystem": "linux",
     "configuration": [
       "ConnectionStrings:Database",
-      "ConnectionStrings:Quartz"
+      "ConnectionStrings:Quartz",
+      "ConnectionStrings:RabbitMq"
     ]
   },
   "observed": {
@@ -31,34 +38,46 @@
       {
         "id": "Quartz",
         "version": "3.18.2"
+      },
+      {
+        "id": "RabbitMQ.Client",
+        "version": "7.2.1"
       }
     ],
     "configuration": [
       "ConnectionStrings:Database",
       "ConnectionStrings:Quartz",
-      "Quartz:SchedulerName"
+      "ConnectionStrings:RabbitMq",
+      "Quartz:SchedulerName",
+      "RabbitMq:Exchange"
     ],
     "registrations": [
       "EntityFrameworkCore:PostgreSQL",
+      "IntegrationEvents:RabbitMqTransport",
       "Quartz:Scheduler"
     ],
     "workers": [
-      "QuartzHostedService"
+      "QuartzHostedService",
+      "RabbitMqConsumer"
     ],
     "healthChecks": [
-      "relational-database",
-      "durable-jobs"
+      "broker-transport",
+      "durable-jobs",
+      "relational-database"
     ],
     "telemetry": [
-      "relational-database",
-      "durable-jobs"
+      "broker-transport",
+      "durable-jobs",
+      "relational-database"
     ],
     "containers": [
-      "postgresql:17"
+      "postgresql:17",
+      "rabbitmq:4.3.2"
     ],
     "deployment": [
-      "relational-database",
-      "durable-jobs-schema"
+      "broker-transport",
+      "durable-jobs-schema",
+      "relational-database"
     ]
   },
   "evidence": {
@@ -68,6 +87,11 @@
     "failClosed": true,
     "provider": null,
     "providers": [
+      {
+        "capability": "broker-transport",
+        "id": "rabbitmq",
+        "state": "selected"
+      },
       {
         "capability": "durable-jobs",
         "id": "quartz",
@@ -91,17 +115,23 @@
       {
         "capability": "relational-persistence",
         "provider": "postgresql"
+      },
+      {
+        "capability": "reliable-integration-events",
+        "provider": null
       }
     ],
     "conflicts": [],
     "configuration": {
       "requiredKeys": [
         "ConnectionStrings:Database",
-        "ConnectionStrings:Quartz"
+        "ConnectionStrings:Quartz",
+        "ConnectionStrings:RabbitMq"
       ],
       "selectedKeys": [
         "ConnectionStrings:Database",
-        "ConnectionStrings:Quartz"
+        "ConnectionStrings:Quartz",
+        "ConnectionStrings:RabbitMq"
       ]
     },
     "effects": {
@@ -113,32 +143,44 @@
         {
           "id": "Quartz",
           "version": "3.18.2"
+        },
+        {
+          "id": "RabbitMQ.Client",
+          "version": "7.2.1"
         }
       ],
       "configuration": [
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz",
-        "Quartz:SchedulerName"
+        "ConnectionStrings:RabbitMq",
+        "Quartz:SchedulerName",
+        "RabbitMq:Exchange"
       ],
       "registrations": [
         "EntityFrameworkCore:PostgreSQL",
+        "IntegrationEvents:RabbitMqTransport",
         "Quartz:Scheduler"
       ],
       "workers": [
-        "QuartzHostedService"
+        "QuartzHostedService",
+        "RabbitMqConsumer"
       ],
       "healthChecks": [
+        "broker-transport",
         "durable-jobs",
         "relational-database"
       ],
       "telemetry": [
+        "broker-transport",
         "durable-jobs",
         "relational-database"
       ],
       "containers": [
-        "postgresql:17"
+        "postgresql:17",
+        "rabbitmq:4.3.2"
       ],
       "deployment": [
+        "broker-transport",
         "durable-jobs-schema",
         "relational-database"
       ]
@@ -155,21 +197,27 @@
         "release-evidence"
       ],
       "providerGates": [
+        "manual-acknowledgement",
         "migration",
         "operator-controls",
         "persistent-scheduling",
         "provider-translation",
+        "publisher-confirms",
         "recovery",
+        "redelivery",
         "reliability"
       ],
       "gates": [
         "architecture",
+        "manual-acknowledgement",
         "migration",
         "operator-controls",
         "persistent-scheduling",
         "provider-integration",
         "provider-translation",
+        "publisher-confirms",
         "recovery",
+        "redelivery",
         "release-evidence",
         "reliability",
         "reliability-operations",
@@ -187,6 +235,7 @@
         "selection"
       ],
       "providers": [
+        "broker-transport:rabbitmq",
         "durable-jobs:quartz",
         "relational-persistence:postgresql"
       ],
@@ -200,7 +249,9 @@
       "preset": "modular-monolith",
       "capabilities": [
         "relational-persistence",
-        "durable-jobs"
+        "durable-jobs",
+        "reliable-integration-events",
+        "broker-transport"
       ],
       "providers": [
         {
@@ -210,13 +261,17 @@
         {
           "capability": "durable-jobs",
           "provider": "quartz"
+        },
+        {
+          "capability": "broker-transport",
+          "provider": "rabbitmq"
         }
       ]
     },
     "verification": {
       "selection": "passed",
       "absence": "passed",
-      "evidenceDigest": "sha256:f808d143792ea2c0b477a16200b4480cd4a725249eb20d64dec19888070fa1d4"
+      "evidenceDigest": "sha256:92d411333ca32f7730249ab1af28439331359c7f3557caa36e537de085b22890"
     },
     "supportClaims": []
   },

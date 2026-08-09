@@ -247,6 +247,20 @@ const RELATIONAL_PROVIDER_DEFINITIONS = Object.freeze({
     }),
   }),
 });
+const BROKER_PROVIDER_DEFINITIONS = Object.freeze({
+  rabbitmq: Object.freeze({
+    packageReferences: Object.freeze([
+      Object.freeze({
+        id: "MartiX.Platform.IntegrationEvents.RabbitMq",
+        version: MODULAR_MONOLITH_PLATFORM_VERSION,
+      }),
+      Object.freeze({
+        id: "RabbitMQ.Client",
+        version: "7.2.1",
+      }),
+    ]),
+  }),
+});
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
   Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
@@ -390,11 +404,15 @@ const PLACEHOLDER_MODULE_NAMES = new Set([
 const SUPPORTED_RELATIONAL_PROVIDERS = new Set(
   Object.keys(RELATIONAL_PROVIDER_DEFINITIONS),
 );
+const SUPPORTED_BROKER_PROVIDERS = new Set(
+  Object.keys(BROKER_PROVIDER_DEFINITIONS),
+);
+const OPTIONAL_CAPABILITIES = new Set(["broker-transport"]);
 const SUPPORTED_CAPABILITIES = new Set(
-  MODULAR_MONOLITH_BASELINE_CAPABILITIES,
+  [...MODULAR_MONOLITH_BASELINE_CAPABILITIES, ...OPTIONAL_CAPABILITIES],
 );
 const SUPPORTED_FULL_STACK_CAPABILITIES = new Set(
-  FULL_STACK_BASELINE_CAPABILITIES,
+  [...FULL_STACK_BASELINE_CAPABILITIES, ...OPTIONAL_CAPABILITIES],
 );
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const MODULAR_MONOLITH_OPTION_NAMES = new Set([
@@ -408,6 +426,7 @@ const MODULAR_MONOLITH_OPTION_NAMES = new Set([
   "businessModules",
   "capabilities",
   "databaseProvider",
+  "brokerProvider",
   "dependencies",
   "moduleDependencies",
   "modules",
@@ -747,8 +766,46 @@ function validateSelections(options) {
 
   const uiProvider = resolveUiProvider(options, preset, requestedProviders);
 
+  const brokerProviders = requestedProviders.filter((provider) =>
+    SUPPORTED_BROKER_PROVIDERS.has(provider),
+  );
+  const explicitBrokerProvider =
+    options.brokerProvider === undefined
+      ? undefined
+      : requireNonEmptyString(options.brokerProvider, "brokerProvider");
+  if (
+    explicitBrokerProvider !== undefined &&
+    !SUPPORTED_BROKER_PROVIDERS.has(explicitBrokerProvider)
+  ) {
+    fail(
+      `Broker provider "${explicitBrokerProvider}" is not supported by the ${preset} preset.`,
+    );
+  }
+  if (
+    brokerProviders.length > 0 &&
+    explicitBrokerProvider !== undefined &&
+    (brokerProviders.length !== 1 ||
+      brokerProviders[0] !== explicitBrokerProvider)
+  ) {
+    fail("Broker provider selections must agree.");
+  }
+  if (brokerProviders.length > 1) {
+    fail(`The ${preset} preset selects exactly one broker provider.`);
+  }
+  const brokerProvider = explicitBrokerProvider ?? brokerProviders[0] ?? null;
+  if (
+    requestedCapabilities.includes("broker-transport") &&
+    brokerProvider === null
+  ) {
+    fail(
+      'Capability "broker-transport" requires an explicit broker provider.',
+    );
+  }
+
   const relationalProviders = requestedProviders.filter(
-    (provider) => !FULL_STACK_UI_PROVIDER_SET.has(provider),
+    (provider) =>
+      !FULL_STACK_UI_PROVIDER_SET.has(provider) &&
+      !SUPPORTED_BROKER_PROVIDERS.has(provider),
   );
   const persistence = options.persistence ?? "relational";
   if (persistence !== "relational") {
@@ -797,6 +854,7 @@ function validateSelections(options) {
   return {
     persistence,
     relationalProvider,
+    brokerProvider,
     uiProvider,
     renderingProfile,
     defaultCulture: defaultCulture.trim(),
@@ -832,6 +890,10 @@ function createPlan(
   const baselineCapabilities = isFullStack
     ? [...FULL_STACK_BASELINE_CAPABILITIES]
     : [...MODULAR_MONOLITH_BASELINE_CAPABILITIES];
+  const capabilities = [
+    ...baselineCapabilities,
+    ...(selections.brokerProvider === null ? [] : ["broker-transport"]),
+  ];
   const modulePlans = projectNames.modules.map(({ name, project }) => ({
     name,
     project: `src/${project}`,
@@ -856,7 +918,7 @@ function createPlan(
       template: "martix-app",
     },
     baselineCapabilities,
-    capabilities: baselineCapabilities,
+    capabilities,
     providers: [
       {
         id: selections.relationalProvider,
@@ -870,15 +932,27 @@ function createPlan(
             state: "selected",
           }]
         : []),
+      ...(selections.brokerProvider === null
+        ? []
+        : [{
+            id: selections.brokerProvider,
+            capability: "broker-transport",
+            state: "selected",
+          }]),
     ],
     authentication: authenticationManifest(selections.authentication),
     persistence: selections.persistence,
     relationalProvider: selections.relationalProvider,
+    brokerProvider: selections.brokerProvider,
     packageReferences: [
       ...PLATFORM_PACKAGE_REFERENCES,
       ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
       RELATIONAL_PROVIDER_DEFINITIONS[selections.relationalProvider]
         .packageReference,
+      ...(selections.brokerProvider === null
+        ? []
+        : BROKER_PROVIDER_DEFINITIONS[selections.brokerProvider]
+            .packageReferences),
       ...authenticationPackageReferences(selections.authentication),
     ].map((reference) => ({ ...reference })),
     projects: [
@@ -905,6 +979,7 @@ function createPlan(
       relationalPersistence: true,
       oneShotMigrator: true,
       authenticationProfile: selections.authentication.profile,
+      brokerTransport: selections.brokerProvider !== null,
     },
     ...(isFullStack
       ? {
@@ -981,6 +1056,17 @@ function platformPackageReferences() {
   return renderPackageReferences(
     PLATFORM_PACKAGE_REFERENCES,
     PLATFORM_PACKAGE_REFERENCES,
+  );
+}
+
+function brokerPackageReferences(plan) {
+  if (plan.brokerProvider === null) {
+    return "";
+  }
+
+  return renderPackageReferences(
+    BROKER_PROVIDER_DEFINITIONS[plan.brokerProvider].packageReferences,
+    [],
   );
 }
 
@@ -1080,6 +1166,7 @@ ${renderPackageReferences(
   ],
   [],
 )}
+${brokerPackageReferences(plan)}
   </ItemGroup>
 
 </Project>
@@ -1252,7 +1339,8 @@ public static class ApiComposition
             configuration,
             environment);
 ${serviceComposition}
-        ReliableEventsComposition.AddServices(services);
+        ReliableEventsComposition.AddServices(
+            services${plan.brokerProvider === null ? "" : ", configuration"});
     }
 
     public static void Configure(WebApplication app)
@@ -1370,21 +1458,17 @@ function apiReliableEventsFile(plan) {
                     cancellationToken),`,
     )
     .join("\n");
-  return `${moduleUsings}
-using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
-namespace ${plan.applicationName}.Infrastructure.IntegrationEvents;
-
-internal static class ReliableEventsComposition
-{
-    public static void AddServices(IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        services.AddReliableEvents();
-        services.AddSingleton<IHostedService>(serviceProvider =>
+  const transportUsings =
+    plan.brokerProvider === null
+      ? ""
+      : "using MartiX.Platform.IntegrationEvents.RabbitMq;\nusing Microsoft.Extensions.Configuration;\n";
+  const serviceSignature =
+    plan.brokerProvider === null
+      ? "public static void AddServices(IServiceCollection services)"
+      : "public static void AddServices(IServiceCollection services, IConfiguration configuration)";
+  const dispatcherRegistration =
+    plan.brokerProvider === null
+      ? `        services.AddSingleton<IHostedService>(serviceProvider =>
         {
             var options = serviceProvider
                 .GetRequiredService<ReliableEventsOptions>();
@@ -1432,7 +1516,66 @@ internal static class ReliableEventsComposition
                         options,
                         timeProvider,
                         cancellationToken));
-        });
+        });`
+      : `        services.AddRabbitMqReliableEvents(
+            configuration,
+            new[] { ${plan.businessModules
+              .map((module) => `"${module.name}"`)
+              .join(", ")} },
+            new RabbitMqReliableEventsCallbacks
+            {
+                ClaimAsync = (serviceProvider, batchSize, cancellationToken) =>
+                    ClaimAsync(
+                        serviceProvider,
+                        batchSize,
+                        serviceProvider.GetRequiredService<ReliableEventsOptions>(),
+                        serviceProvider.GetRequiredService<TimeProvider>(),
+                        cancellationToken),
+                DeliverAsync = (serviceProvider, delivery, cancellationToken) =>
+                    DispatchAsync(
+                        serviceProvider,
+                        delivery,
+                        cancellationToken),
+                AcknowledgeAsync = (serviceProvider, delivery, cancellationToken) =>
+                    AcknowledgeAsync(
+                        serviceProvider,
+                        delivery,
+                        serviceProvider.GetRequiredService<TimeProvider>(),
+                        cancellationToken),
+                ScheduleRetryAsync = (serviceProvider, delivery, failureCategory, failureDetail, cancellationToken) =>
+                    ScheduleRetryAsync(
+                        serviceProvider,
+                        delivery,
+                        failureCategory,
+                        failureDetail,
+                        serviceProvider.GetRequiredService<ReliableEventsOptions>(),
+                        serviceProvider.GetRequiredService<TimeProvider>(),
+                        cancellationToken),
+                FailAsync = (serviceProvider, delivery, failureCategory, failureDetail, cancellationToken) =>
+                    FailAsync(
+                        serviceProvider,
+                        delivery,
+                        failureCategory,
+                        failureDetail,
+                        serviceProvider.GetRequiredService<ReliableEventsOptions>(),
+                        serviceProvider.GetRequiredService<TimeProvider>(),
+                        cancellationToken),
+            });`;
+  return `${moduleUsings}
+${transportUsings}using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace ${plan.applicationName}.Infrastructure.IntegrationEvents;
+
+internal static class ReliableEventsComposition
+{
+    ${serviceSignature}
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddReliableEvents();
+${plan.brokerProvider === null ? "" : "        ArgumentNullException.ThrowIfNull(configuration);\n"}${dispatcherRegistration}
     }
 
     private static async ValueTask<IReadOnlyList<ReliableEventDelivery>> ClaimAsync(

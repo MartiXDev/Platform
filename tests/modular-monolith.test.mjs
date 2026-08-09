@@ -294,6 +294,128 @@ test("the selected relational provider is recorded in the plan", () => {
   ]);
 });
 
+test("RabbitMQ is emitted only for an explicit broker selection", async () => {
+  const roots = await Promise.all([
+    createTemporaryDirectory(),
+    createTemporaryDirectory(),
+  ]);
+
+  try {
+    const defaultResult = await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      outputDirectory: join(roots[0], "default"),
+    });
+    const defaultApiProject = await readFile(
+      join(
+        roots[0],
+        "default",
+        "src",
+        "MartiX.Planner.Api",
+        "MartiX.Planner.Api.csproj",
+      ),
+      "utf8",
+    );
+    const defaultComposition = await readFile(
+      join(
+        roots[0],
+        "default",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "IntegrationEvents",
+        "ReliableEventsComposition.cs",
+      ),
+      "utf8",
+    );
+
+    assert.equal(defaultResult.plan.brokerProvider, null);
+    assert.equal(defaultResult.plan.selected.brokerTransport, false);
+    assert.doesNotMatch(JSON.stringify(defaultResult.plan), /RabbitMQ|RabbitMq/i);
+    assert.equal(
+      defaultResult.plan.providers.some(({ id }) => id === "rabbitmq"),
+      false,
+    );
+    assert.doesNotMatch(defaultApiProject, /RabbitMQ|RabbitMq/i);
+    assert.doesNotMatch(defaultComposition, /RabbitMQ|RabbitMq/i);
+    assert.equal(
+      defaultResult.files.some((file) => /RabbitMQ|RabbitMq/i.test(file)),
+      false,
+    );
+
+    const rabbitResult = await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders", "Billing"],
+      moduleDependencies: { Billing: ["Orders"] },
+      brokerProvider: "rabbitmq",
+      outputDirectory: join(roots[1], "rabbitmq"),
+    });
+    const rabbitApiProject = await readFile(
+      join(
+        roots[1],
+        "rabbitmq",
+        "src",
+        "MartiX.Planner.Api",
+        "MartiX.Planner.Api.csproj",
+      ),
+      "utf8",
+    );
+    const rabbitComposition = await readFile(
+      join(
+        roots[1],
+        "rabbitmq",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "IntegrationEvents",
+        "ReliableEventsComposition.cs",
+      ),
+      "utf8",
+    );
+    const rabbitManifest = JSON.parse(
+      await readFile(join(roots[1], "rabbitmq", "martix.platform.json"), "utf8"),
+    );
+
+    assert.equal(rabbitResult.plan.brokerProvider, "rabbitmq");
+    assert.deepEqual(
+      rabbitResult.plan.providers.find(({ id }) => id === "rabbitmq"),
+      {
+        id: "rabbitmq",
+        capability: "broker-transport",
+        state: "selected",
+      },
+    );
+    assert.ok(
+      rabbitResult.plan.capabilities.includes("broker-transport"),
+    );
+    assert.equal(rabbitResult.plan.selected.brokerTransport, true);
+    assert.deepEqual(
+      rabbitResult.plan.packageReferences.filter(({ id }) =>
+        /RabbitMQ|RabbitMq/.test(id),
+      ),
+      [
+        {
+          id: "MartiX.Platform.IntegrationEvents.RabbitMq",
+          version: MODULAR_MONOLITH_PLATFORM_VERSION,
+        },
+        {
+          id: "RabbitMQ.Client",
+          version: "7.2.1",
+        },
+      ],
+    );
+    assert.match(rabbitApiProject, /MartiX\.Platform\.IntegrationEvents\.RabbitMq/);
+    assert.match(rabbitApiProject, /RabbitMQ\.Client/);
+    assert.match(rabbitComposition, /AddRabbitMqReliableEvents/);
+    assert.match(rabbitComposition, /RabbitMqReliableEventsCallbacks/);
+    assert.equal(rabbitManifest.providers.some(({ id }) => id === "rabbitmq"), true);
+  } finally {
+    await Promise.all(
+      roots.map((root) => rm(root, { recursive: true, force: true })),
+    );
+  }
+});
+
 test("generation emits module-owned relational persistence for each provider", async () => {
   const roots = await Promise.all([
     createTemporaryDirectory(),
@@ -656,6 +778,8 @@ test("the modular monolith CLI resolves repeated module and dependency options",
       "--module=Billing",
       "--module-dependency",
       "Billing:Orders",
+      "--broker-provider",
+      "rabbitmq",
       "--dry-run",
     ]);
   } finally {
@@ -665,6 +789,7 @@ test("the modular monolith CLI resolves repeated module and dependency options",
   assert.equal(output.length, 1);
   const plan = JSON.parse(output[0]);
   assert.equal(plan.preset, "modular-monolith");
+  assert.equal(plan.brokerProvider, "rabbitmq");
   assert.deepEqual(plan.businessModules.map(({ name }) => name), [
     "Orders",
     "Billing",
