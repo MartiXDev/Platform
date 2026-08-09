@@ -74,6 +74,8 @@ export type paths = {
   };
 };
 
+export const generatedContractSha256 = "401e7e4d6cb38f1cc2707f0de48b453b7112185eb7f45f0f12d58c26861285ca";
+
 export const createGeneratedClient = (
   baseUrl: string,
   fetcher: typeof fetch = fetch,

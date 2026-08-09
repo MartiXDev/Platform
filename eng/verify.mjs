@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -5,7 +6,10 @@ import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
-import { listOpenApiOperations } from "./openapi-client.mjs";
+import {
+  listOpenApiOperations,
+  renderOpenApiContract,
+} from "./openapi-client.mjs";
 import { verifyAgentReadiness } from "./agent-readiness.mjs";
 import {
   FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
@@ -21,10 +25,10 @@ import {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_EVIDENCE,
   FULL_STACK_UI_LOCKFILE_SECTIONS,
   FULL_STACK_REACT_NODE_ENGINE,
   FULL_STACK_REACT_PACKAGE_MANAGER,
-  FULL_STACK_UI_EVIDENCE,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_NODE_ENGINE,
   FULL_STACK_UI_PACKAGE_MANAGER,
@@ -95,7 +99,8 @@ const MANIFEST_ALLOWED_PROPERTIES = [
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const FULL_STACK_UI_INPUTS = [
   ...FULL_STACK_UI_EVIDENCE.map(
-    (evidenceName) => `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/${evidenceName}.md`,
+    (evidenceName) =>
+      `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/${evidenceName}.md`,
   ),
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.vue`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
@@ -113,6 +118,7 @@ const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/index.html`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/package.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/public/ui-config.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/scripts/verify-generated-client.mjs`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tsconfig.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tests/ui-capability-contract.test.ts`,
@@ -788,6 +794,7 @@ function fullStackExpectedFiles(manifest) {
     if (manifest.ui.provider === "vue") {
       files.push(`${root}/Platform/Navigation/router.ts`);
     }
+    files.push(`${root}/public/ui-config.json`);
   }
 
   if (manifest.ui.provider === "react") {
@@ -813,7 +820,28 @@ function generatedTypeScriptPathBlock(source, path) {
   return nextPath === -1 ? remainder : remainder.slice(0, nextPath);
 }
 
+function generatedClientMatchesHttpContract(source, contract) {
+  const digest = source.match(
+    /generatedContractSha256\s*=\s*"([a-f0-9]{64})"/,
+  )?.[1];
+  if (digest === undefined) {
+    return false;
+  }
+
+  const expectedDigest = createHash("sha256")
+    .update(renderOpenApiContract(contract))
+    .digest("hex");
+  return digest === expectedDigest;
+}
+
 function generatedClientCoversHttpOperations(source, provider, contract) {
+  if (
+    provider !== "blazor-webapp" &&
+    !generatedClientMatchesHttpContract(source, contract)
+  ) {
+    return false;
+  }
+
   return listOpenApiOperations(contract).every(({ method, operation, path }) => {
     if (provider === "blazor-webapp") {
       const methodName = operation["x-client"]?.methodName;
@@ -1774,6 +1802,8 @@ function hasReviewedTypeScriptUiToolchain({
   return (
     packageJson.dependencies?.["openapi-fetch"] === "0.17.0" &&
     packageJson.devDependencies?.["openapi-typescript"] === "7.13.0" &&
+    (provider !== "vue" ||
+      packageJson.devDependencies?.["@types/node"] === "24.7.2") &&
     packageJson.devDependencies?.["@testing-library/dom"] !== undefined &&
     packageJson.engines?.node === expectedNodeEngine &&
     packageJson.scripts?.build === FULL_STACK_UI_BUILD_SCRIPT[provider] &&
@@ -1848,7 +1878,8 @@ async function validateFullStackSolution(rootDir, manifest) {
     uiContract.theme?.tokens !== "semantic" ||
     JSON.stringify(uiContract.theme?.modes) !==
       JSON.stringify(["light", "dark", "system"]) ||
-    JSON.stringify(uiContract.evidence) !== JSON.stringify(FULL_STACK_UI_EVIDENCE)
+    JSON.stringify(uiContract.evidence) !==
+      JSON.stringify(FULL_STACK_UI_EVIDENCE)
   ) {
     fail(
       "Full Stack UI Capability Contract does not match the provider-neutral contract.",
@@ -1861,6 +1892,17 @@ async function validateFullStackSolution(rootDir, manifest) {
   const uiSource = (
     await Promise.all(uiFiles.map((file) => readSolutionFile(file)))
   ).join("\n");
+  const applicationSource = await readSolutionFile(
+    `${uiRoot}/${fullStackApplicationFileName(manifest.ui.provider)}`,
+  );
+  const runtimeSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? ""
+      : await readSolutionFile(`${uiRoot}/Platform/Runtime/config.ts`);
+  const publicConfiguration =
+    manifest.ui.provider === "blazor-webapp"
+      ? null
+      : JSON.parse(await readSolutionFile(`${uiRoot}/public/ui-config.json`));
   const forbiddenBackendReference = new RegExp(
     `(?:ProjectReference|${[
       `${applicationName}.Api`,
@@ -1918,15 +1960,7 @@ async function validateFullStackSolution(rootDir, manifest) {
       ? await readSolutionFile(
           `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
         )
-      : await readSolutionFile(`${uiRoot}/tests/ui-capability-contract.test.ts`);
-  const appSource =
-    manifest.ui.provider === "blazor-webapp"
-      ? ""
-      : await readSolutionFile(`${uiRoot}/${fullStackApplicationFileName(manifest.ui.provider)}`);
-  const runtimeConfigurationSource =
-    manifest.ui.provider === "blazor-webapp"
-      ? ""
-      : await readSolutionFile(`${uiRoot}/Platform/Runtime/config.ts`);
+        : await readSolutionFile(`${uiRoot}/tests/ui-capability-contract.test.ts`);
   const clientCheckSource =
     manifest.ui.provider === "blazor-webapp"
       ? ""
@@ -1954,14 +1988,30 @@ async function validateFullStackSolution(rootDir, manifest) {
     !themeSource.includes('data-theme="dark"') ||
     !generatedClientSource.includes("ProblemDetails") ||
     (manifest.ui.provider === "react" &&
-      (!appSource.includes("createGeneratedClient") ||
-        !appSource.includes("QueryClientProvider") ||
-        !appSource.includes('aria-live="polite"') ||
-        !runtimeConfigurationSource.includes("loadRuntimeConfiguration") ||
+      (!applicationSource.includes("createGeneratedClient") ||
+        !applicationSource.includes("QueryClientProvider") ||
+        !applicationSource.includes('aria-live="polite"') ||
+        !runtimeSource.includes("loadRuntimeConfiguration") ||
         !clientCheckSource.includes("createHash") ||
         /localStorage|sessionStorage|indexedDB|accessToken|refreshToken/i.test(
           sessionSource,
         ))) ||
+    (manifest.ui.provider !== "blazor-webapp" &&
+      (!runtimeSource.includes("loadRuntimeConfiguration") ||
+        publicConfiguration?.provider !== manifest.ui.provider ||
+        typeof publicConfiguration?.apiBasePath !== "string" ||
+        !publicConfiguration.apiBasePath.startsWith("/") ||
+        publicConfiguration.apiBasePath.startsWith("//") ||
+        publicConfiguration?.defaultCulture !== manifest.ui.defaultCulture ||
+        !publicConfiguration?.supportedCultures?.includes(
+          manifest.ui.defaultCulture,
+        ))) ||
+    (manifest.ui.provider === "vue" &&
+      (!applicationSource.includes("useQuery") ||
+        !applicationSource.includes("createGeneratedClient") ||
+        !applicationSource.includes("request") ||
+        !applicationSource.includes("readSession") ||
+        !applicationSource.includes("loadRuntimeConfiguration"))) ||
     !browserTestSource.includes("loading") ||
     !browserTestSource.includes("offline") ||
     !browserTestSource.includes("denied") ||
@@ -1990,6 +2040,9 @@ async function validateFullStackSolution(rootDir, manifest) {
   if (manifest.ui.provider !== "blazor-webapp") {
     const packageJson = JSON.parse(
       await readSolutionFile(`${uiRoot}/package.json`),
+    );
+    const typeScriptConfig = JSON.parse(
+      await readSolutionFile(`${uiRoot}/tsconfig.json`),
     );
     const rootPackageJson = JSON.parse(
       await readSolutionFile("package.json"),
@@ -2041,6 +2094,17 @@ async function validateFullStackSolution(rootDir, manifest) {
           "Full Stack React UI must declare the pinned pnpm, runtime configuration, and dependency policy.",
         );
       }
+    }
+    if (
+      manifest.ui.provider === "vue" &&
+      (typeScriptConfig.compilerOptions?.strict !== true ||
+        typeScriptConfig.compilerOptions?.exactOptionalPropertyTypes !== true ||
+        typeScriptConfig.compilerOptions?.noUncheckedIndexedAccess !== true ||
+        typeScriptConfig.compilerOptions?.skipLibCheck !== false)
+    ) {
+      fail(
+        "Full Stack TypeScript UI must use the reviewed strict compiler profile.",
+      );
     }
   } else {
     const project = await readSolutionFile(

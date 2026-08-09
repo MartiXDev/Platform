@@ -109,6 +109,7 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Api/generated.ts"));
     assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Api/transport.ts"));
     assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Session/session.ts"));
+    assert.ok(files.includes("src/MartiX.Portal.Web/public/ui-config.json"));
     assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Ui/DesignContract.css"));
     assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Ui/themes.css"));
     assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Localization/en-US.json"));
@@ -119,6 +120,7 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.ok(files.includes("evidence/ui/security.md"));
     assert.ok(files.includes("evidence/ui/deployment.md"));
     assert.ok(files.includes("evidence/ui/observability.md"));
+    assert.ok(files.includes("evidence/ui/client.md"));
     assert.ok(
       files.includes("src/MartiX.Portal.Web/public/ui-config.json"),
     );
@@ -257,6 +259,34 @@ test("Vue Full Stack composes Vue Router and Vue Query without unsafe rendering"
       join(webRoot, "Platform", "Navigation", "router.ts"),
       "utf8",
     );
+    const browserTest = await readFile(
+      join(webRoot, "tests", "ui-capability-contract.test.ts"),
+      "utf8",
+    );
+    const runtimeConfiguration = await readFile(
+      join(webRoot, "Platform", "Runtime", "config.ts"),
+      "utf8",
+    );
+    const generatedClient = await readFile(
+      join(webRoot, "Platform", "Api", "generated.ts"),
+      "utf8",
+    );
+    const tsconfig = JSON.parse(
+      await readFile(join(webRoot, "tsconfig.json"), "utf8"),
+    );
+    const publicConfiguration = JSON.parse(
+      await readFile(join(webRoot, "public", "ui-config.json"), "utf8"),
+    );
+    const contract = JSON.parse(
+      await readFile(
+        join(root, "generated", "contracts", "ui-capability-v1.json"),
+        "utf8",
+      ),
+    );
+    const clientEvidence = await readFile(
+      join(root, "generated", "evidence", "ui", "client.md"),
+      "utf8",
+    );
 
     assert.equal(result.plan.ui.provider, "vue");
     assert.ok(
@@ -267,11 +297,26 @@ test("Vue Full Stack composes Vue Router and Vue Query without unsafe rendering"
     assert.match(application, /<script setup lang="ts">/);
     assert.match(application, /aria-live="polite"/);
     assert.doesNotMatch(application, /v-html/);
+    assert.match(application, /useQuery/);
+    assert.match(application, /createGeneratedClient/);
+    assert.match(application, /readSession/);
+    assert.match(application, /loadRuntimeConfiguration/);
     assert.match(entry, /QueryClient/);
     assert.match(entry, /VueQueryPlugin/);
     assert.match(entry, /router/);
     assert.match(router, /createRouter/);
     assert.match(router, /createWebHistory/);
+    assert.match(browserTest, /@testing-library\/vue/);
+    assert.match(browserTest, /render\(App/);
+    assert.match(browserTest, /credentials: "include"/);
+    assert.match(runtimeConfiguration, /loadRuntimeConfiguration/);
+    assert.match(generatedClient, /fetcher/);
+    assert.equal(tsconfig.compilerOptions.exactOptionalPropertyTypes, true);
+    assert.equal(tsconfig.compilerOptions.noUncheckedIndexedAccess, true);
+    assert.equal(tsconfig.compilerOptions.skipLibCheck, false);
+    assert.equal(publicConfiguration.provider, "vue");
+    assert.ok(contract.evidence.includes("client"));
+    assert.match(clientEvidence, /client/i);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

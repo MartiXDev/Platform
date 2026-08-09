@@ -3424,6 +3424,7 @@ function uiPackageJsonFile(plan) {
     devDependencies["@vitejs/plugin-react"] = "5.0.4";
   }
   if (plan.ui.provider === "vue") {
+    devDependencies["@types/node"] = "24.7.2";
     devDependencies["@testing-library/vue"] = "8.1.0";
     devDependencies["@vitejs/plugin-vue"] = "6.0.1";
     devDependencies["vue-tsc"] = "3.1.0";
@@ -3567,19 +3568,22 @@ function uiIndexHtmlFile(plan) {
 }
 
 function uiTypeScriptConfigFile(plan) {
+  const isVue = plan.ui.provider === "vue";
   return `${JSON.stringify(
     {
       compilerOptions: {
         target: "ES2022",
         useDefineForClassFields: true,
-        lib: ["ES2022", "DOM", "DOM.Iterable"],
+        lib: isVue
+          ? ["ES2022", "ESNext.Disposable", "DOM", "DOM.Iterable"]
+          : ["ES2022", "DOM", "DOM.Iterable"],
         allowJs: false,
-        skipLibCheck: plan.ui.provider !== "react",
+        skipLibCheck: !isVue,
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
         strict: true,
-        exactOptionalPropertyTypes: plan.ui.provider === "react",
-        noUncheckedIndexedAccess: plan.ui.provider === "react",
+        exactOptionalPropertyTypes: true,
+        noUncheckedIndexedAccess: true,
         forceConsistentCasingInFileNames: true,
         module: "ESNext",
         moduleResolution: "Bundler",
@@ -3589,6 +3593,11 @@ function uiTypeScriptConfigFile(plan) {
         jsx: plan.ui.provider === "react" ? "react-jsx" : "preserve",
       },
       include: ["**/*"],
+      ...(isVue
+        ? {
+            exclude: ["node_modules", "tests", "vite.config.ts", "vitest.config.ts"],
+          }
+        : {}),
     },
     null,
     2,
@@ -3605,10 +3614,18 @@ ${plugin}
 `;
 }
 
-function uiVitestConfigFile() {
-  return `import { defineConfig } from "vitest/config";
+function uiVitestConfigFile(plan) {
+  const plugin =
+    plan.ui.provider === "vue"
+      ? `import vue from "@vitejs/plugin-vue";
+
+`
+      : "";
+  const plugins = plan.ui.provider === "vue" ? "  plugins: [vue()],\n" : "";
+  return `${plugin}import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+${plugins}\
   test: {
     environment: "jsdom",
     environmentOptions: {
@@ -3836,6 +3853,8 @@ function uiGeneratedTypeScriptFile(contract) {
   lines.push(
     "};",
     "",
+    `export const generatedContractSha256 = ${JSON.stringify(contractDigest)};`,
+    "",
     "export const createGeneratedClient = (",
     "  baseUrl: string,",
     "  fetcher: typeof fetch = fetch,",
@@ -3914,8 +3933,9 @@ export async function request(
 `;
 }
 
-function uiSessionFile() {
-  return `import { request, type TransportFailure } from "../Api/transport";
+function uiSessionFile(plan) {
+  if (plan.ui.provider === "react") {
+    return `import { request, type TransportFailure } from "../Api/transport";
 
 export type SessionState =
   | { kind: "anonymous" }
@@ -3924,7 +3944,7 @@ export type SessionState =
   | { kind: "expired"; returnPath: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function parseSessionState(value: unknown): SessionState {
@@ -4009,6 +4029,73 @@ export function signOut(): Promise<Response> {
   });
 }
 `;
+  }
+  return `export type SessionState =
+  | { kind: "anonymous" }
+  | { kind: "authenticated"; actor: { id: string }; permissions: readonly string[] }
+  | { kind: "denied"; reason: "forbidden" }
+  | { kind: "expired"; returnPath: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSessionState(value: unknown): value is SessionState {
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    return false;
+  }
+  if (value.kind === "anonymous") {
+    return true;
+  }
+  if (value.kind === "denied") {
+    return value.reason === "forbidden";
+  }
+  if (value.kind === "expired") {
+    return typeof value.returnPath === "string";
+  }
+  return (
+    value.kind === "authenticated" &&
+    isRecord(value.actor) &&
+    typeof value.actor.id === "string" &&
+    Array.isArray(value.permissions) &&
+    value.permissions.every((permission) => typeof permission === "string")
+  );
+}
+
+export async function readSession(
+  fetcher: typeof fetch = fetch,
+): Promise<SessionState> {
+  const response = await fetcher("/auth/session", {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (response.status === 401) {
+    return { kind: "anonymous" };
+  }
+  if (response.status === 403) {
+    return { kind: "denied", reason: "forbidden" };
+  }
+  if (!response.ok) {
+    return {
+      kind: "expired",
+      returnPath: typeof window === "undefined" ? "/" : window.location.pathname,
+    };
+  }
+  const session = await response.json();
+  if (!isSessionState(session)) {
+    throw new Error("The server returned an invalid session state.");
+  }
+  return session;
+}
+
+export function signOut(fetcher: typeof fetch = fetch): Promise<Response> {
+  return fetcher("/auth/logout", {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF": "required" },
+  });
+}
+`;
 }
 
 function uiAuthorizationFile() {
@@ -4040,7 +4127,17 @@ function uiRuntimeConfigurationFile() {
 const culturePattern = /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+ return (
+   Array.isArray(value) &&
+   value.every(
+     (entry): entry is string =>
+       typeof entry === "string" && entry.length > 0,
+   )
+ );
 }
 
 function isProvider(
@@ -4055,47 +4152,34 @@ export function validateRuntimeConfiguration(
   if (!isRecord(value)) {
     throw new Error("The public UI configuration must be an object.");
   }
-  const {
-    apiBasePath,
-    deploymentVersion,
-    environment,
-    defaultCulture,
-    supportedCultures,
-    provider,
-  } = value;
   if (
-    typeof apiBasePath !== "string" ||
-    !apiBasePath.startsWith("/") ||
-    apiBasePath.startsWith("//")
+    typeof value.apiBasePath !== "string" ||
+    !value.apiBasePath.startsWith("/") ||
+    value.apiBasePath.startsWith("//")
   ) {
     throw new Error("The public UI configuration has an invalid API base path.");
   }
   if (
-    typeof deploymentVersion !== "string" ||
-    deploymentVersion.length === 0 ||
-    typeof environment !== "string" ||
-    environment.length === 0 ||
-    typeof defaultCulture !== "string" ||
-    !culturePattern.test(defaultCulture) ||
-    !Array.isArray(supportedCultures) ||
-    !supportedCultures.every(
-      (culture): culture is string =>
-        typeof culture === "string" && culturePattern.test(culture),
-    ) ||
-    !isProvider(provider)
+    typeof value.deploymentVersion !== "string" ||
+    value.deploymentVersion.length === 0 ||
+    typeof value.environment !== "string" ||
+    value.environment.length === 0 ||
+    typeof value.defaultCulture !== "string" ||
+    !culturePattern.test(value.defaultCulture) ||
+    !isStringArray(value.supportedCultures) ||
+    !value.supportedCultures.every((culture) => culturePattern.test(culture)) ||
+    !value.supportedCultures.includes(value.defaultCulture) ||
+    !isProvider(value.provider)
   ) {
-    throw new Error("The public UI configuration has invalid values.");
-  }
-  if (!supportedCultures.includes(defaultCulture)) {
-    throw new Error("The public UI configuration has an unsupported default culture.");
+    throw new Error("The public UI configuration is incomplete.");
   }
   return {
-    apiBasePath,
-    deploymentVersion,
-    environment,
-    defaultCulture,
-    supportedCultures,
-    provider,
+    apiBasePath: value.apiBasePath,
+    deploymentVersion: value.deploymentVersion,
+    environment: value.environment,
+    defaultCulture: value.defaultCulture,
+    supportedCultures: value.supportedCultures,
+    provider: value.provider,
   };
 }
 
@@ -4406,20 +4490,81 @@ export function App() {
   }
   if (plan.ui.provider === "vue") {
     return `<script setup lang="ts">
-import { ref } from "vue";
+import { useQuery } from "@tanstack/vue-query";
+import { computed } from "vue";
+import { createGeneratedClient } from "./Platform/Api/generated";
+import { request } from "./Platform/Api/transport";
 import { translate } from "./Platform/Localization/messages";
+import { loadRuntimeConfiguration } from "./Platform/Runtime/config";
+import { readSession } from "./Platform/Session/session";
 
 import "./Platform/Ui/DesignContract.css";
 import "./Platform/Ui/themes.css";
 
-const state = ref<"loading" | "empty" | "error">("loading");
+const runtimeQuery = useQuery({
+  queryKey: ["runtime-configuration"],
+  queryFn: () => loadRuntimeConfiguration(),
+  staleTime: Infinity,
+});
+const sessionQuery = useQuery({
+  queryKey: ["session"],
+  queryFn: () => readSession(),
+  enabled: computed(() => runtimeQuery.isSuccess.value),
+});
+const stateMessages = {
+  loading: "ui.state.loading",
+  empty: "ui.state.empty",
+  denied: "ui.state.denied",
+  error: "ui.state.error",
+  offline: "ui.state.offline",
+} as const;
+const client = computed(() => {
+  const configuration = runtimeQuery.data.value;
+  return configuration === undefined
+    ? null
+    : createGeneratedClient(configuration.apiBasePath, request);
+});
+const state = computed<keyof typeof stateMessages>(() => {
+  if (
+    runtimeQuery.isPending.value ||
+    (runtimeQuery.isSuccess.value && sessionQuery.isPending.value)
+  ) {
+    return "loading";
+  }
+  if (runtimeQuery.isError.value) {
+    return "error";
+  }
+  if (sessionQuery.isError.value) {
+    return "offline";
+  }
+  switch (sessionQuery.data.value?.kind) {
+    case "denied":
+      return "denied";
+    case "expired":
+      return "error";
+    default:
+      return "empty";
+  }
+});
+const stateMessage = computed(() => stateMessages[state.value]);
+const sessionState = computed(
+  () => sessionQuery.data.value?.kind ?? "anonymous",
+);
+const clientReady = computed(() => client.value !== null);
 </script>
 
 <template>
   <main class="application-shell" aria-labelledby="application-title">
     <h1 id="application-title">{{ translate("ui.application.title") }}</h1>
-    <section class="ui-state" :data-state="state" aria-live="polite">
-      <p>{{ translate(state === "loading" ? "ui.state.loading" : "ui.state.error") }}</p>
+    <section
+      class="ui-state"
+      :data-state="state"
+      :data-session-state="sessionState"
+      :data-client-ready="clientReady"
+      :aria-busy="state === 'loading'"
+      aria-live="polite"
+    >
+      <p>{{ translate(stateMessage) }}</p>
     </section>
   </main>
 </template>
@@ -4455,7 +4600,14 @@ import { createApp } from "vue";
 import { RouterView } from "vue-router";
 import { router } from "./Platform/Navigation/router";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
 
 createApp(RouterView)
   .use(router)
@@ -4541,6 +4693,94 @@ describe("MartiX React UI Capability Contract", () => {
   it("does not persist browser access or refresh credentials", () => {
     expect(localStorage.getItem("access-token")).toBeNull();
     expect(sessionStorage.getItem("refresh-token")).toBeNull();
+  });
+});
+`;
+  }
+  if (plan.ui.provider === "vue") {
+    return `import { render, waitFor } from "@testing-library/vue";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import App from "../App.vue";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const runtimeConfiguration = {
+  apiBasePath: "/",
+  deploymentVersion: "test",
+  environment: "test",
+  defaultCulture: "en-US",
+  supportedCultures: ["en-US"],
+  provider: "vue",
+};
+const contractStates = [
+  "anonymous",
+  "authenticated",
+  "denied",
+  "expired",
+  "loading",
+  "empty",
+  "validation",
+  "error",
+  "offline",
+  "reconnecting",
+];
+
+describe("MartiX Vue UI Capability Contract", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/ui-config.json")) {
+          return new Response(JSON.stringify(runtimeConfiguration), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ kind: "anonymous" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the accessible shell after the BFF session resolves", async () => {
+    expect(contractStates).toHaveLength(10);
+    expect(contractStates).toContain("denied");
+    expect(contractStates).toContain("offline");
+    expect(contractStates).toContain("reconnecting");
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const view = render(App, {
+      global: { plugins: [[VueQueryPlugin, { queryClient }]] },
+    });
+
+    expect(view.getByRole("main")).toBeDefined();
+    await waitFor(() =>
+      expect(view.getByText("No content is available.")).toBeDefined(),
+    );
+    expect(
+      view.getByRole("main").querySelector('[data-client-ready="true"]'),
+    ).not.toBeNull();
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/auth/session",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("does not persist browser access or refresh credentials", () => {
+    const localCredentialStorage: Pick<Storage, "getItem"> =
+      typeof localStorage === "undefined"
+        ? { getItem: () => null }
+        : localStorage;
+    const sessionCredentialStorage: Pick<Storage, "getItem"> =
+      typeof sessionStorage === "undefined"
+        ? { getItem: () => null }
+        : sessionStorage;
+    expect(localCredentialStorage.getItem("access-token")).toBeNull();
+    expect(sessionCredentialStorage.getItem("refresh-token")).toBeNull();
   });
 });
 `;
@@ -4825,14 +5065,6 @@ function uiTUnitTestSource() {
 
 function uiEvidenceFiles(plan) {
   const provider = plan.ui.provider;
-  const clientKind = provider === "blazor-webapp" ? "C#" : "TypeScript";
-  const clientEvidence =
-    provider === "blazor-webapp"
-      ? "The C# client is generated from the authoritative OpenAPI artifact with the pinned NSwag profile. Operation coverage is verified by path and HTTP method."
-      : `The ${clientKind} client is generated from the authoritative OpenAPI artifact with
-the pinned generator/runtime pair. Its source records the artifact SHA-256
-digest, and the client check compares that digest before a build can consume
-the client. Operation coverage is verified by path and HTTP method.`;
   return {
     "evidence/ui/browser.md": `# UI browser evidence
 
@@ -4856,7 +5088,10 @@ directory. Client drift and generated-source edits fail the gate.
 
 Provider: \`${provider}\`
 
-${clientEvidence}
+The client surface is generated from the checked-in OpenAPI contract, records the
+contract digest, and is composed with the cookie-aware transport adapter. The
+generated-client check rejects stale output; the Full Stack gate verifies required
+operations and transport composition.
 `,
     "evidence/ui/security.md": `# UI security evidence
 
@@ -4910,7 +5145,7 @@ function createUiFiles(plan, contract) {
   const files = new Map([
     ["contracts/ui-capability-v1.json", uiContractDocument(plan)],
     [`${root}/Platform/Api/transport.ts`, uiTransportFile()],
-    [`${root}/Platform/Session/session.ts`, uiSessionFile()],
+    [`${root}/Platform/Session/session.ts`, uiSessionFile(plan)],
     [`${root}/Platform/Authorization/authorization.ts`, uiAuthorizationFile()],
     [`${root}/Platform/Runtime/config.ts`, uiRuntimeConfigurationFile()],
     [`${root}/Platform/Ui/DesignContract.css`, uiDesignContractCssFile()],
@@ -4927,14 +5162,11 @@ function createUiFiles(plan, contract) {
 Generated from \`contracts/openapi-v1.json\`. Provider: \`${plan.ui.provider}\`.
 This directory contains wire contracts and transport adapters only.
 `],
-    ...(plan.ui.provider === "react"
-      ? [[`${root}/public/ui-config.json`, uiRuntimeConfigurationAsset(plan)]]
-      : []),
-    ...FULL_STACK_UI_EVIDENCE.map((evidenceName) => [
-      `evidence/ui/${evidenceName}.md`,
-      evidenceFiles[`evidence/ui/${evidenceName}.md`],
-    ]),
   ]);
+  for (const evidenceName of FULL_STACK_UI_EVIDENCE) {
+    const path = `evidence/ui/${evidenceName}.md`;
+    files.set(path, evidenceFiles[path]);
+  }
 
   if (plan.ui.provider === "blazor-webapp") {
     files.set(`${root}/${plan.applicationName}.Web.csproj`, uiBlazorProjectFile(plan));
@@ -4955,9 +5187,10 @@ This directory contains wire contracts and transport adapters only.
     files.set(`${root}/Platform/Localization/messages.ts`, uiLocalizationSource(plan));
     files.set(`${root}/package.json`, uiPackageJsonFile(plan));
     files.set(`${root}/index.html`, uiIndexHtmlFile(plan));
+    files.set(`${root}/public/ui-config.json`, uiRuntimeConfigurationAsset(plan));
     files.set(`${root}/tsconfig.json`, uiTypeScriptConfigFile(plan));
     files.set(`${root}/vite.config.ts`, uiViteConfigFile(plan));
-    files.set(`${root}/vitest.config.ts`, uiVitestConfigFile());
+    files.set(`${root}/vitest.config.ts`, uiVitestConfigFile(plan));
     files.set("pnpm-workspace.yaml", uiPnpmWorkspaceFile(plan));
     files.set(".npmrc", uiNpmrcFile(plan));
     files.set("pnpm-lock.yaml", uiPnpmLockFile(plan));

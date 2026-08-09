@@ -1,5 +1,3 @@
-import { request, type TransportFailure } from "../Api/transport";
-
 export type SessionState =
   | { kind: "anonymous" }
   | { kind: "authenticated"; actor: { id: string }; permissions: readonly string[] }
@@ -7,87 +5,61 @@ export type SessionState =
   | { kind: "expired"; returnPath: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function parseSessionState(value: unknown): SessionState {
-  if (!isRecord(value) || typeof value.kind !== "string") {
-    throw new Error("The session endpoint returned an invalid state.");
-  }
-  switch (value.kind) {
-    case "anonymous":
-      return { kind: "anonymous" };
-    case "denied":
-      if (value.reason === "forbidden") {
-        return { kind: "denied", reason: "forbidden" };
-      }
-      break;
-    case "authenticated":
-      if (
-        isRecord(value.actor) &&
-        typeof value.actor.id === "string" &&
-        Array.isArray(value.permissions) &&
-        value.permissions.every(
-          (permission): permission is string => typeof permission === "string",
-        )
-      ) {
-        return {
-          kind: "authenticated",
-          actor: { id: value.actor.id },
-          permissions: value.permissions,
-        };
-      }
-      break;
-    case "expired":
-      if (typeof value.returnPath === "string") {
-        return { kind: "expired", returnPath: value.returnPath };
-      }
-      break;
-  }
-  throw new Error("The session endpoint returned an unsupported state.");
-}
-
-function isTransportFailure(value: unknown): value is TransportFailure {
+function isSessionState(value: unknown): value is SessionState {
   if (!isRecord(value) || typeof value.kind !== "string") {
     return false;
   }
-  switch (value.kind) {
-    case "session-expired":
-    case "access-denied":
-    case "problem-details":
-    case "network":
-    case "cancelled":
-      return true;
-    default:
-      return false;
+  if (value.kind === "anonymous") {
+    return true;
   }
+  if (value.kind === "denied") {
+    return value.reason === "forbidden";
+  }
+  if (value.kind === "expired") {
+    return typeof value.returnPath === "string";
+  }
+  return (
+    value.kind === "authenticated" &&
+    isRecord(value.actor) &&
+    typeof value.actor.id === "string" &&
+    Array.isArray(value.permissions) &&
+    value.permissions.every((permission) => typeof permission === "string")
+  );
 }
 
-export async function readSession(): Promise<SessionState> {
-  try {
-    const response = await request(
-      "/auth/session",
-      { credentials: "include" },
-      { retrySafeRead: true },
-    );
-    return parseSessionState(await response.json());
-  } catch (error) {
-    if (!isTransportFailure(error)) {
-      throw error;
-    }
-    if (error.kind === "session-expired") {
-      return { kind: "anonymous" };
-    }
-    if (error.kind === "access-denied") {
-      return { kind: "denied", reason: "forbidden" };
-    }
-    throw error;
+export async function readSession(
+  fetcher: typeof fetch = fetch,
+): Promise<SessionState> {
+  const response = await fetcher("/auth/session", {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (response.status === 401) {
+    return { kind: "anonymous" };
   }
+  if (response.status === 403) {
+    return { kind: "denied", reason: "forbidden" };
+  }
+  if (!response.ok) {
+    return {
+      kind: "expired",
+      returnPath: typeof window === "undefined" ? "/" : window.location.pathname,
+    };
+  }
+  const session = await response.json();
+  if (!isSessionState(session)) {
+    throw new Error("The server returned an invalid session state.");
+  }
+  return session;
 }
 
-export function signOut(): Promise<Response> {
-  return request("/auth/logout", {
+export function signOut(fetcher: typeof fetch = fetch): Promise<Response> {
+  return fetcher("/auth/logout", {
     method: "POST",
+    credentials: "include",
     headers: { "X-CSRF": "required" },
   });
 }

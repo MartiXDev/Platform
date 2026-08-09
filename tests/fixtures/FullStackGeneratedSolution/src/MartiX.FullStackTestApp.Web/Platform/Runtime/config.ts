@@ -10,7 +10,17 @@ export type RuntimeUiConfiguration = {
 const culturePattern = /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (entry): entry is string =>
+        typeof entry === "string" && entry.length > 0,
+    )
+  );
 }
 
 function isProvider(
@@ -25,47 +35,34 @@ export function validateRuntimeConfiguration(
   if (!isRecord(value)) {
     throw new Error("The public UI configuration must be an object.");
   }
-  const {
-    apiBasePath,
-    deploymentVersion,
-    environment,
-    defaultCulture,
-    supportedCultures,
-    provider,
-  } = value;
   if (
-    typeof apiBasePath !== "string" ||
-    !apiBasePath.startsWith("/") ||
-    apiBasePath.startsWith("//")
+    typeof value.apiBasePath !== "string" ||
+    !value.apiBasePath.startsWith("/") ||
+    value.apiBasePath.startsWith("//")
   ) {
     throw new Error("The public UI configuration has an invalid API base path.");
   }
   if (
-    typeof deploymentVersion !== "string" ||
-    deploymentVersion.length === 0 ||
-    typeof environment !== "string" ||
-    environment.length === 0 ||
-    typeof defaultCulture !== "string" ||
-    !culturePattern.test(defaultCulture) ||
-    !Array.isArray(supportedCultures) ||
-    !supportedCultures.every(
-      (culture): culture is string =>
-        typeof culture === "string" && culturePattern.test(culture),
-    ) ||
-    !isProvider(provider)
+    typeof value.deploymentVersion !== "string" ||
+    value.deploymentVersion.length === 0 ||
+    typeof value.environment !== "string" ||
+    value.environment.length === 0 ||
+    typeof value.defaultCulture !== "string" ||
+    !culturePattern.test(value.defaultCulture) ||
+    !isStringArray(value.supportedCultures) ||
+    !value.supportedCultures.every((culture) => culturePattern.test(culture)) ||
+    !value.supportedCultures.includes(value.defaultCulture) ||
+    !isProvider(value.provider)
   ) {
-    throw new Error("The public UI configuration has invalid values.");
-  }
-  if (!supportedCultures.includes(defaultCulture)) {
-    throw new Error("The public UI configuration has an unsupported default culture.");
+    throw new Error("The public UI configuration is incomplete.");
   }
   return {
-    apiBasePath,
-    deploymentVersion,
-    environment,
-    defaultCulture,
-    supportedCultures,
-    provider,
+    apiBasePath: value.apiBasePath,
+    deploymentVersion: value.deploymentVersion,
+    environment: value.environment,
+    defaultCulture: value.defaultCulture,
+    supportedCultures: value.supportedCultures,
+    provider: value.provider,
   };
 }
 

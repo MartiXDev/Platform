@@ -2,7 +2,7 @@
 
 Provider: `vue`
 
-The TypeScript client is generated from the authoritative OpenAPI artifact with
-the pinned generator/runtime pair. Its source records the artifact SHA-256
-digest, and the client check compares that digest before a build can consume
-the client. Operation coverage is verified by path and HTTP method.
+The client surface is generated from the checked-in OpenAPI contract, records the
+contract digest, and is composed with the cookie-aware transport adapter. The
+generated-client check rejects stale output; the Full Stack gate verifies required
+operations and transport composition.
