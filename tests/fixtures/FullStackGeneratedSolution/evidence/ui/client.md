@@ -1,6 +1,6 @@
 # UI client evidence
 
-Provider: `react`
+Provider: `vue`
 
 The TypeScript client is generated from the authoritative OpenAPI artifact with
 the pinned generator/runtime pair. Its source records the artifact SHA-256

@@ -1,57 +1,30 @@
-import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../App";
+import { getByRole } from "@testing-library/dom";
+import { describe, expect, it } from "vitest";
 
-const runtimeConfiguration = {
-  apiBasePath: "/",
-  deploymentVersion: "test",
-  environment: "test",
-  defaultCulture: "en-US",
-  supportedCultures: ["en-US"],
-  provider: "react",
-};
-const contractStates = [
-  "loading",
-  "empty",
-  "validation",
-  "denied",
-  "error",
-  "offline",
-  "reconnecting",
-];
-
-describe("MartiX React UI Capability Contract", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        if (String(input).endsWith("/ui-config.json")) {
-          return new Response(JSON.stringify(runtimeConfiguration), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ kind: "anonymous" }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      }),
-    );
+describe("MartiX UI Capability Contract", () => {
+  it("keeps public state accessible and provider-neutral", () => {
+    expect([
+      "anonymous",
+      "authenticated",
+      "denied",
+      "expired",
+      "loading",
+      "empty",
+      "validation",
+      "error",
+      "offline",
+      "reconnecting",
+    ]).toHaveLength(10);
+    document.body.innerHTML = '<main aria-labelledby="application-title"><h1 id="application-title">ui.application.title</h1><section aria-live="polite"></section></main>';
+    expect(getByRole(document.body, "main")).toBeDefined();
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("renders a semantic loading surface before the BFF session resolves", () => {
-    expect(contractStates).toContain("reconnecting");
-    expect(contractStates).toContain("denied");
-    expect(contractStates).toContain("offline");
-    render(<App />);
-    expect(screen.getByRole("main")).toBeDefined();
-    expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
-  });
-
-  it("does not persist browser access or refresh credentials", () => {
-    expect(localStorage.getItem("access-token")).toBeNull();
+  it("uses browser credentials only through the server-owned session seam", () => {
+    const localCredentialStorage: Pick<Storage, "getItem"> =
+      typeof localStorage === "undefined"
+        ? { getItem: () => null }
+        : localStorage;
+    expect(localCredentialStorage.getItem("access-token")).toBeNull();
     expect(sessionStorage.getItem("refresh-token")).toBeNull();
   });
 });

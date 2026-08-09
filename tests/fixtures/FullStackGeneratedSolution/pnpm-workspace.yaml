@@ -1,5 +1,6 @@
 packages:
   - "src/*"
+
 minimumReleaseAge: 4320
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
@@ -12,4 +13,4 @@ verifyDepsBeforeRun: error
 strictDepBuilds: true
 savePrefix: ""
 allowBuilds:
-  esbuild: 0.25.12
+  "esbuild@0.25.12": true

@@ -16,13 +16,19 @@ import {
 import {
   FULL_STACK_UI_APPLICATION_FILES,
   FULL_STACK_UI_BROWSER_ENTRY_FILES,
+  FULL_STACK_UI_BUILD_ALLOWLIST,
+  FULL_STACK_UI_BUILD_SCRIPT,
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_LOCKFILE_SECTIONS,
   FULL_STACK_REACT_NODE_ENGINE,
   FULL_STACK_REACT_PACKAGE_MANAGER,
   FULL_STACK_UI_EVIDENCE,
   FULL_STACK_UI_MESSAGE_KEYS,
+  FULL_STACK_UI_NODE_ENGINE,
+  FULL_STACK_UI_PACKAGE_MANAGER,
+  FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -91,7 +97,7 @@ const FULL_STACK_UI_INPUTS = [
   ...FULL_STACK_UI_EVIDENCE.map(
     (evidenceName) => `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/${evidenceName}.md`,
   ),
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.tsx`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.vue`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/generated.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/openapi.ts`,
@@ -99,19 +105,20 @@ const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Authorization/authorization.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/en-US.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/messages.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Navigation/router.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Runtime/config.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Session/session.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/DesignContract.css`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/themes.css`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/index.html`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.tsx`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/package.json`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/public/ui-config.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/scripts/verify-generated-client.mjs`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tsconfig.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tests/ui-capability-contract.test.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vite.config.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vitest.config.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/package.json`,
   `${FULL_STACK_SOLUTION_ROOT}/.npmrc`,
   `${FULL_STACK_SOLUTION_ROOT}/pnpm-lock.yaml`,
   `${FULL_STACK_SOLUTION_ROOT}/pnpm-workspace.yaml`,
@@ -776,7 +783,11 @@ function fullStackExpectedFiles(manifest) {
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
       ".npmrc",
+      "package.json",
     );
+    if (manifest.ui.provider === "vue") {
+      files.push(`${root}/Platform/Navigation/router.ts`);
+    }
   }
 
   if (manifest.ui.provider === "react") {
@@ -1727,6 +1738,52 @@ async function validateModularMonolithSolution(rootDir, manifest) {
   await validateModularMonolithComposition(solutionRoot, actualFiles, manifest);
 }
 
+function hasReviewedPnpmWorkspaceSettings(workspaceSource) {
+  return (
+    FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS.every((setting) =>
+      workspaceSource.includes(setting),
+    ) &&
+    FULL_STACK_UI_BUILD_ALLOWLIST.every((entry) => {
+      const separator = entry.lastIndexOf("@");
+      const packageName = entry.slice(0, separator);
+      const version = entry.slice(separator + 1);
+      return (
+        workspaceSource.includes(`"${entry}": true`) ||
+        workspaceSource.includes(`  ${packageName}: ${version}`)
+      );
+    }) &&
+    !workspaceSource.includes("dangerouslyAllowAllBuilds")
+  );
+}
+
+function hasExpectedPnpmLockfileSections(lockfileSource) {
+  return FULL_STACK_UI_LOCKFILE_SECTIONS.every((section) =>
+    lockfileSource.includes(section),
+  );
+}
+
+function hasReviewedTypeScriptUiToolchain({
+  packageJson,
+  rootPackageJson,
+  workspaceSource,
+  lockfileSource,
+  provider,
+}) {
+  const expectedNodeEngine =
+    provider === "react" ? FULL_STACK_REACT_NODE_ENGINE : FULL_STACK_UI_NODE_ENGINE;
+  return (
+    packageJson.dependencies?.["openapi-fetch"] === "0.17.0" &&
+    packageJson.devDependencies?.["openapi-typescript"] === "7.13.0" &&
+    packageJson.devDependencies?.["@testing-library/dom"] !== undefined &&
+    packageJson.engines?.node === expectedNodeEngine &&
+    packageJson.scripts?.build === FULL_STACK_UI_BUILD_SCRIPT[provider] &&
+    rootPackageJson.packageManager === FULL_STACK_UI_PACKAGE_MANAGER &&
+    rootPackageJson.engines?.node === FULL_STACK_UI_NODE_ENGINE &&
+    hasReviewedPnpmWorkspaceSettings(workspaceSource) &&
+    hasExpectedPnpmLockfileSections(lockfileSource)
+  );
+}
+
 async function validateFullStackSolution(rootDir, manifest) {
   const solutionRoot = resolve(rootDir, FULL_STACK_SOLUTION_ROOT);
   const actualFiles = await listFiles(solutionRoot, {
@@ -1896,7 +1953,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     !themeSource.includes('data-theme="light"') ||
     !themeSource.includes('data-theme="dark"') ||
     !generatedClientSource.includes("ProblemDetails") ||
-    (manifest.ui.provider !== "blazor-webapp" &&
+    (manifest.ui.provider === "react" &&
       (!appSource.includes("createGeneratedClient") ||
         !appSource.includes("QueryClientProvider") ||
         !appSource.includes('aria-live="polite"') ||
@@ -1934,13 +1991,22 @@ async function validateFullStackSolution(rootDir, manifest) {
     const packageJson = JSON.parse(
       await readSolutionFile(`${uiRoot}/package.json`),
     );
+    const rootPackageJson = JSON.parse(
+      await readSolutionFile("package.json"),
+    );
+    const workspaceSource = await readSolutionFile("pnpm-workspace.yaml");
+    const lockfileSource = await readSolutionFile("pnpm-lock.yaml");
     if (
-      packageJson.dependencies?.["openapi-fetch"] !== "0.17.0" ||
-      packageJson.devDependencies?.["openapi-typescript"] !== "7.13.0" ||
-      packageJson.devDependencies?.["@testing-library/dom"] === undefined
+      !hasReviewedTypeScriptUiToolchain({
+        packageJson,
+        rootPackageJson,
+        workspaceSource,
+        lockfileSource,
+        provider: manifest.ui.provider,
+      })
     ) {
       fail(
-        "Full Stack TypeScript UI must pin the reviewed OpenAPI and accessibility test profiles.",
+        "Full Stack TypeScript UI must pin its reviewed toolchain, OpenAPI, accessibility, and pnpm supply-chain profiles.",
       );
     }
     if (manifest.ui.provider === "react") {

@@ -1,6 +1,6 @@
 # UI security evidence
 
-Provider: `react`
+Provider: `vue`
 
 The UI uses a same-origin, server-owned session cookie and never stores access
 or refresh credentials in browser persistence. Problem Details are normalized

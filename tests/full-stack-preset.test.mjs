@@ -210,7 +210,7 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.match(packageJson, /openapi-fetch.*0\.17\.0/);
     assert.match(packageJson, /"typescript":\s*"5\.9\.3"/);
     assert.match(lockfile, /['"]@fluentui\/react-components['"]:/);
-    assert.match(lockfile, /openapi-typescript(?:@|:)/);
+    assert.match(lockfile, /openapi-typescript:/);
     assert.match(generatedClient, /openapi-typescript/);
     assert.match(generatedClient, /OpenAPI/);
     assert.match(generatedClient, /"\/api\/v1\/orders\/status"/);
@@ -231,6 +231,112 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.match(uiTest, /loading|empty|denied|offline|reconnect/i);
     assert.match(uiTest, /getByRole/);
     assert.doesNotMatch(uiTest, /Orders|Todo|Weather|fake product/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Vue Full Stack composes Vue Router and Vue Query without unsafe rendering", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const result = await generateFullStackPreset({
+      ...baseOptions,
+      uiProvider: "vue",
+      outputDirectory: join(root, "generated"),
+    });
+    const webRoot = join(
+      root,
+      "generated",
+      "src",
+      "MartiX.Portal.Web",
+    );
+    const application = await readFile(join(webRoot, "App.vue"), "utf8");
+    const entry = await readFile(join(webRoot, "main.ts"), "utf8");
+    const router = await readFile(
+      join(webRoot, "Platform", "Navigation", "router.ts"),
+      "utf8",
+    );
+
+    assert.equal(result.plan.ui.provider, "vue");
+    assert.ok(
+      result.files.includes(
+        "src/MartiX.Portal.Web/Platform/Navigation/router.ts",
+      ),
+    );
+    assert.match(application, /<script setup lang="ts">/);
+    assert.match(application, /aria-live="polite"/);
+    assert.doesNotMatch(application, /v-html/);
+    assert.match(entry, /QueryClient/);
+    assert.match(entry, /VueQueryPlugin/);
+    assert.match(entry, /router/);
+    assert.match(router, /createRouter/);
+    assert.match(router, /createWebHistory/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Vue Full Stack pins its runtime, package graph, and install policy", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    await generateFullStackPreset({
+      ...baseOptions,
+      uiProvider: "vue",
+      outputDirectory: join(root, "generated"),
+    });
+    const generatedRoot = join(root, "generated");
+    const rootPackage = JSON.parse(
+      await readFile(join(generatedRoot, "package.json"), "utf8"),
+    );
+    const uiPackage = JSON.parse(
+      await readFile(
+        join(generatedRoot, "src", "MartiX.Portal.Web", "package.json"),
+        "utf8",
+      ),
+    );
+    const workspace = await readFile(
+      join(generatedRoot, "pnpm-workspace.yaml"),
+      "utf8",
+    );
+    const lockfile = await readFile(
+      join(generatedRoot, "pnpm-lock.yaml"),
+      "utf8",
+    );
+
+    assert.equal(rootPackage.packageManager, "pnpm@10.34.5");
+    assert.deepEqual(rootPackage.engines, {
+      node: "^20.19.0 || >=22.12.0",
+    });
+    assert.deepEqual(uiPackage.engines, rootPackage.engines);
+    assert.equal(uiPackage.scripts.build, "vue-tsc --noEmit && vite build");
+    assert.equal(uiPackage.devDependencies["vue-tsc"], "3.1.0");
+    assert.equal(uiPackage.dependencies.vue, "3.5.22");
+    assert.equal(uiPackage.dependencies["vue-router"], "4.5.1");
+    assert.equal(uiPackage.dependencies["@tanstack/vue-query"], "5.90.2");
+    assert.ok(
+      Object.values(uiPackage).every(
+        (value) => typeof value !== "string" || !/[\\^~]/.test(value),
+      ),
+    );
+    assert.match(workspace, /minimumReleaseAge: 4320/);
+    assert.match(workspace, /minimumReleaseAgeStrict: true/);
+    assert.match(workspace, /minimumReleaseAgeIgnoreMissingTime: false/);
+    assert.match(workspace, /trustPolicy: no-downgrade/);
+    assert.match(workspace, /trustLockfile: false/);
+    assert.match(workspace, /blockExoticSubdeps: true/);
+    assert.match(workspace, /strictPeerDependencies: true/);
+    assert.match(workspace, /engineStrict: true/);
+    assert.match(workspace, /verifyDepsBeforeRun: error/);
+    assert.match(workspace, /strictDepBuilds: true/);
+    assert.match(workspace, /allowBuilds:\s+"esbuild@0\.25\.12": true/);
+    assert.doesNotMatch(workspace, /dangerouslyAllowAllBuilds/);
+    assert.match(lockfile, /src\/MartiX\.Portal\.Web:/);
+    assert.match(lockfile, /vue-router/);
+    assert.match(lockfile, /^packages:/m);
+    assert.match(lockfile, /^snapshots:/m);
+    assert.doesNotMatch(lockfile, /__UI_ROOT__/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

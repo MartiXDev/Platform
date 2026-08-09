@@ -94,6 +94,25 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
 });
 
+test("the named Full Stack fixture exercises the Vue provider", async () => {
+  const manifest = JSON.parse(
+    await readFile(
+      fullStackFixturePath(repositoryRoot, "martix.platform.json"),
+      "utf8",
+    ),
+  );
+
+  assert.equal(manifest.ui.provider, "vue");
+  assert.deepEqual(
+    manifest.providers.filter(({ capability }) => capability === "application-ui"),
+    [{
+      id: "vue",
+      capability: "application-ui",
+      state: "selected",
+    }],
+  );
+});
+
 test("Full Stack verification rejects UI contract version drift", async () => {
   await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const manifestPath = fullStackFixturePath(
@@ -115,6 +134,23 @@ test("Full Stack verification rejects UI contract version drift", async () => {
     await assert.rejects(
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /Invalid Full Stack UI contract version/,
+    );
+  });
+});
+
+test("Full Stack verification rejects UI package-manager drift", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const packagePath = fullStackFixturePath(
+      temporaryRoot,
+      "package.json",
+    );
+    const packageJson = JSON.parse(await readFile(packagePath, "utf8"));
+    packageJson.packageManager = "npm@11.0.0";
+    await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /reviewed toolchain.*pnpm supply-chain profiles/i,
     );
   });
 });
