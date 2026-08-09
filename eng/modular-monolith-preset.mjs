@@ -28,12 +28,38 @@ import {
   renderIdentityMigrationSnapshotFile,
   resolveAuthenticationProfile,
 } from "./authentication-profile.mjs";
+import {
+  FULL_STACK_DEFAULT_CULTURE,
+  FULL_STACK_DEFAULT_RENDERING_PROFILE,
+  FULL_STACK_UI_APPLICATION_FILES,
+  FULL_STACK_UI_BROWSER_ENTRY_FILES,
+  FULL_STACK_UI_CAPABILITIES,
+  FULL_STACK_UI_CONTRACT_VERSION,
+  FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_PROVIDERS,
+  FULL_STACK_UI_RENDERING_PROFILES,
+  FULL_STACK_UI_SESSION_OWNER,
+  FULL_STACK_UI_THEMES,
+} from "./full-stack-ui-contract.mjs";
+
+export {
+  FULL_STACK_DEFAULT_CULTURE,
+  FULL_STACK_DEFAULT_RENDERING_PROFILE,
+  FULL_STACK_UI_APPLICATION_FILES,
+  FULL_STACK_UI_BROWSER_ENTRY_FILES,
+  FULL_STACK_UI_CAPABILITIES,
+  FULL_STACK_UI_CONTRACT_VERSION,
+  FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_PROVIDERS,
+  FULL_STACK_UI_RENDERING_PROFILES,
+  FULL_STACK_UI_SESSION_OWNER,
+  FULL_STACK_UI_THEMES,
+} from "./full-stack-ui-contract.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
 export const FULL_STACK_PRESET = "full-stack";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_VERSION = "1.0.0";
 export const MODULAR_MONOLITH_PLATFORM_VERSION = "0.1.0-preview.1";
-export const FULL_STACK_UI_CONTRACT_VERSION = "1.0.0";
 export const MODULAR_MONOLITH_CANONICAL_REPOSITORY =
   "https://github.com/MartiXDev/Platform";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_URI =
@@ -132,27 +158,6 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
 export const MODULAR_MONOLITH_BASELINE_CAPABILITIES = Object.freeze(
   MODULAR_MONOLITH_CAPABILITY_MATRIX.map((capability) => capability.id),
 );
-export const FULL_STACK_UI_PROVIDERS = Object.freeze([
-  "blazor-webapp",
-  "react",
-  "vue",
-]);
-export const FULL_STACK_UI_CAPABILITIES = Object.freeze([
-  "application-ui",
-  "ui.design-contract",
-  "ui.generated-client",
-  "ui.problem-details",
-  "ui.secure-session",
-  "ui.authorization-states",
-  "ui.accessibility",
-  "ui.localization",
-  "ui.theme",
-  "ui.browser-evidence",
-  "ui.build-evidence",
-  "ui.security-evidence",
-  "ui.deployment-evidence",
-  "ui.observability",
-]);
 export const FULL_STACK_BASELINE_CAPABILITIES = Object.freeze([
   ...MODULAR_MONOLITH_BASELINE_CAPABILITIES,
   ...FULL_STACK_UI_CAPABILITIES,
@@ -355,8 +360,6 @@ const SUPPORTED_FULL_STACK_CAPABILITIES = new Set(
   FULL_STACK_BASELINE_CAPABILITIES,
 );
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
-const BCP_47_CULTURE_PATTERN =
-  /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
 const MODULAR_MONOLITH_OPTION_NAMES = new Set([
   "applicationName",
   "auth",
@@ -594,6 +597,80 @@ function rejectUnknownOptions(options) {
   }
 }
 
+function resolveUiProvider(options, preset, requestedProviders) {
+  const requestedUiProviders = requestedProviders.filter((provider) =>
+    FULL_STACK_UI_PROVIDER_SET.has(provider),
+  );
+  const explicitUiProviderPairs = [
+    [
+      "uiProvider",
+      options.uiProvider,
+      "applicationUiProvider",
+      options.applicationUiProvider,
+    ],
+    ["uiProvider", options.uiProvider, "ui", options.ui],
+    [
+      "applicationUiProvider",
+      options.applicationUiProvider,
+      "ui",
+      options.ui,
+    ],
+  ];
+  for (const [
+    leftName,
+    leftValue,
+    rightName,
+    rightValue,
+  ] of explicitUiProviderPairs) {
+    if (
+      leftValue !== undefined &&
+      rightValue !== undefined &&
+      leftValue !== rightValue
+    ) {
+      fail(`${leftName} and ${rightName} selections must agree.`);
+    }
+  }
+
+  if (requestedUiProviders.length > 1) {
+    fail("The full-stack preset selects exactly one UI provider.");
+  }
+  const explicitUiProvider =
+    options.uiProvider ??
+    options.applicationUiProvider ??
+    options.ui;
+  if (
+    explicitUiProvider !== undefined &&
+    requestedUiProviders.length > 0 &&
+    (requestedUiProviders.length !== 1 ||
+      requestedUiProviders[0] !== explicitUiProvider)
+  ) {
+    fail("UI provider selections must identify exactly one provider.");
+  }
+
+  const uiProvider =
+    explicitUiProvider ?? requestedUiProviders[0] ?? null;
+  if (preset === FULL_STACK_PRESET && uiProvider === null) {
+    fail(
+      "The full-stack preset requires exactly one explicit UI provider: blazor-webapp, react, or vue.",
+    );
+  }
+  if (uiProvider !== null && !FULL_STACK_UI_PROVIDER_SET.has(uiProvider)) {
+    fail(
+      `UI provider "${uiProvider}" is not supported. Select one of ${FULL_STACK_UI_PROVIDERS.join(", ")}.`,
+    );
+  }
+  if (
+    preset !== FULL_STACK_PRESET &&
+    (explicitUiProvider !== undefined || requestedUiProviders.length > 0)
+  ) {
+    fail(
+      `UI provider "${uiProvider ?? requestedUiProviders[0]}" is not supported by the modular-monolith preset.`,
+    );
+  }
+
+  return uiProvider;
+}
+
 function validateSelections(options) {
   const preset = options.preset ?? MODULAR_MONOLITH_PRESET;
   if (preset !== MODULAR_MONOLITH_PRESET && preset !== FULL_STACK_PRESET) {
@@ -631,65 +708,7 @@ function validateSelections(options) {
     fail("providers cannot contain duplicate selections.");
   }
 
-  const requestedUiProviders = requestedProviders.filter((provider) =>
-    FULL_STACK_UI_PROVIDER_SET.has(provider),
-  );
-  const explicitUiProvider =
-    options.uiProvider ??
-    options.applicationUiProvider ??
-    options.ui;
-  if (
-    options.uiProvider !== undefined &&
-    options.applicationUiProvider !== undefined &&
-    options.uiProvider !== options.applicationUiProvider
-  ) {
-    fail("uiProvider and applicationUiProvider selections must agree.");
-  }
-  if (
-    options.uiProvider !== undefined &&
-    options.ui !== undefined &&
-    options.uiProvider !== options.ui
-  ) {
-    fail("uiProvider and ui selections must agree.");
-  }
-  if (
-    options.applicationUiProvider !== undefined &&
-    options.ui !== undefined &&
-    options.applicationUiProvider !== options.ui
-  ) {
-    fail("applicationUiProvider and ui selections must agree.");
-  }
-  if (requestedUiProviders.length > 1) {
-    fail("The full-stack preset selects exactly one UI provider.");
-  }
-  if (
-    explicitUiProvider !== undefined &&
-    requestedUiProviders.length > 0 &&
-    (requestedUiProviders.length !== 1 ||
-      requestedUiProviders[0] !== explicitUiProvider)
-  ) {
-    fail("UI provider selections must identify exactly one provider.");
-  }
-  const uiProvider =
-    explicitUiProvider ?? requestedUiProviders[0] ?? null;
-  if (preset === FULL_STACK_PRESET && uiProvider === null) {
-    fail(
-      "The full-stack preset requires exactly one explicit UI provider: blazor-webapp, react, or vue.",
-    );
-  }
-  if (uiProvider !== null && !FULL_STACK_UI_PROVIDER_SET.has(uiProvider)) {
-    fail(
-      `UI provider "${uiProvider}" is not supported. Select one of ${FULL_STACK_UI_PROVIDERS.join(", ")}.`,
-    );
-  }
-  if (
-    preset !== FULL_STACK_PRESET &&
-    (explicitUiProvider !== undefined || requestedUiProviders.length > 0)
-  ) {
-    fail(
-      `UI provider "${uiProvider ?? requestedUiProviders[0]}" is not supported by the modular-monolith preset.`,
-    );
-  }
+  const uiProvider = resolveUiProvider(options, preset, requestedProviders);
 
   const relationalProviders = requestedProviders.filter(
     (provider) => !FULL_STACK_UI_PROVIDER_SET.has(provider),
@@ -720,16 +739,18 @@ function validateSelections(options) {
     );
   }
 
-  const renderingProfile = options.renderingProfile ?? "application";
-  if (!["application", "hybrid-web"].includes(renderingProfile)) {
+  const renderingProfile =
+    options.renderingProfile ?? FULL_STACK_DEFAULT_RENDERING_PROFILE;
+  if (!FULL_STACK_UI_RENDERING_PROFILES.includes(renderingProfile)) {
     fail(
       `Rendering profile "${renderingProfile}" is not supported by the ${FULL_STACK_PRESET} preset.`,
     );
   }
-  const defaultCulture = options.defaultCulture ?? "en-US";
+  const defaultCulture =
+    options.defaultCulture ?? FULL_STACK_DEFAULT_CULTURE;
   if (
     typeof defaultCulture !== "string" ||
-    !BCP_47_CULTURE_PATTERN.test(defaultCulture.trim())
+    !FULL_STACK_UI_CULTURE_PATTERN.test(defaultCulture.trim())
   ) {
     fail(
       "defaultCulture must be a valid BCP 47 culture identifier such as en-US.",
@@ -855,8 +876,8 @@ function createPlan(
             contractVersion: FULL_STACK_UI_CONTRACT_VERSION,
             renderingProfile: selections.renderingProfile,
             defaultCulture: selections.defaultCulture,
-            sessionOwner: "server-bff",
-            themes: ["light", "dark", "system"],
+            sessionOwner: FULL_STACK_UI_SESSION_OWNER,
+            themes: [...FULL_STACK_UI_THEMES],
           },
         }
       : {}),
@@ -3308,7 +3329,7 @@ function uiContractDocument(plan) {
         credentials: "server-owned-session",
       },
       session: {
-        owner: "server-bff",
+        owner: FULL_STACK_UI_SESSION_OWNER,
         browserPersistence: "session-cookie-only",
         states: ["anonymous", "authenticated", "denied", "expired"],
       },
@@ -3337,7 +3358,7 @@ function uiContractDocument(plan) {
       },
       theme: {
         default: "system",
-        modes: ["light", "dark", "system"],
+        modes: [...FULL_STACK_UI_THEMES],
         tokens: "semantic",
       },
       evidence: [
@@ -4142,8 +4163,25 @@ credentials, cookies, personal query values, or stack traces leave the UI.
   };
 }
 
+function uiApplicationFileName(provider) {
+  const fileName = FULL_STACK_UI_APPLICATION_FILES[provider];
+  if (fileName === undefined) {
+    fail(`Unsupported Full Stack UI provider: ${provider}.`);
+  }
+  return fileName;
+}
+
+function uiBrowserEntryFileName(provider) {
+  const fileName = FULL_STACK_UI_BROWSER_ENTRY_FILES[provider];
+  if (fileName === undefined) {
+    fail(`Unsupported browser UI provider: ${provider}.`);
+  }
+  return fileName;
+}
+
 function createUiFiles(plan) {
   const root = `src/${plan.applicationName}.Web`;
+  const evidenceFiles = uiEvidenceFiles(plan);
   const files = new Map([
     ["contracts/ui-capability-v1.json", uiContractDocument(plan)],
     [`${root}/Platform/Api/transport.ts`, uiTransportFile()],
@@ -4158,17 +4196,20 @@ function createUiFiles(plan) {
     ],
     [`${root}/Platform/Api/openapi.ts`, uiGeneratedOpenApiTypeScriptFile()],
     [`${root}/Platform/Api/generated.ts`, uiGeneratedTypeScriptFile()],
-    [`${root}/App.${plan.ui.provider === "vue" ? "vue" : plan.ui.provider === "react" ? "tsx" : "razor"}`, uiApplicationSource(plan)],
+    [`${root}/${uiApplicationFileName(plan.ui.provider)}`, uiApplicationSource(plan)],
     [`${root}/Platform/Api/README.md`, `# Generated API client
 
 Generated from \`contracts/openapi-v1.json\`. Provider: \`${plan.ui.provider}\`.
 This directory contains wire contracts and transport adapters only.
 `],
-    ["evidence/ui/browser.md", uiEvidenceFiles(plan)["evidence/ui/browser.md"]],
-    ["evidence/ui/build.md", uiEvidenceFiles(plan)["evidence/ui/build.md"]],
-    ["evidence/ui/security.md", uiEvidenceFiles(plan)["evidence/ui/security.md"]],
-    ["evidence/ui/deployment.md", uiEvidenceFiles(plan)["evidence/ui/deployment.md"]],
-    ["evidence/ui/observability.md", uiEvidenceFiles(plan)["evidence/ui/observability.md"]],
+    ["evidence/ui/browser.md", evidenceFiles["evidence/ui/browser.md"]],
+    ["evidence/ui/build.md", evidenceFiles["evidence/ui/build.md"]],
+    ["evidence/ui/security.md", evidenceFiles["evidence/ui/security.md"]],
+    ["evidence/ui/deployment.md", evidenceFiles["evidence/ui/deployment.md"]],
+    [
+      "evidence/ui/observability.md",
+      evidenceFiles["evidence/ui/observability.md"],
+    ],
   ]);
 
   if (plan.ui.provider === "blazor-webapp") {
@@ -4192,7 +4233,7 @@ This directory contains wire contracts and transport adapters only.
     files.set("pnpm-workspace.yaml", uiPnpmWorkspaceFile());
     files.set(".npmrc", uiNpmrcFile());
     files.set("pnpm-lock.yaml", uiPnpmLockFile(plan));
-    files.set(`${root}/main.${plan.ui.provider === "vue" ? "ts" : "tsx"}`, uiEntrySource(plan));
+    files.set(`${root}/${uiBrowserEntryFileName(plan.ui.provider)}`, uiEntrySource(plan));
     files.set(`${root}/tests/ui-capability-contract.test.ts`, uiBrowserTestSource(plan));
     files.set(
       `${root}/scripts/verify-generated-client.mjs`,
@@ -4385,8 +4426,8 @@ async function writeFiles(outputDirectory, files) {
   return writtenFiles.sort();
 }
 
-export async function generateModularMonolithPreset(options = {}) {
-  const plan = createModularMonolithPresetPlan(options);
+async function generatePresetOutput(options, createPlan) {
+  const plan = createPlan(options);
   const outputDirectory = await prepareOutputDirectory(options.outputDirectory);
   const manifest = createManifest(plan);
   const files = createFiles(plan, manifest);
@@ -4400,17 +4441,10 @@ export async function generateModularMonolithPreset(options = {}) {
   };
 }
 
-export async function generateFullStackPreset(options = {}) {
-  const plan = createFullStackPresetPlan(options);
-  const outputDirectory = await prepareOutputDirectory(options.outputDirectory);
-  const manifest = createManifest(plan);
-  const files = createFiles(plan, manifest);
-  const writtenFiles = await writeFiles(outputDirectory, files);
+export async function generateModularMonolithPreset(options = {}) {
+  return generatePresetOutput(options, createModularMonolithPresetPlan);
+}
 
-  return {
-    outputDirectory,
-    plan,
-    manifest,
-    files: writtenFiles,
-  };
+export async function generateFullStackPreset(options = {}) {
+  return generatePresetOutput(options, createFullStackPresetPlan);
 }

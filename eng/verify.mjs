@@ -12,6 +12,16 @@ import {
   MODULAR_MONOLITH_ALPHA_PROVIDERS,
   RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
 } from "./modular-monolith-alpha.mjs";
+import {
+  FULL_STACK_UI_APPLICATION_FILES,
+  FULL_STACK_UI_BROWSER_ENTRY_FILES,
+  FULL_STACK_UI_CAPABILITIES,
+  FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_PROVIDERS,
+  FULL_STACK_UI_RENDERING_PROFILES,
+  FULL_STACK_UI_SESSION_OWNER,
+  FULL_STACK_UI_THEMES,
+} from "./full-stack-ui-contract.mjs";
 
 const CADENCES = [
   "fast",
@@ -70,27 +80,7 @@ const MANIFEST_ALLOWED_PROPERTIES = [
   "ui",
   "modules",
 ];
-const FULL_STACK_UI_PROVIDERS = new Set([
-  "blazor-webapp",
-  "react",
-  "vue",
-]);
-const FULL_STACK_UI_CAPABILITIES = [
-  "application-ui",
-  "ui.design-contract",
-  "ui.generated-client",
-  "ui.problem-details",
-  "ui.secure-session",
-  "ui.authorization-states",
-  "ui.accessibility",
-  "ui.localization",
-  "ui.theme",
-  "ui.browser-evidence",
-  "ui.build-evidence",
-  "ui.security-evidence",
-  "ui.deployment-evidence",
-  "ui.observability",
-];
+const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/browser.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/build.md`,
@@ -538,7 +528,7 @@ function validateFullStackManifest(manifest, path) {
     `${path}.ui`,
   );
   requireString(manifest.ui.provider, `${path}.ui.provider`);
-  if (!FULL_STACK_UI_PROVIDERS.has(manifest.ui.provider)) {
+  if (!FULL_STACK_UI_PROVIDER_SET.has(manifest.ui.provider)) {
     fail(
       `Invalid Full Stack UI provider at ${path}.ui.provider: ${manifest.ui.provider}.`,
     );
@@ -548,28 +538,25 @@ function validateFullStackManifest(manifest, path) {
     manifest.ui.renderingProfile,
     `${path}.ui.renderingProfile`,
   );
-  if (!["application", "hybrid-web"].includes(manifest.ui.renderingProfile)) {
+  if (!FULL_STACK_UI_RENDERING_PROFILES.includes(manifest.ui.renderingProfile)) {
     fail(
       `Invalid Full Stack rendering profile at ${path}.ui.renderingProfile.`,
     );
   }
   requireString(manifest.ui.defaultCulture, `${path}.ui.defaultCulture`);
   if (
-    !/^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/.test(
-      manifest.ui.defaultCulture,
-    )
+    !FULL_STACK_UI_CULTURE_PATTERN.test(manifest.ui.defaultCulture)
   ) {
     fail(`Invalid BCP 47 default culture at ${path}.ui.defaultCulture.`);
   }
-  if (manifest.ui.sessionOwner !== "server-bff") {
+  if (manifest.ui.sessionOwner !== FULL_STACK_UI_SESSION_OWNER) {
     fail(
       `Full Stack UI sessions must be owned by the server BFF at ${path}.ui.sessionOwner.`,
     );
   }
   requireArray(manifest.ui.themes, `${path}.ui.themes`);
   if (
-    JSON.stringify(manifest.ui.themes) !==
-    JSON.stringify(["light", "dark", "system"])
+    JSON.stringify(manifest.ui.themes) !== JSON.stringify(FULL_STACK_UI_THEMES)
   ) {
     fail(
       `Full Stack UI themes must be light, dark, and system at ${path}.ui.themes.`,
@@ -718,6 +705,22 @@ function modularMonolithExpectedFiles(manifest) {
   return files.sort();
 }
 
+function fullStackApplicationFileName(provider) {
+  const fileName = FULL_STACK_UI_APPLICATION_FILES[provider];
+  if (fileName === undefined) {
+    fail(`Unsupported Full Stack UI provider: ${provider}.`);
+  }
+  return fileName;
+}
+
+function fullStackBrowserEntryFileName(provider) {
+  const fileName = FULL_STACK_UI_BROWSER_ENTRY_FILES[provider];
+  if (fileName === undefined) {
+    fail(`Unsupported browser UI provider: ${provider}.`);
+  }
+  return fileName;
+}
+
 function fullStackExpectedFiles(manifest) {
   const applicationName = manifest.repository.name;
   const root = `src/${applicationName}.Web`;
@@ -739,7 +742,7 @@ function fullStackExpectedFiles(manifest) {
     `${root}/Platform/Session/session.ts`,
     `${root}/Platform/Ui/DesignContract.css`,
     `${root}/Platform/Ui/themes.css`,
-    `${root}/${manifest.ui.provider === "vue" ? "App.vue" : manifest.ui.provider === "react" ? "App.tsx" : "App.razor"}`,
+    `${root}/${fullStackApplicationFileName(manifest.ui.provider)}`,
   ];
 
   if (manifest.ui.provider === "blazor-webapp") {
@@ -754,7 +757,7 @@ function fullStackExpectedFiles(manifest) {
   } else {
     files.push(
       `${root}/Platform/Localization/messages.ts`,
-      `${root}/main.${manifest.ui.provider === "vue" ? "ts" : "tsx"}`,
+      `${root}/${fullStackBrowserEntryFileName(manifest.ui.provider)}`,
       `${root}/index.html`,
       `${root}/package.json`,
       `${root}/scripts/verify-generated-client.mjs`,

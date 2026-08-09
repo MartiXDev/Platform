@@ -1,0 +1,52 @@
+export const FULL_STACK_UI_CONTRACT_VERSION = "1.0.0";
+
+export const FULL_STACK_UI_PROVIDERS = Object.freeze([
+  "blazor-webapp",
+  "react",
+  "vue",
+]);
+
+export const FULL_STACK_UI_APPLICATION_FILES = Object.freeze({
+  "blazor-webapp": "App.razor",
+  react: "App.tsx",
+  vue: "App.vue",
+});
+
+export const FULL_STACK_UI_BROWSER_ENTRY_FILES = Object.freeze({
+  react: "main.tsx",
+  vue: "main.ts",
+});
+
+export const FULL_STACK_UI_CAPABILITIES = Object.freeze([
+  "application-ui",
+  "ui.design-contract",
+  "ui.generated-client",
+  "ui.problem-details",
+  "ui.secure-session",
+  "ui.authorization-states",
+  "ui.accessibility",
+  "ui.localization",
+  "ui.theme",
+  "ui.browser-evidence",
+  "ui.build-evidence",
+  "ui.security-evidence",
+  "ui.deployment-evidence",
+  "ui.observability",
+]);
+
+export const FULL_STACK_UI_RENDERING_PROFILES = Object.freeze([
+  "application",
+  "hybrid-web",
+]);
+export const FULL_STACK_DEFAULT_RENDERING_PROFILE = "application";
+
+export const FULL_STACK_UI_THEMES = Object.freeze([
+  "light",
+  "dark",
+  "system",
+]);
+
+export const FULL_STACK_UI_SESSION_OWNER = "server-bff";
+export const FULL_STACK_DEFAULT_CULTURE = "en-US";
+export const FULL_STACK_UI_CULTURE_PATTERN =
+  /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
