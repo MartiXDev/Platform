@@ -2000,7 +2000,7 @@ async function validateFullStackSolution(rootDir, manifest) {
   }
   let sessionContractValid;
   if (isBlazorProvider) {
-    const authenticationStateMethod = sessionSource.match(
+    const authenticationStateMethodSource = sessionSource.match(
       /public override Task<AuthenticationState> GetAuthenticationStateAsync\(\)[\s\S]*?(?=\s+public void Publish)/,
     )?.[0] ?? "";
     sessionContractValid =
@@ -2008,12 +2008,16 @@ async function validateFullStackSolution(rootDir, manifest) {
       sessionSource.includes("server") &&
       sessionSource.includes("Publish") &&
       sessionSource.includes("IHttpContextAccessor") &&
-      authenticationStateMethod.includes("CreatePrincipal(session)") &&
-      !authenticationStateMethod.includes("HttpContext") &&
+      authenticationStateMethodSource.includes("CreatePrincipal(session)") &&
+      !authenticationStateMethodSource.includes("HttpContext") &&
       !sessionSource.includes("localStorage");
   } else {
     sessionContractValid = sessionSource.includes('credentials: "include"');
   }
+  const blazorApiFailureContractValid =
+    !isBlazorProvider ||
+    (generatedClientSource.includes("ProblemDetails? problem = null") &&
+      generatedClientSource.includes("catch (JsonException)"));
   const authorizationContractValid =
     /anonymous/i.test(authorizationSource) &&
     /authenticated/i.test(authorizationSource) &&
@@ -2037,9 +2041,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     !browserTestSource.includes("offline") ||
     !browserTestSource.includes("denied") ||
     !browserTestSource.includes("reconnect") ||
-    (isBlazorProvider &&
-      (!generatedClientSource.includes("ProblemDetails? problem = null") ||
-        !generatedClientSource.includes("catch (JsonException)"))) ||
+    !blazorApiFailureContractValid ||
     (!isBlazorProvider &&
       !browserTestSource.includes("getByRole")) ||
     (isBlazorProvider &&

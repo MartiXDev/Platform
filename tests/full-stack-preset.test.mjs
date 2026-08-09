@@ -446,15 +446,15 @@ test("Blazor Full Stack normalizes malformed errors and keeps circuit session st
       join(webRoot, "Platform", "Session", "Session.cs"),
       "utf8",
     );
-    const getAuthenticationState = session.match(
-      /    public override Task<AuthenticationState> GetAuthenticationStateAsync\(\)[\s\S]*?(?=    public void Publish)/,
+    const authenticationStateMethodSource = session.match(
+      /public override Task<AuthenticationState> GetAuthenticationStateAsync\(\)[\s\S]*?(?=\s+public void Publish)/,
     )?.[0];
 
     assert.match(generatedClient, /ProblemDetails\? problem = null;/);
     assert.match(generatedClient, /catch \(JsonException\)/);
-    assert.ok(getAuthenticationState);
-    assert.match(getAuthenticationState, /CreatePrincipal\(session\)/);
-    assert.doesNotMatch(getAuthenticationState, /HttpContext/);
+    assert.ok(authenticationStateMethodSource);
+    assert.match(authenticationStateMethodSource, /CreatePrincipal\(session\)/);
+    assert.doesNotMatch(authenticationStateMethodSource, /HttpContext/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

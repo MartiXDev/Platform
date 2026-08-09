@@ -156,16 +156,14 @@ test("Full Stack verification requires normalized Blazor API failures", async ()
       "GeneratedClient.cs",
     );
     const client = await readFile(clientPath, "utf8");
+    const clientWithoutFailureNormalization = client.replace(
+      "catch (JsonException)",
+      "catch (InvalidOperationException)",
+    );
+    assert.notEqual(clientWithoutFailureNormalization, client);
     await writeFile(
       clientPath,
-      client.replace(
-        `        catch (JsonException)
-        {
-            // Keep malformed error payloads on the canonical failure path.
-        }
-`,
-        "",
-      ),
+      clientWithoutFailureNormalization,
     );
 
     await assert.rejects(
