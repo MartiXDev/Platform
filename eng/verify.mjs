@@ -16,7 +16,9 @@ import {
   FULL_STACK_UI_APPLICATION_FILES,
   FULL_STACK_UI_BROWSER_ENTRY_FILES,
   FULL_STACK_UI_CAPABILITIES,
+  FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -534,6 +536,11 @@ function validateFullStackManifest(manifest, path) {
     );
   }
   requireString(manifest.ui.contractVersion, `${path}.ui.contractVersion`);
+  if (manifest.ui.contractVersion !== FULL_STACK_UI_CONTRACT_VERSION) {
+    fail(
+      `Invalid Full Stack UI contract version at ${path}.ui.contractVersion: expected ${FULL_STACK_UI_CONTRACT_VERSION}.`,
+    );
+  }
   requireString(
     manifest.ui.renderingProfile,
     `${path}.ui.renderingProfile`,
@@ -1709,8 +1716,12 @@ async function validateFullStackSolution(rootDir, manifest) {
   const uiContract = JSON.parse(
     await readSolutionFile("contracts/ui-capability-v1.json"),
   );
+  const httpContract = JSON.parse(
+    await readSolutionFile("contracts/openapi-v1.json"),
+  );
   if (
-    uiContract.contractVersion !== manifest.ui.contractVersion ||
+    uiContract.contractVersion !== FULL_STACK_UI_CONTRACT_VERSION ||
+    manifest.ui.contractVersion !== FULL_STACK_UI_CONTRACT_VERSION ||
     uiContract.provider !== "provider-neutral" ||
     uiContract.role !== "application-ui" ||
     uiContract.transport?.source !== "contracts/openapi-v1.json" ||
@@ -1737,6 +1748,8 @@ async function validateFullStackSolution(rootDir, manifest) {
     uiContract.accessibility?.forcedColors !== true ||
     uiContract.accessibility?.rtl !== true ||
     uiContract.localization?.defaultCulture !== manifest.ui.defaultCulture ||
+    JSON.stringify(uiContract.localization?.messageKeys) !==
+      JSON.stringify(FULL_STACK_UI_MESSAGE_KEYS) ||
     uiContract.localization?.identifierPolicy !== "stable-semantic-keys" ||
     uiContract.localization?.protocolInvariant !== true ||
     uiContract.theme?.tokens !== "semantic" ||
@@ -1763,8 +1776,16 @@ async function validateFullStackSolution(rootDir, manifest) {
     await Promise.all(uiFiles.map((file) => readSolutionFile(file)))
   ).join("\n");
   const forbiddenBackendReference = new RegExp(
-    `(?:ProjectReference|${escapeRegExp(applicationName)}\\.Api|${manifest.modules
-      .map((module) => escapeRegExp(module.name))
+    `(?:ProjectReference|${[
+      `${applicationName}.Api`,
+      ...manifest.modules.map(
+        (module) => `${applicationName}.${module.name}`,
+      ),
+    ]
+      .map(
+        (reference) =>
+          `${escapeRegExp(reference)}(?:\\.|\\b)`,
+      )
       .join("|")})`,
     "i",
   );
@@ -1795,6 +1816,26 @@ async function validateFullStackSolution(rootDir, manifest) {
     manifest.ui.provider === "blazor-webapp"
       ? await readSolutionFile(`${uiRoot}/Platform/Api/GeneratedClient.cs`)
       : await readSolutionFile(`${uiRoot}/Platform/Api/generated.ts`);
+  const generatedClientMatchesHttpContract =
+    manifest.ui.provider === "blazor-webapp"
+      ? Object.entries(httpContract.paths ?? {}).every(([path, pathItem]) =>
+          Object.entries(pathItem)
+            .filter(([method]) =>
+              ["delete", "get", "patch", "post", "put"].includes(method),
+            )
+            .every(([, operation]) =>
+              generatedClientSource.includes(`"${path}"`) &&
+              generatedClientSource.includes(operation["x-client"]?.methodName),
+            ),
+        )
+      : Object.keys(httpContract.paths ?? {}).every((path) =>
+          generatedClientSource.includes(JSON.stringify(path)),
+        );
+  if (!generatedClientMatchesHttpContract) {
+    fail(
+      "Full Stack generated UI client must expose every operation from contracts/openapi-v1.json.",
+    );
+  }
   const browserTestSource =
     manifest.ui.provider === "blazor-webapp"
       ? await readSolutionFile(
@@ -1813,11 +1854,11 @@ async function validateFullStackSolution(rootDir, manifest) {
     !authorizationSource.includes("authenticated") ||
     !authorizationSource.includes("denied") ||
     !authorizationSource.includes("expired") ||
-    !localizationSource.includes("ui.application.title") ||
-    !localizationSource.includes("ui.state.loading") ||
+    !FULL_STACK_UI_MESSAGE_KEYS.every((key) => localizationSource.includes(key)) ||
     !designSource.includes("--mx-color-focus") ||
     !designSource.includes("--mx-color-danger-surface") ||
     /#[0-9a-f]{3,8}\b/i.test(designSource) ||
+    /fluent/i.test(designSource) ||
     /tailwind/i.test(designSource) ||
     !themeSource.includes('data-theme="system"') ||
     !themeSource.includes('data-theme="light"') ||

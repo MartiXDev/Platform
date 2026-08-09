@@ -34,6 +34,25 @@ export const FULL_STACK_UI_CAPABILITIES = Object.freeze([
   "ui.observability",
 ]);
 
+export const FULL_STACK_UI_MESSAGE_KEYS = Object.freeze([
+  "ui.application.title",
+  "ui.state.loading",
+  "ui.state.empty",
+  "ui.state.validation",
+  "ui.state.denied",
+  "ui.state.error",
+  "ui.state.offline",
+  "ui.state.reconnecting",
+  "ui.state.stale",
+  "ui.error.offline",
+  "ui.session.anonymous",
+  "ui.session.expired",
+  "ui.session.authenticated",
+  "ui.theme.system",
+  "ui.theme.light",
+  "ui.theme.dark",
+]);
+
 export const FULL_STACK_UI_RENDERING_PROFILES = Object.freeze([
   "application",
   "hybrid-web",

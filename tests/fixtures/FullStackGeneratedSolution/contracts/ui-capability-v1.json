@@ -41,6 +41,24 @@
   },
   "localization": {
     "defaultCulture": "en-US",
+    "messageKeys": [
+      "ui.application.title",
+      "ui.state.loading",
+      "ui.state.empty",
+      "ui.state.validation",
+      "ui.state.denied",
+      "ui.state.error",
+      "ui.state.offline",
+      "ui.state.reconnecting",
+      "ui.state.stale",
+      "ui.error.offline",
+      "ui.session.anonymous",
+      "ui.session.expired",
+      "ui.session.authenticated",
+      "ui.theme.system",
+      "ui.theme.light",
+      "ui.theme.dark"
+    ],
     "identifierPolicy": "stable-semantic-keys",
     "protocolInvariant": true
   },
