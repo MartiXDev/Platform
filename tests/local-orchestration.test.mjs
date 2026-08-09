@@ -97,4 +97,14 @@ test("local projections reject secret-shaped executable arguments", async () => 
     () => createLocalOrchestration(manifest),
     /secret-shaped argument/,
   );
+
+  input.resources.find(({ id }) => id === "api").arguments = [
+    "--token",
+    "embedded",
+  ];
+  const splitArgumentManifest = createDeploymentManifest(input);
+  assert.throws(
+    () => createLocalOrchestration(splitArgumentManifest),
+    /secret-shaped argument/,
+  );
 });
