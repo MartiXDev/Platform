@@ -2467,8 +2467,9 @@ function validateGovernanceDocuments(documents) {
 
 export async function validateProviderAdmissionFixture(
   fixture,
-  manifest = undefined,
+  manifest,
 ) {
+  const manifestPath = `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`;
   assertSecretFree(
     fixture,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
@@ -2491,6 +2492,9 @@ export async function validateProviderAdmissionFixture(
     fixture.invalidSelections,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections`,
   );
+  requireRecord(manifest, manifestPath);
+  requireArray(manifest.providers, `${manifestPath}.providers`);
+  requireArray(manifest.supportClaims, `${manifestPath}.supportClaims`);
 
   let result;
   try {
@@ -2511,32 +2515,30 @@ export async function validateProviderAdmissionFixture(
       `Provider admission fixture evidence does not match the resolved composition: ${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.`,
     );
   }
-  if (manifest !== undefined) {
-    if (manifest.preset !== fixture.selection.preset) {
-      fail(
-        `Provider admission manifest preset ${manifest.preset} does not match the fixture selection preset ${fixture.selection.preset}.`,
-      );
-    }
-    const manifestProviders = manifest.providers
-      .filter((provider) => provider?.state === "selected")
-      .map(({ capability, id }) => ({ capability, id }))
-      .sort((left, right) =>
-        `${left.capability}:${left.id}`.localeCompare(
-          `${right.capability}:${right.id}`,
-        ),
-      );
-    const selectedProviders = result.plan.providers.map(({ capability, id }) => ({
-      capability,
-      id,
-    }));
-    if (JSON.stringify(manifestProviders) !== JSON.stringify(selectedProviders)) {
-      fail(
-        "Provider admission manifest providers do not match the resolved fixture selection.",
-      );
-    }
-    if (manifest.supportClaims.length !== 0) {
-      fail("Provider admission manifest must not make a Supported claim.");
-    }
+  if (manifest.preset !== fixture.selection.preset) {
+    fail(
+      `Provider admission manifest preset ${manifest.preset} does not match the fixture selection preset ${fixture.selection.preset}.`,
+    );
+  }
+  const manifestProviders = manifest.providers
+    .filter((provider) => provider?.state === "selected")
+    .map(({ capability, id }) => ({ capability, id }))
+    .sort((left, right) =>
+      `${left.capability}:${left.id}`.localeCompare(
+        `${right.capability}:${right.id}`,
+      ),
+    );
+  const selectedProviders = result.plan.providers.map(({ capability, id }) => ({
+    capability,
+    id,
+  }));
+  if (JSON.stringify(manifestProviders) !== JSON.stringify(selectedProviders)) {
+    fail(
+      "Provider admission manifest providers do not match the resolved fixture selection.",
+    );
+  }
+  if (manifest.supportClaims.length !== 0) {
+    fail("Provider admission manifest must not make a Supported claim.");
   }
 
   for (const [index, invalid] of fixture.invalidSelections.entries()) {

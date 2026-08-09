@@ -168,6 +168,21 @@ test("absence fails closed when an unselected provider leaves any residue", () =
   );
 });
 
+test("absence fails closed for effects outside the provider catalog", () => {
+  const plan = resolveProviderAdmission(quartzSelection());
+  const observed = mergeObservedEffects(plan.effects);
+  observed.configuration.push("Uncatalogued:Provider");
+
+  assert.throws(
+    () =>
+      verifyProviderAbsence({
+        plan,
+        observed,
+      }),
+    /Unselected provider residue detected.*unknown provider.*configuration/i,
+  );
+});
+
 test("absence checks every declared effect category", () => {
   const plan = resolveProviderAdmission(quartzSelection());
   const catalog = validateProviderAdmissionCatalog();

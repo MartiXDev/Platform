@@ -466,6 +466,46 @@ function normalizePackageEffect(value, label) {
   return { id, version };
 }
 
+const STRING_EFFECT_HANDLER = Object.freeze({
+  normalize(value, label) {
+    return requireUniqueStrings(value, label);
+  },
+  clone(value) {
+    return value;
+  },
+  identity(value) {
+    return value;
+  },
+});
+
+const PACKAGE_EFFECT_HANDLER = Object.freeze({
+  normalize(value, label, errorCode = "invalid-input") {
+    if (!Array.isArray(value)) {
+      fail(`${label} must be an array.`, errorCode);
+    }
+    return value.map((item, index) =>
+      normalizePackageEffect(item, `${label}[${index}]`),
+    );
+  },
+  clone(value) {
+    return { ...value };
+  },
+  identity(value) {
+    return `${value.id}@${value.version}`;
+  },
+});
+
+const EFFECT_HANDLERS = Object.freeze({
+  packages: PACKAGE_EFFECT_HANDLER,
+  configuration: STRING_EFFECT_HANDLER,
+  registrations: STRING_EFFECT_HANDLER,
+  workers: STRING_EFFECT_HANDLER,
+  healthChecks: STRING_EFFECT_HANDLER,
+  telemetry: STRING_EFFECT_HANDLER,
+  containers: STRING_EFFECT_HANDLER,
+  deployment: STRING_EFFECT_HANDLER,
+});
+
 function normalizeEffects(value, label) {
   const effects = requireRecord(value, label);
   const normalized = {};
@@ -476,12 +516,11 @@ function normalizeEffects(value, label) {
         "invalid-catalog",
       );
     }
-    normalized[kind] =
-      kind === "packages"
-        ? effects[kind].map((item, index) =>
-            normalizePackageEffect(item, `${label}.${kind}[${index}]`),
-          )
-        : requireUniqueStrings(effects[kind], `${label}.${kind}`);
+    normalized[kind] = EFFECT_HANDLERS[kind].normalize(
+      effects[kind],
+      `${label}.${kind}`,
+      "invalid-catalog",
+    );
   }
 
   return normalized;
@@ -684,7 +723,7 @@ function normalizeConfiguration(value) {
   return Object.keys(configuration).sort();
 }
 
-function normalizeMatrixInput(selection) {
+function normalizeMatrixInput(selection, preset) {
   const matrix = selection.matrix === undefined
     ? {}
     : requireRecord(selection.matrix, "matrix");
@@ -694,7 +733,7 @@ function normalizeMatrixInput(selection) {
     }
   }
   const normalized = {
-    preset: requireIdentifier(selection.preset, "preset"),
+    preset,
     runtime: requireString(selection.runtime, "runtime"),
     operatingSystem: requireIdentifier(
       selection.operatingSystem,
@@ -746,10 +785,7 @@ function sortReferences(references) {
 }
 
 function effectIdentity(kind, value) {
-  if (kind === "packages") {
-    return `${value.id}@${value.version}`;
-  }
-  return value;
+  return EFFECT_HANDLERS[kind].identity(value);
 }
 
 function mergeEffects(definitions) {
@@ -758,15 +794,15 @@ function mergeEffects(definitions) {
   );
   for (const definition of definitions) {
     for (const kind of PROVIDER_ADMISSION_EFFECT_KINDS) {
+      const handler = EFFECT_HANDLERS[kind];
       for (const effect of definition.effects[kind]) {
         if (
           !effects[kind].some(
-            (existing) => effectIdentity(kind, existing) === effectIdentity(kind, effect),
+            (existing) =>
+              handler.identity(existing) === handler.identity(effect),
           )
         ) {
-          effects[kind].push(
-            kind === "packages" ? { ...effect } : effect,
-          );
+          effects[kind].push(handler.clone(effect));
         }
       }
     }
@@ -779,6 +815,15 @@ function mergeEffects(definitions) {
   return effects;
 }
 
+function cloneEffects(effects) {
+  return Object.fromEntries(
+    PROVIDER_ADMISSION_EFFECT_KINDS.map((kind) => [
+      kind,
+      effects[kind].map((effect) => EFFECT_HANDLERS[kind].clone(effect)),
+    ]),
+  );
+}
+
 function effectList(value, kind, label) {
   if (!isRecord(value)) {
     fail(`${label} must be an object.`, "invalid-observation");
@@ -786,15 +831,11 @@ function effectList(value, kind, label) {
   if (!Object.hasOwn(value, kind)) {
     fail(`${label}.${kind} must be observed, including when empty.`, "invalid-observation");
   }
-  if (kind === "packages") {
-    if (!Array.isArray(value[kind])) {
-      fail(`${label}.${kind} must be an array.`, "invalid-observation");
-    }
-    return value[kind].map((item, index) =>
-      normalizePackageEffect(item, `${label}.${kind}[${index}]`),
-    );
-  }
-  return requireUniqueStrings(value[kind], `${label}.${kind}`);
+  return EFFECT_HANDLERS[kind].normalize(
+    value[kind],
+    `${label}.${kind}`,
+    "invalid-observation",
+  );
 }
 
 function normalizeObservedEffects(value) {
@@ -892,7 +933,7 @@ function normalizeSelection(selection) {
     "capabilities",
   );
   const providers = normalizeProviders(value.providers);
-  const matrix = normalizeMatrixInput(value);
+  const matrix = normalizeMatrixInput(value, preset);
   const configuration = normalizeConfiguration(value.configuration);
 
   if (new Set(capabilities).size !== capabilities.length) {
@@ -925,17 +966,7 @@ export function validateProviderAdmissionCatalog(
     prerequisites: definition.prerequisites.map((reference) => ({ ...reference })),
     conflicts: definition.conflicts.map((reference) => ({ ...reference })),
     requiredConfiguration: [...definition.requiredConfiguration],
-    effects: {
-      ...definition.effects,
-      packages: definition.effects.packages.map((effect) => ({ ...effect })),
-      configuration: [...definition.effects.configuration],
-      registrations: [...definition.effects.registrations],
-      workers: [...definition.effects.workers],
-      healthChecks: [...definition.effects.healthChecks],
-      telemetry: [...definition.effects.telemetry],
-      containers: [...definition.effects.containers],
-      deployment: [...definition.effects.deployment],
-    },
+    effects: cloneEffects(definition.effects),
     qualityProfile: {
       ...definition.qualityProfile,
       gates: [...definition.qualityProfile.gates],
@@ -1184,6 +1215,28 @@ export function verifyProviderAbsence({
             { provider: definition.key, kind, effect },
           );
         }
+      }
+    }
+  }
+  for (const kind of PROVIDER_ADMISSION_EFFECT_KINDS) {
+    for (const effect of normalizedObserved[kind]) {
+      const identity = effectIdentity(kind, effect);
+      if (selectedEffectIdentities[kind].has(identity)) {
+        continue;
+      }
+      const declaredByUnselectedProvider = index.definitions.some(
+        (definition) =>
+          !selected.has(definition.key) &&
+          definition.effects[kind].some(
+            (candidate) => effectIdentity(kind, candidate) === identity,
+          ),
+      );
+      if (!declaredByUnselectedProvider) {
+        fail(
+          `Unselected provider residue detected: unknown provider contributes ${kind} ${identity}.`,
+          "unselected-residue",
+          { provider: null, kind, effect },
+        );
       }
     }
   }

@@ -116,19 +116,22 @@ test("the named Full Stack fixture exercises the Blazor provider", async () => {
 });
 
 test("the named Provider Admission fixture proves selection, absence, and invalid input", async () => {
+  const fixtureRoot = join(
+    repositoryRoot,
+    "tests",
+    "fixtures",
+    "ProviderAdmissionGeneratedSolution",
+  );
   const fixture = JSON.parse(
     await readFile(
-      join(
-        repositoryRoot,
-        "tests",
-        "fixtures",
-        "ProviderAdmissionGeneratedSolution",
-        "provider-admission.json",
-      ),
+      join(fixtureRoot, "provider-admission.json"),
       "utf8",
     ),
   );
-  const result = await validateProviderAdmissionFixture(fixture);
+  const manifest = JSON.parse(
+    await readFile(join(fixtureRoot, "martix.platform.json"), "utf8"),
+  );
+  const result = await validateProviderAdmissionFixture(fixture, manifest);
 
   assert.equal(result.status, "passed");
   assert.equal(result.providerCount, 2);
