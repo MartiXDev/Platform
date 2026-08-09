@@ -15,6 +15,15 @@ import {
   HOST_BASELINE_SOURCE_PATH,
   renderHostSecurityFile,
 } from "./host-baseline.mjs";
+import {
+  authenticationManifest,
+  authenticationPackageReferences,
+  renderActorAuthorizationFile,
+  renderAuthenticationCompositionFile,
+  renderIdentityDbContextFile,
+  renderIdentityMigrationFile,
+  resolveAuthenticationProfile,
+} from "./authentication-profile.mjs";
 import { renderFastEndpointsOrdersSource } from "./api-fastendpoints-source.mjs";
 
 export const API_PRESET = "api";
@@ -198,6 +207,12 @@ const KNOWN_UNAVAILABLE_CAPABILITIES = new Set([
 ]);
 const API_OPTION_NAMES = new Set([
   "applicationName",
+  "auth",
+  "authProfile",
+  "authentication",
+  "authenticationFlow",
+  "authenticationProfile",
+  "authenticationProvider",
   "businessModules",
   "capabilities",
   "outputDirectory",
@@ -207,6 +222,7 @@ const API_OPTION_NAMES = new Set([
   "providers",
   "ui",
   "uiProvider",
+  "identityProfile",
 ]);
 
 export class ApiPresetGenerationError extends Error {
@@ -307,6 +323,7 @@ function validateApiSelections({
   ui = "none",
   uiProvider,
   businessModules,
+  ...options
 }) {
   if (preset !== API_PRESET) {
     fail(`The API generator only supports the "${API_PRESET}" preset.`);
@@ -379,10 +396,18 @@ function validateApiSelections({
     fail("Business Modules are not supported by the api preset.");
   }
 
-  return requestedProviders[0] ?? null;
+  return {
+    endpointProvider: requestedProviders[0] ?? null,
+    authentication: resolveAuthenticationProfile(options, {
+      preset: API_PRESET,
+      persistence,
+      fail,
+    }),
+  };
 }
 
-function createPlan(applicationName, selectedProvider) {
+function createPlan(applicationName, selections) {
+  const selectedProvider = selections.endpointProvider;
   const projectNames = getProjectNames(applicationName);
   const baselineCapabilities = [...API_BASELINE_CAPABILITIES];
   const endpointProvider = selectedProvider ?? "minimal-api";
@@ -412,11 +437,13 @@ function createPlan(applicationName, selectedProvider) {
           capability: providerDefinition.capability,
           state: "selected",
         }],
+    authentication: authenticationManifest(selections.authentication),
     persistence: "none",
     endpointProvider,
     packageReferences: [
       ...API_PACKAGE_REFERENCES,
       ...providerPackageReferences,
+      ...authenticationPackageReferences(selections.authentication),
     ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
@@ -426,6 +453,7 @@ function createPlan(applicationName, selectedProvider) {
       applicationUi: false,
       businessModules: false,
       endpointProvider,
+      authenticationProfile: selections.authentication.profile,
       relationalPersistence: false,
     },
   };
@@ -461,8 +489,8 @@ export function createApiPresetPlan(options = {}) {
   }
   rejectUnknownOptions(options);
   const applicationName = normalizeApplicationName(options.applicationName);
-  const selectedProvider = validateApiSelections(options);
-  return createPlan(applicationName, selectedProvider);
+  const selections = validateApiSelections(options);
+  return createPlan(applicationName, selections);
 }
 
 function createManifest(plan) {
@@ -488,6 +516,7 @@ function createManifest(plan) {
       state: "selected",
     })),
     providers: plan.providers.map((provider) => ({ ...provider })),
+    authentication: authenticationManifest(plan.authentication),
     appliedMigrations: [],
     supportClaims: [],
     security: {
@@ -531,6 +560,7 @@ function apiProgramFile(plan) {
  }
 
  return `using ${plan.applicationName}.Api.Infrastructure.Host;
+using ${plan.applicationName}.Api.Infrastructure.Identity;
 using ${plan.applicationName}.Api.Orders;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
@@ -557,6 +587,9 @@ public static class ApiComposition
 {
     public static void ConfigureBuilder(WebApplicationBuilder builder)
     {
+        AuthenticationComposition.ValidateStartup(
+            builder.Configuration,
+            builder.Environment);
         HostSecurity.ValidateStartup(
             builder.Configuration,
             builder.Environment);
@@ -572,6 +605,10 @@ public static class ApiComposition
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
         HostSecurity.AddServices(services, configuration, environment);
+        AuthenticationComposition.AddServices(
+            services,
+            configuration,
+            environment);
         services.AddSingleton<OrderStore>();
     }
 
@@ -589,7 +626,7 @@ public static class ApiComposition
         app.UseCors(HostSecurity.CorsPolicyName);
         app.UseRateLimiter();
         app.UseAntiforgery();
-        app.UseAuthorization();
+${plan.authentication.profile === "none" ? "" : "        app.UseAuthentication();\n"}        app.UseAuthorization();
         app.MapOpenApi().AllowAnonymous();
         app.MapHealthChecks(
                 "/alive",
@@ -617,7 +654,6 @@ public static class ApiComposition
         var versionOne = app
             .MapGroup("/api/v1")
             .WithGroupName("v1");
-        versionOne.AllowAnonymous();
         OrdersEndpoints.Map(versionOne);
     }
 }
@@ -629,6 +665,7 @@ public sealed record HealthResponse(string Status);
 function fastEndpointsApiProgramFile(plan) {
   return `using System;
 using System.Collections.Generic;
+using ${plan.applicationName}.Api.Infrastructure.Identity;
 using ${plan.applicationName}.Api.Infrastructure.Host;
 using ${plan.applicationName}.Api.Orders;
 using MartiX.Platform.AspNetCore;
@@ -656,6 +693,9 @@ public static class ApiComposition
 {
     public static void ConfigureBuilder(WebApplicationBuilder builder)
     {
+        AuthenticationComposition.ValidateStartup(
+            builder.Configuration,
+            builder.Environment);
         HostSecurity.ValidateStartup(
             builder.Configuration,
             builder.Environment);
@@ -665,11 +705,16 @@ public static class ApiComposition
     public static void ConfigureServices(
         IServiceCollection services,
         IConfiguration configuration,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        params List<Type>[] additionalEndpointTypes)
     {
         services.AddMartiXProblemDetails();
         HostSecurity.AddServices(services, configuration, environment);
-        services.AddMartiXFastEndpoints(new List<Type>
+        AuthenticationComposition.AddServices(
+            services,
+            configuration,
+            environment);
+        var endpointTypes = new List<Type>
         {
             typeof(ListOrdersEndpoint),
             typeof(GetOrderEndpoint),
@@ -679,7 +724,12 @@ public static class ApiComposition
             typeof(DeleteOrderEndpoint),
             typeof(LegacyListOrdersEndpoint),
             typeof(HealthEndpoint),
-        });
+        };
+        foreach (var additionalTypes in additionalEndpointTypes)
+        {
+            endpointTypes.AddRange(additionalTypes);
+        }
+        services.AddMartiXFastEndpoints(endpointTypes);
         services.AddSingleton<OrderStore>();
     }
 
@@ -697,7 +747,7 @@ public static class ApiComposition
         app.UseCors(HostSecurity.CorsPolicyName);
         app.UseRateLimiter();
         app.UseAntiforgery();
-        app.UseAuthorization();
+${plan.authentication.profile === "none" ? "" : "        app.UseAuthentication();\n"}        app.UseAuthorization();
         app.MapOpenApi().AllowAnonymous();
         app.MapHealthChecks(
                 "/alive",
@@ -956,7 +1006,8 @@ internal static class OrdersEndpoints
     {
         var group = endpoints
             .MapGroup("/orders")
-            .WithTags("Orders");
+            .WithTags("Orders")
+            .AllowAnonymous();
         group.MapGet("", ListAsync)
             .WithName("${plan.applicationName}.Orders.ListV1")
             .WithSummary("List orders")
@@ -1341,6 +1392,7 @@ using System.Text.Json;
 using ${plan.applicationName}.Client;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
+using MartiX.Platform.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -1437,6 +1489,39 @@ public sealed class ApiContractTests
             .IsEqualTo("platform.authentication-required");
         await Assert.That(document.RootElement.GetProperty("detail").GetString())
             .IsEqualTo("Authentication is required.");
+    }
+
+    [Test]
+    public async Task Permissioned_operations_fail_closed_without_the_required_actor_permission()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync("/test/permissioned");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+    }
+
+    [Test]
+    public async Task Kernel_authorization_uses_immutable_actor_and_permission_semantics()
+    {
+        var read = Permission.Create("orders.read");
+        var actor = ActorSnapshot.Human(ActorId.New());
+        var context = ActorContext.Create(
+            actor,
+            PermissionSet.Create(new[] { read }));
+
+        await Assert.That(context.Authorize(read).IsAllowed).IsTrue();
+        await Assert.That(
+                context.Authorize(Permission.Create("orders.write")).Reason)
+            .IsEqualTo("permission-required");
+        await Assert.That(ActorContext.Anonymous().Authorize(read).Reason)
+            .IsEqualTo("authentication-required");
+        await Assert.That(ActorContext.Unresolved().Authorize(read).Reason)
+            .IsEqualTo("actor-unresolved");
     }
 
     [Test]
@@ -1628,6 +1713,11 @@ public sealed class ApiContractTests
                     "/test/protected",
                     static () => TypedResults.Ok(new ProbeResponse("protected")))
                 .WithName("ConformanceProtected");
+            app.MapGet(
+                    "/test/permissioned",
+                    static () => TypedResults.Ok(new ProbeResponse("permissioned")))
+                .WithName("ConformancePermissioned")
+                .RequireAuthorization("permission:platform-access");
         }
 
         private static Results<Ok<ProbeResponse>, ProblemHttpResult> MapResult(
@@ -1696,6 +1786,22 @@ function fastEndpointsTestSourceFile(plan) {
     .replace(
       "using MartiX.Platform.AspNetCore;",
       "using MartiX.Platform.AspNetCore;\nusing MartiX.Platform.AspNetCore.FastEndpoints;",
+    )
+    .replace(
+      `            ApiComposition.ConfigureServices(
+                builder.Services,
+                builder.Configuration,
+                builder.Environment);`,
+      `            ApiComposition.ConfigureServices(
+                builder.Services,
+                builder.Configuration,
+                builder.Environment,
+                new List<Type>
+                {
+                    typeof(ConformanceFailureEndpoint),
+                    typeof(ConformanceUnexpectedFailureEndpoint),
+                    typeof(ConformancePermissionEndpoint),
+                });`,
     )
     .replace("            MapConformanceEndpoints(app);\n", "")
     .replace(
@@ -1814,6 +1920,25 @@ internal sealed class ConformanceUnexpectedFailureEndpoint
         throw new InvalidOperationException("sensitive-backend-details");
     }
 }
+
+internal sealed class ConformancePermissionEndpoint
+    : FastEndpoints.EndpointWithoutRequest<ProbeResponse>
+{
+    public override void Configure()
+    {
+        Get("/test/permissioned");
+        Options(builder => builder
+            .WithName("ConformancePermissioned")
+            .RequireAuthorization("permission:platform-access")
+            .Produces<ProbeResponse>(StatusCodes.Status200OK));
+    }
+
+    public override Task<ProbeResponse> ExecuteAsync(
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new ProbeResponse("permissioned"));
+    }
+}
 `;
 
   return `${hostSource}${endpointSource}`;
@@ -1920,7 +2045,7 @@ function createFiles(plan, manifest) {
   const projectNames = getProjectNames(plan.applicationName);
   const contract = createApiHttpContractDocument();
 
-  return new Map([
+  const files = new Map([
     ["AGENTS.md", agentsFile(plan)],
     ["CONTEXT.md", contextFile(plan)],
     [`${plan.applicationName}.slnx`, solutionFile(plan)],
@@ -1933,7 +2058,18 @@ function createFiles(plan, manifest) {
     [`src/${projectNames.api}/Program.cs`, apiProgramFile(plan)],
     [
       `src/${projectNames.api}/${HOST_BASELINE_SOURCE_PATH}`,
-      renderHostSecurityFile(plan.applicationName),
+      renderHostSecurityFile(
+        plan.applicationName,
+        plan.authentication.profile,
+      ),
+    ],
+    [
+      `src/${projectNames.api}/Infrastructure/Identity/AuthenticationComposition.cs`,
+      renderAuthenticationCompositionFile(plan),
+    ],
+    [
+      `src/${projectNames.api}/Infrastructure/Identity/ActorAuthorization.cs`,
+      renderActorAuthorizationFile(plan),
     ],
     [`src/${projectNames.api}/Orders/Orders.cs`, ordersFile(plan)],
     [
@@ -1956,6 +2092,19 @@ function createFiles(plan, manifest) {
       testProjectFile(plan),
     ],
   ]);
+
+  if (plan.authentication.profile === "identity:interactive") {
+    files.set(
+      `src/${projectNames.api}/Infrastructure/Identity/IdentityDbContext.cs`,
+      renderIdentityDbContextFile(plan),
+    );
+    files.set(
+      `src/${projectNames.api}/Infrastructure/Identity/Migrations/20260101000000_InitialIdentity.cs`,
+      renderIdentityMigrationFile(plan),
+    );
+  }
+
+  return files;
 }
 
 async function prepareOutputDirectory(outputDirectory) {

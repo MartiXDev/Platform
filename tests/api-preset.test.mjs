@@ -59,6 +59,12 @@ test("the API plan is explicit and deterministic", () => {
   assert.deepEqual(firstPlan.baselineCapabilities, API_BASELINE_CAPABILITIES);
   assert.deepEqual(firstPlan.capabilities, API_BASELINE_CAPABILITIES);
   assert.deepEqual(firstPlan.providers, []);
+  assert.deepEqual(firstPlan.authentication, {
+    profile: "none",
+    provider: "none",
+    flow: "anonymous",
+    state: "selected",
+  });
   assert.equal(firstPlan.persistence, "none");
   assert.deepEqual(firstPlan.packageReferences, [
     { id: "MartiX.Platform", version: API_PLATFORM_VERSION },
@@ -73,6 +79,165 @@ test("the API plan is explicit and deterministic", () => {
     createApiPresetPlan({ applicationName: " Contoso.Api " }).applicationName,
     "Contoso.Api",
   );
+});
+
+test("authentication profiles are explicit and provider-flow selections cannot be ambiguous", () => {
+  const profiles = [
+    ["none", "none", "anonymous"],
+    ["oidc:interactive", "oidc", "interactive"],
+    ["oidc:api", "oidc", "api"],
+    ["entra:interactive", "entra", "interactive"],
+    ["entra:api-delegated", "entra", "api-delegated"],
+    ["entra:api-application", "entra", "api-application"],
+  ];
+
+  for (const [profile, provider, flow] of profiles) {
+    const plan = createApiPresetPlan({
+      applicationName: "Contoso.Inventory",
+      authenticationProfile: profile,
+    });
+    assert.deepEqual(plan.authentication, {
+      profile,
+      provider,
+      flow,
+      state: "selected",
+    });
+  }
+  assert.deepEqual(
+    createApiPresetPlan({
+      applicationName: "Contoso.Inventory",
+      authenticationProvider: "none",
+      authenticationFlow: "anonymous",
+    }).authentication,
+    {
+      profile: "none",
+      provider: "none",
+      flow: "anonymous",
+      state: "selected",
+    },
+  );
+
+  assert.throws(
+    () =>
+      createApiPresetPlan({
+        applicationName: "Contoso.Inventory",
+        authenticationProfile: "identity:interactive",
+      }),
+    /requires relational persistence|not supported by the api preset/i,
+  );
+  for (const profile of ["oidc", "entra", "identity"]) {
+    assert.throws(
+      () =>
+        createApiPresetPlan({
+          applicationName: "Contoso.Inventory",
+          authenticationProfile: profile,
+        }),
+      /explicit.*flow|interactive.*api/i,
+    );
+  }
+  assert.throws(
+    () =>
+      createApiPresetPlan({
+        applicationName: "Contoso.Inventory",
+        authenticationProfile: "oidc:api",
+        auth: "entra:api-delegated",
+      }),
+    /conflicting authentication profile/i,
+  );
+});
+
+test("configured authentication generation emits provider-independent authorization seams", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const result = await generateApiPreset({
+      applicationName: "Contoso.Inventory",
+      authenticationProfile: "oidc:api",
+      outputDirectory: join(root, "generated"),
+    });
+    assert.ok(
+      result.files.includes(
+        "src/Contoso.Inventory.Api/Infrastructure/Identity/AuthenticationComposition.cs",
+      ),
+    );
+    assert.ok(
+      result.files.includes(
+        "src/Contoso.Inventory.Api/Infrastructure/Identity/ActorAuthorization.cs",
+      ),
+    );
+    assert.ok(
+      result.plan.packageReferences.some(
+        ({ id }) => id === "Microsoft.AspNetCore.Authentication.JwtBearer",
+      ),
+    );
+    assert.deepEqual(result.manifest.authentication, {
+      profile: "oidc:api",
+      provider: "oidc",
+      flow: "api",
+      state: "selected",
+    });
+
+    const authentication = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "Contoso.Inventory.Api",
+        "Infrastructure",
+        "Identity",
+        "AuthenticationComposition.cs",
+      ),
+      "utf8",
+    );
+    const authorization = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "Contoso.Inventory.Api",
+        "Infrastructure",
+        "Identity",
+        "ActorAuthorization.cs",
+      ),
+      "utf8",
+    );
+    const tests = await readFile(
+      join(
+        root,
+        "generated",
+        "tests",
+        "Contoso.Inventory.Tests",
+        "ApiContractTests.cs",
+      ),
+      "utf8",
+    );
+    const project = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "Contoso.Inventory.Api",
+        "Contoso.Inventory.Api.csproj",
+      ),
+      "utf8",
+    );
+    assert.match(authentication, /AddJwtBearer/);
+    assert.match(authentication, /RequireAuthenticatedUser/);
+    assert.match(authentication, /Authority/);
+    assert.match(authentication, /claim\.Type is "scp" or "scope"/);
+    assert.doesNotMatch(authentication, /client-secret-value|password|eyJ[A-Za-z0-9_-]+/i);
+    assert.match(authorization, /ActorContext/);
+    assert.match(authorization, /PermissionSet/);
+    assert.match(authorization, /ActorId/);
+    assert.match(authorization, /ClaimTypes\.Role/);
+    assert.doesNotMatch(authorization, /ClaimsPrincipal.*Application|IdentityUser|HttpContext.*Operation/);
+    assert.match(tests, /RequireAuthorization\("permission:platform-access"\)/);
+    assert.match(tests, /ActorContext\.Create/);
+    assert.match(tests, /permission-required/);
+    assert.match(project, /Microsoft\.AspNetCore\.Authentication\.JwtBearer/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("FastEndpoints selection is explicit and deterministic", async () => {
@@ -132,15 +297,27 @@ test("FastEndpoints selection is explicit and deterministic", async () => {
       await Promise.all(productionFiles.map((file) =>
         readFile(join(firstRoot, "generated", file), "utf8")))
     ).join("\n");
+    const testSource = await readFile(
+      join(
+        firstRoot,
+        "generated",
+        "tests",
+        "Contoso.Inventory.Tests",
+        "ApiContractTests.cs",
+      ),
+      "utf8",
+    );
     assert.match(productionText, /FastEndpoints/);
     assert.match(productionText, /Endpoint</);
-    assert.match(productionText, /AddMartiXFastEndpoints\(new List<Type>/);
+    assert.match(productionText, /var endpointTypes = new List<Type>/);
+    assert.match(productionText, /AddMartiXFastEndpoints\(endpointTypes\)/);
     assert.doesNotMatch(productionText, /AddMartiXFastEndpoints\(\);/);
     assert.doesNotMatch(
       productionText,
       /app\.Map(?:Get|Post|Put|Patch|Delete)\s*\(/,
     );
     assert.doesNotMatch(productionText, /OrdersEndpoints\.Map/);
+    assert.match(testSource, /typeof\(ConformancePermissionEndpoint\)/);
   } finally {
     await Promise.all([
       rm(firstRoot, { recursive: true, force: true }),
@@ -296,6 +473,8 @@ test("generation writes only the selected API composition and manifest", async (
       "martix.platform.json",
       "src/Contoso.Inventory.Api/Contoso.Inventory.Api.csproj",
       "src/Contoso.Inventory.Api/Infrastructure/Host/HostSecurity.cs",
+      "src/Contoso.Inventory.Api/Infrastructure/Identity/ActorAuthorization.cs",
+      "src/Contoso.Inventory.Api/Infrastructure/Identity/AuthenticationComposition.cs",
       "src/Contoso.Inventory.Api/Orders/Orders.cs",
       "src/Contoso.Inventory.Api/Program.cs",
       "src/Contoso.Inventory.Client/Contoso.Inventory.Client.cs",

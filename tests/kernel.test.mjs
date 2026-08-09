@@ -85,3 +85,45 @@ test("the packed Kernel consumer requires the analyzer build asset", async () =>
   assert.match(analyzerReadme, /\bMXP001\b/);
   assert.match(analyzerReadme, /\bMXP002\b/);
 });
+
+test("the Kernel exposes immutable provider-independent authorization seams", async () => {
+  const permission = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "Permission.cs"),
+    "utf8",
+  );
+  const permissionSet = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "PermissionSet.cs"),
+    "utf8",
+  );
+  const actorContext = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "ActorContext.cs"),
+    "utf8",
+  );
+  const registryKey = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "ActorRegistryKey.cs"),
+    "utf8",
+  );
+  const registry = await readFile(
+    join(repositoryRoot, "src", "MartiX.Platform", "Security", "IActorRegistry.cs"),
+    "utf8",
+  );
+  const publicApi = await readFile(
+    join(repositoryRoot, "tests", "Compatibility", "MartiX.Platform.public-api.txt"),
+    "utf8",
+  );
+
+  assert.match(permission, /readonly record struct Permission/);
+  assert.match(permission, /TryCreate/);
+  assert.match(permissionSet, /FrozenSet<Permission>/);
+  assert.match(actorContext, /ActorSnapshot Actor/);
+  assert.match(actorContext, /AuthorizationDecision/);
+  assert.match(registryKey, /Issuer/);
+  assert.match(registryKey, /Subject/);
+  assert.match(registry, /ValueTask<ActorId> ResolveAsync/);
+  assert.doesNotMatch(
+    `${permission}\n${permissionSet}\n${actorContext}`,
+    /ClaimsPrincipal|IdentityUser|HttpContext|ProviderRole/,
+  );
+  assert.match(publicApi, /MartiX\.Platform\.Security\.Permission/);
+  assert.match(publicApi, /MartiX\.Platform\.Security\.ActorContext/);
+});

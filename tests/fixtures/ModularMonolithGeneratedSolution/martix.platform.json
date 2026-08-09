@@ -104,6 +104,12 @@
       "state": "selected"
     }
   ],
+  "authentication": {
+    "profile": "none",
+    "provider": "none",
+    "flow": "anonymous",
+    "state": "selected"
+  },
   "appliedMigrations": [],
   "supportClaims": [],
   "security": {

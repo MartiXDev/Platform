@@ -455,6 +455,8 @@ function expectedGeneratedFiles(applicationName) {
     "contracts/openapi-v1.json",
     `src/${applicationName}.Api/${applicationName}.Api.csproj`,
     `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
+    `src/${applicationName}.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+    `src/${applicationName}.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
     `src/${applicationName}.Api/Orders/Orders.cs`,
     `src/${applicationName}.Api/Program.cs`,
     `src/${applicationName}.Client/${applicationName}.Client.cs`,

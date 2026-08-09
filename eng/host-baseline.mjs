@@ -9,7 +9,10 @@ export const HOST_BASELINE_CAPABILITIES = Object.freeze([
 export const HOST_BASELINE_SOURCE_PATH =
   "Infrastructure/Host/HostSecurity.cs";
 
-export function renderHostSecurityFile(applicationName) {
+export function renderHostSecurityFile(
+  applicationName,
+  authenticationProfile = "none",
+) {
   return String.raw`using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.IO;
@@ -21,6 +24,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 using System.Threading.RateLimiting;
+using ${applicationName}.Api.Infrastructure.Identity;
 using MartiX.Platform.Security;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
@@ -361,7 +365,11 @@ internal static class HostSecurity
             name,
             version: 1,
             occurredAtUtc: DateTimeOffset.UtcNow,
-            initiatingActor: ActorSnapshot.Anonymous(),
+            initiatingActor: ActorAuthorization.Resolve(
+                context.User,
+                "${authenticationProfile}" == "identity:interactive"
+                    ? "identity"
+                    : null).Actor,
             action: action,
             outcome: outcome,
             source: "${applicationName}.Api",
@@ -821,7 +829,11 @@ internal sealed class SecurityAuthorizationResultHandler :
                 "security.authorization.denied",
                 version: 1,
                 occurredAtUtc: DateTimeOffset.UtcNow,
-                initiatingActor: ActorSnapshot.Anonymous(),
+                initiatingActor: ActorAuthorization.Resolve(
+                    context.User,
+                    "${authenticationProfile}" == "identity:interactive"
+                        ? "identity"
+                        : null).Actor,
                 action: "request.authorize",
                 outcome: SecurityAuditOutcome.Denied,
                 source: "${applicationName}.Api",

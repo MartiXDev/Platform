@@ -47,6 +47,36 @@ MartiX.Platform.Security.ActorSnapshot
   bool IsAuthenticated { get; }
   string? DisplayName { get; }
   bool IsImpersonating { get; }
+MartiX.Platform.Security.AuthorizationDecision
+  static AuthorizationDecision Allow()
+  static AuthorizationDecision Deny(string reason = "denied")
+  bool IsAllowed { get; }
+  string Reason { get; }
+MartiX.Platform.Security.Permission
+  static Permission Create(string value)
+  static bool TryCreate(string? value, out Permission permission)
+  string Value { get; }
+MartiX.Platform.Security.PermissionSet
+  static PermissionSet Empty { get; }
+  static PermissionSet Create(IEnumerable<Permission> permissions)
+  IReadOnlySet<Permission> Permissions { get; }
+  int Count { get; }
+  bool Contains(Permission permission)
+MartiX.Platform.Security.ActorContext
+  static ActorContext Create(ActorSnapshot actor, PermissionSet permissions)
+  static ActorContext Anonymous()
+  static ActorContext Unresolved()
+  ActorSnapshot Actor { get; }
+  PermissionSet Permissions { get; }
+  bool IsResolved { get; }
+  AuthorizationDecision Authorize(Permission permission)
+MartiX.Platform.Security.ActorRegistryKey
+  static ActorRegistryKey Create(string issuer, string subject, string? tenantId = null)
+  string Issuer { get; }
+  string Subject { get; }
+  string? TenantId { get; }
+MartiX.Platform.Security.IActorRegistry
+  ValueTask<ActorId> ResolveAsync(ActorRegistryKey key, CancellationToken cancellationToken = default)
 MartiX.Platform.Security.SecurityAuditEvent
   static SecurityAuditEvent Create(string name, int version, DateTimeOffset occurredAtUtc, ActorSnapshot initiatingActor, string action, SecurityAuditOutcome outcome, string source, string? reason = null, SecurityAuditTarget? target = null, ActorSnapshot? effectiveActor = null, SecurityAuditOrigin? origin = null, string? traceIdentity = null, SecurityAuditEventId? eventId = null)
   SecurityAuditEventId EventId { get; }

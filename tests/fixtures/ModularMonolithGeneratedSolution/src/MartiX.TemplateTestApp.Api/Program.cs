@@ -1,6 +1,7 @@
 using MartiX.TemplateTestApp.Orders;
 using MartiX.TemplateTestApp.Billing;
 using MartiX.TemplateTestApp.Api.Infrastructure.Host;
+using MartiX.TemplateTestApp.Api.Infrastructure.Identity;
 using MartiX.TemplateTestApp.Infrastructure.IntegrationEvents;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
@@ -27,6 +28,9 @@ public static class ApiComposition
 {
     public static void ConfigureBuilder(WebApplicationBuilder builder)
     {
+        AuthenticationComposition.ValidateStartup(
+            builder.Configuration,
+            builder.Environment);
         HostSecurity.ValidateStartup(
             builder.Configuration,
             builder.Environment);
@@ -42,6 +46,10 @@ public static class ApiComposition
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
         HostSecurity.AddServices(services, configuration, environment);
+        AuthenticationComposition.AddServices(
+            services,
+            configuration,
+            environment);
         OrdersModule.AddServices(services, configuration);
         BillingModule.AddServices(services, configuration);
         ReliableEventsComposition.AddServices(services);
@@ -89,7 +97,6 @@ public static class ApiComposition
         var versionOne = app
             .MapGroup("/api/v1")
             .WithGroupName("v1");
-        versionOne.AllowAnonymous();
         OrdersModule.MapEndpoints(versionOne);
         BillingModule.MapEndpoints(versionOne);
     }

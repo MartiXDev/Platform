@@ -17,6 +17,17 @@ import {
   HOST_BASELINE_SOURCE_PATH,
   renderHostSecurityFile,
 } from "./host-baseline.mjs";
+import {
+  authenticationManifest,
+  authenticationPackageReferences,
+  renderActorAuthorizationFile,
+  renderAuthenticationCompositionFile,
+  renderIdentityDbContextFile,
+  renderIdentityMigrationCompositionFile,
+  renderIdentityMigrationFile,
+  renderIdentityMigrationSnapshotFile,
+  resolveAuthenticationProfile,
+} from "./authentication-profile.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -315,6 +326,12 @@ const SUPPORTED_CAPABILITIES = new Set(
 );
 const MODULAR_MONOLITH_OPTION_NAMES = new Set([
   "applicationName",
+  "auth",
+  "authProfile",
+  "authentication",
+  "authenticationFlow",
+  "authenticationProfile",
+  "authenticationProvider",
   "businessModules",
   "capabilities",
   "databaseProvider",
@@ -327,6 +344,7 @@ const MODULAR_MONOLITH_OPTION_NAMES = new Set([
   "provider",
   "providers",
   "relationalProvider",
+  "identityProfile",
 ]);
 
 export class ModularMonolithPresetGenerationError extends Error {
@@ -597,7 +615,15 @@ function validateSelections(options) {
     );
   }
 
-  return { persistence, relationalProvider };
+  return {
+    persistence,
+    relationalProvider,
+    authentication: resolveAuthenticationProfile(options, {
+      preset: MODULAR_MONOLITH_PRESET,
+      persistence,
+      fail,
+    }),
+  };
 }
 
 function getProjectNames(applicationName, businessModules) {
@@ -652,6 +678,7 @@ function createPlan(
         state: "selected",
       },
     ],
+    authentication: authenticationManifest(selections.authentication),
     persistence: selections.persistence,
     relationalProvider: selections.relationalProvider,
     packageReferences: [
@@ -659,6 +686,7 @@ function createPlan(
       ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
       RELATIONAL_PROVIDER_DEFINITIONS[selections.relationalProvider]
         .packageReference,
+      ...authenticationPackageReferences(selections.authentication),
     ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
@@ -676,6 +704,7 @@ function createPlan(
       businessModules: true,
       relationalPersistence: true,
       oneShotMigrator: true,
+      authenticationProfile: selections.authentication.profile,
     },
   };
 }
@@ -795,6 +824,20 @@ function apiProjectFile(plan) {
     ({ name }) =>
       `../${moduleProject(plan, name)}/${moduleProject(plan, name)}.csproj`,
   );
+  const authenticationReferences = authenticationPackageReferences(
+    plan.authentication,
+  );
+  const identityPersistenceReferences =
+    plan.authentication.profile === "identity:interactive"
+      ? [
+        Object.freeze({
+          id: "Microsoft.EntityFrameworkCore",
+          version: "10.0.10",
+        }),
+        RELATIONAL_PROVIDER_DEFINITIONS[plan.relationalProvider]
+          .packageReference,
+      ]
+      : [];
   return `<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -808,7 +851,14 @@ function apiProjectFile(plan) {
   <ItemGroup>
 ${projectReferences(moduleReferences)}
 ${platformPackageReferences()}
-${renderPackageReferences(API_APPLICATION_PACKAGE_REFERENCES, [])}
+${renderPackageReferences(
+  [
+    ...API_APPLICATION_PACKAGE_REFERENCES,
+    ...identityPersistenceReferences,
+    ...authenticationReferences,
+  ],
+  [],
+)}
   </ItemGroup>
 
 </Project>
@@ -820,6 +870,9 @@ function migratorProjectFile(plan) {
     ({ name }) =>
       `../${moduleProject(plan, name)}/${moduleProject(plan, name)}.csproj`,
   );
+  const identityReference = plan.authentication.profile === "identity:interactive"
+    ? `\n    <ProjectReference Include="../${plan.applicationName}.Api/${plan.applicationName}.Api.csproj" />`
+    : "";
   return `<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -831,7 +884,7 @@ function migratorProjectFile(plan) {
   </PropertyGroup>
 
   <ItemGroup>
-${projectReferences(moduleReferences)}
+${projectReferences(moduleReferences)}${identityReference}
 ${migratorPackageReferences(plan)}
   </ItemGroup>
 
@@ -921,6 +974,7 @@ function apiProgramFile(plan) {
 
   return `${moduleUsings}
 using ${plan.applicationName}.Api.Infrastructure.Host;
+using ${plan.applicationName}.Api.Infrastructure.Identity;
 using ${plan.applicationName}.Infrastructure.IntegrationEvents;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
@@ -947,6 +1001,9 @@ public static class ApiComposition
 {
     public static void ConfigureBuilder(WebApplicationBuilder builder)
     {
+        AuthenticationComposition.ValidateStartup(
+            builder.Configuration,
+            builder.Environment);
         HostSecurity.ValidateStartup(
             builder.Configuration,
             builder.Environment);
@@ -962,6 +1019,10 @@ public static class ApiComposition
         services.AddOpenApi(static options =>
             options.AddMartiXProblemDetailsContract());
         HostSecurity.AddServices(services, configuration, environment);
+        AuthenticationComposition.AddServices(
+            services,
+            configuration,
+            environment);
 ${serviceComposition}
         ReliableEventsComposition.AddServices(services);
     }
@@ -980,7 +1041,7 @@ ${serviceComposition}
         app.UseCors(HostSecurity.CorsPolicyName);
         app.UseRateLimiter();
         app.UseAntiforgery();
-        app.UseAuthorization();
+${plan.authentication.profile === "none" ? "" : "        app.UseAuthentication();\n"}        app.UseAuthorization();
         app.MapOpenApi().AllowAnonymous();
         app.MapHealthChecks(
                 "/alive",
@@ -1008,7 +1069,6 @@ ${serviceComposition}
         var versionOne = app
             .MapGroup("/api/v1")
             .WithGroupName("v1");
-        versionOne.AllowAnonymous();
 ${endpointComposition}
     }
 }
@@ -1967,8 +2027,10 @@ using ${moduleNamespace(plan, moduleName)}.Infrastructure.Persistence;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using MartiX.Platform.EntityFrameworkCore.Specifications;
+using MartiX.Platform.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 
@@ -2002,7 +2064,8 @@ internal static class ${moduleName}StatusEndpoint
     {
         var group = endpoints
             .MapGroup("/${routeName(moduleName)}")
-            .WithTags("${moduleName}");
+            .WithTags("${moduleName}")
+            .AllowAnonymous();
         group.MapGet(
                 "/status",
                 static (
@@ -2013,6 +2076,33 @@ internal static class ${moduleName}StatusEndpoint
             .WithSummary("Read ${moduleName} status")
             .Produces<${moduleName}StatusResponse>(StatusCodes.Status200OK)
             .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+        var permissioned = endpoints
+            .MapGroup("/${routeName(moduleName)}")
+            .WithTags("${moduleName}");
+        permissioned.MapGet(
+                "/status/permissioned",
+                GetPermissionedStatusAsync)
+            .WithName("${plan.applicationName}.${moduleName}.PermissionedStatus")
+            .WithSummary("Read ${moduleName} status with application permission")
+            .RequireAuthorization("permission:platform-access")
+            .Produces<${moduleName}StatusResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status403Forbidden)
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+    }
+
+    private static async Task<Results<Ok<${moduleName}StatusResponse>, ForbidHttpResult>>
+        GetPermissionedStatusAsync(
+            ActorContext actor,
+            I${moduleName}Status status,
+            CancellationToken cancellationToken)
+    {
+        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        {
+            return TypedResults.Forbid();
+        }
+
+        return TypedResults.Ok(
+            await status.GetStatusAsync(cancellationToken));
     }
 }
 `;
@@ -2346,12 +2436,19 @@ function migratorProgramFile(plan) {
   const moduleUsings = plan.businessModules
     .map((module) => `using ${moduleNamespace(plan, module.name)};`)
     .join("\n");
+  const identityUsing = plan.authentication.profile === "identity:interactive"
+    ? `using ${plan.applicationName}.Api.Infrastructure.Identity;\n`
+    : "";
   const registrations = plan.businessModules
     .map(
       (module) =>
         `${module.name}Module.AddMigrationServices(builder.Services, builder.Configuration);`,
     )
     .join("\n");
+  const identityRegistration =
+    plan.authentication.profile === "identity:interactive"
+      ? `IdentityMigrationComposition.AddMigrationServices(builder.Services, builder.Configuration);`
+      : "";
   const executions = plan.businessModules
     .map(
       (module) =>
@@ -2360,10 +2457,17 @@ function migratorProgramFile(plan) {
         host.Services,
         operation,
         CancellationToken.None));`,
-    )
-    .join("\n");
-  return `${moduleUsings}
-using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
+   )
+   .join("\n");
+ const identityExecution = plan.authentication.profile === "identity:interactive"
+   ? `Console.WriteLine(
+   await IdentityMigrationComposition.ExecuteMigrationAsync(
+       host.Services,
+       operation,
+       CancellationToken.None));`
+   : "";
+ return `${moduleUsings}
+${identityUsing}using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -2378,9 +2482,11 @@ if (operation is not ("validate" or "script" or "apply"))
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLogging();
 builder.Services.AddReliableEvents();
+${identityRegistration}
 ${registrations}
 using var host = builder.Build();
 
+${identityExecution}
 ${executions}
 return 0;
 `;
@@ -2615,6 +2721,7 @@ using System.Text.Json;
 using ${plan.applicationName}.Client;
 ${moduleUsings}
 ${realEvidenceUsings}
+using MartiX.Platform.Security;
 using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -2699,6 +2806,54 @@ ${moduleAssertions}
             .IsEqualTo("Authentication is required.");
     }
 
+    [Test]
+    public async Task Permissioned_operations_fail_closed_without_the_required_actor_permission()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync("/test/permissioned");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+    }
+
+    [Test]
+    public async Task Business_module_permissioned_operations_fail_closed_without_the_required_actor_permission()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync(
+            "/api/v1/${routeName(firstModule.name)}/status/permissioned");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+    }
+
+    [Test]
+    public async Task Kernel_authorization_uses_immutable_actor_and_permission_semantics()
+    {
+        var read = Permission.Create("orders.read");
+        var actor = ActorSnapshot.Human(ActorId.New());
+        var context = ActorContext.Create(
+            actor,
+            PermissionSet.Create(new[] { read }));
+
+        await Assert.That(context.Authorize(read).IsAllowed).IsTrue();
+        await Assert.That(
+                context.Authorize(Permission.Create("orders.write")).Reason)
+            .IsEqualTo("permission-required");
+        await Assert.That(ActorContext.Anonymous().Authorize(read).Reason)
+            .IsEqualTo("authentication-required");
+        await Assert.That(ActorContext.Unresolved().Authorize(read).Reason)
+            .IsEqualTo("actor-unresolved");
+    }
+
 ${crashRedeliveryScenario}
     [Test]
     public async Task The_first_module_contract_is_resolvable_at_the_declared_seam()
@@ -2761,6 +2916,11 @@ ${crashRedeliveryScenario}
                     "/test/protected",
                     static () => Results.Ok(new { Status = "protected" }))
                 .WithName("ConformanceProtected");
+            app.MapGet(
+                    "/test/permissioned",
+                    static () => Results.Ok(new { Status = "permissioned" }))
+                .WithName("ConformancePermissioned")
+                .RequireAuthorization("permission:platform-access");
             await app.StartAsync();
 
             return new ApiHost(app, app.GetTestClient());
@@ -2809,6 +2969,7 @@ function createManifest(plan) {
       state: "selected",
     })),
     providers: plan.providers.map((provider) => ({ ...provider })),
+    authentication: authenticationManifest(plan.authentication),
     appliedMigrations: [],
     supportClaims: [],
     security: {
@@ -2945,7 +3106,18 @@ function createFiles(plan, manifest) {
     ],
     [
       `src/${plan.applicationName}.Api/${HOST_BASELINE_SOURCE_PATH}`,
-      renderHostSecurityFile(plan.applicationName),
+      renderHostSecurityFile(
+        plan.applicationName,
+        plan.authentication.profile,
+      ),
+    ],
+    [
+      `src/${plan.applicationName}.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
+      renderAuthenticationCompositionFile(plan),
+    ],
+    [
+      `src/${plan.applicationName}.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+      renderActorAuthorizationFile(plan),
     ],
     [
       `src/${plan.applicationName}.Api/Program.cs`,
@@ -3029,6 +3201,25 @@ function createFiles(plan, manifest) {
     files.set(
       `${root}/Features/Status/${module.name}Status.cs`,
       moduleFeatureFile(plan, module.name),
+    );
+  }
+
+  if (plan.authentication.profile === "identity:interactive") {
+    files.set(
+      `src/${plan.applicationName}.Api/Infrastructure/Identity/IdentityDbContext.cs`,
+      renderIdentityDbContextFile(plan),
+    );
+    files.set(
+      `src/${plan.applicationName}.Api/Infrastructure/Identity/IdentityMigrationComposition.cs`,
+      renderIdentityMigrationCompositionFile(plan),
+    );
+    files.set(
+      `src/${plan.applicationName}.Api/Infrastructure/Identity/Migrations/20260101000000_InitialIdentity.cs`,
+      renderIdentityMigrationFile(plan),
+    );
+    files.set(
+      `src/${plan.applicationName}.Api/Infrastructure/Identity/Migrations/IdentityDbContextModelSnapshot.cs`,
+      renderIdentityMigrationSnapshotFile(plan),
     );
   }
 

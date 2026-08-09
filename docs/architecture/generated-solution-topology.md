@@ -189,11 +189,22 @@ the standalone client project consumes only that document; neither may become a
 second backend or Module Contract seam. Kernel Result types never become wire
 payloads.
 
-Authentication is optional and separate from authorization. Business code
-consumes an immutable provider-independent Actor snapshot and permission policy,
-not `ClaimsPrincipal`, provider user types, email, or subject identifiers.
-Host security is fail-closed; authorization has transport and application/
-domain layers. Audit events are distinct from logs and Entity Change History.
+Authentication is optional and separate from authorization. The API and Modular
+Monolith generators record an explicit, secret-free Authentication Profile:
+`none`, local `identity:interactive`, generic OIDC interactive or bearer, and
+Microsoft Entra interactive, delegated, or application flows. `none` remains
+the default; ambiguous provider-only selections are rejected. Local Identity
+is available only in the relational Modular Monolith and its ASP.NET Identity
+schema is executed through the API-owned boundary by the one-shot Migrator.
+
+Business code consumes an immutable provider-independent Actor snapshot and
+stable Permission values, not `ClaimsPrincipal`, provider user types, email, or
+subject identifiers. Generated authorization maps issuer-plus-subject
+coordinates and permission claims into the Kernel `ActorContext`; transport
+policies and application permission checks both fail closed. The optional
+`IActorRegistry` contract can replace deterministic resolution when durable
+local attribution is required. Audit events are distinct from logs and Entity
+Change History.
 
 `full-stack` selects exactly one UI provider: Blazor Web App, React, or Vue.
 The UI consumes only HTTP/OpenAPI through deterministic generated clients and

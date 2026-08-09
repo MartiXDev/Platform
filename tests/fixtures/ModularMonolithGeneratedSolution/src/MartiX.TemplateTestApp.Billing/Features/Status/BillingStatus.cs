@@ -5,8 +5,10 @@ using MartiX.TemplateTestApp.Billing.Infrastructure.Persistence;
 using MartiX.Platform.AspNetCore;
 using MartiX.Platform.Results;
 using MartiX.Platform.EntityFrameworkCore.Specifications;
+using MartiX.Platform.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 
@@ -58,7 +60,8 @@ internal static class BillingStatusEndpoint
     {
         var group = endpoints
             .MapGroup("/billing")
-            .WithTags("Billing");
+            .WithTags("Billing")
+            .AllowAnonymous();
         group.MapGet(
                 "/status",
                 static (
@@ -69,5 +72,32 @@ internal static class BillingStatusEndpoint
             .WithSummary("Read Billing status")
             .Produces<BillingStatusResponse>(StatusCodes.Status200OK)
             .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+        var permissioned = endpoints
+            .MapGroup("/billing")
+            .WithTags("Billing");
+        permissioned.MapGet(
+                "/status/permissioned",
+                GetPermissionedStatusAsync)
+            .WithName("MartiX.TemplateTestApp.Billing.PermissionedStatus")
+            .WithSummary("Read Billing status with application permission")
+            .RequireAuthorization("permission:platform-access")
+            .Produces<BillingStatusResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status403Forbidden)
+            .ProducesMartiXProblemDetails(ErrorKind.Unexpected);
+    }
+
+    private static async Task<Results<Ok<BillingStatusResponse>, ForbidHttpResult>>
+        GetPermissionedStatusAsync(
+            ActorContext actor,
+            IBillingStatus status,
+            CancellationToken cancellationToken)
+    {
+        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        {
+            return TypedResults.Forbid();
+        }
+
+        return TypedResults.Ok(
+            await status.GetStatusAsync(cancellationToken));
     }
 }

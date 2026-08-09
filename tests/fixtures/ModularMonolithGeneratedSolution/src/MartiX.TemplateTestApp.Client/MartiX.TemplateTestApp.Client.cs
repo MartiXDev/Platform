@@ -67,10 +67,24 @@ public sealed class GeneratedApiClient
         return await SendAsync<BillingStatusResponse>(request, cancellationToken);
     }
 
+    public async Task<BillingStatusResponse> GetBillingPermissionedStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, BuildUri("/api/v1/billing/status/permissioned"));
+        return await SendAsync<BillingStatusResponse>(request, cancellationToken);
+    }
+
     public async Task<OrdersStatusResponse> GetOrdersStatusAsync(
         CancellationToken cancellationToken = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, BuildUri("/api/v1/orders/status"));
+        return await SendAsync<OrdersStatusResponse>(request, cancellationToken);
+    }
+
+    public async Task<OrdersStatusResponse> GetOrdersPermissionedStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, BuildUri("/api/v1/orders/status/permissioned"));
         return await SendAsync<OrdersStatusResponse>(request, cancellationToken);
     }
 

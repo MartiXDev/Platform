@@ -57,6 +57,12 @@ function parseCliArguments(argumentsList) {
       case "--persistence":
         options.persistence = value;
         break;
+      case "--auth":
+      case "--auth-profile":
+      case "--authentication":
+      case "--authentication-profile":
+        options.authenticationProfile = value;
+        break;
       case "--ui":
         options.ui = value;
         break;
@@ -77,6 +83,7 @@ export async function runApiPresetCli(
       [
         "Usage: node eng/generate-api.mjs --name <Application.Name> --output <directory> [--dry-run]",
         "       [--capability <id>] [--provider <id>] [--persistence none] [--ui none]",
+        "       [--authentication-profile <profile>]",
       ].join("\n"),
     );
     return;

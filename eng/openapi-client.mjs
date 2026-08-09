@@ -421,6 +421,22 @@ export function createModularMonolithHttpContractDocument(plan) {
         },
       },
     };
+    paths[`/api/v1/${module.name.toLowerCase()}/status/permissioned`] = {
+      get: {
+        tags: [module.name],
+        summary: `Read ${module.name} status with application permission`,
+        operationId: `${module.name}_PermissionedStatusV1`,
+        responses: {
+          "200": jsonResponse(`The ${module.name} status.`, ref(responseName)),
+          "403": problemResponse("The actor lacks the required permission.", 403),
+          "500": problemResponse("The request failed unexpectedly.", 500),
+        },
+        "x-client": {
+          methodName: `Get${module.name}PermissionedStatusAsync`,
+          returnType: responseName,
+        },
+      },
+    };
   }
 
   return createBaseDocument(

@@ -75,6 +75,9 @@
         "$ref": "#/$defs/provider"
       }
     },
+    "authentication": {
+      "$ref": "#/$defs/authentication"
+    },
     "appliedMigrations": {
       "type": "array",
       "items": {
@@ -196,6 +199,49 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "provider",
+        "flow",
+        "state"
+      ],
+      "properties": {
+        "profile": {
+          "enum": [
+            "none",
+            "identity:interactive",
+            "oidc:interactive",
+            "oidc:api",
+            "entra:interactive",
+            "entra:api-delegated",
+            "entra:api-application"
+          ]
+        },
+        "provider": {
+          "enum": [
+            "none",
+            "identity",
+            "oidc",
+            "entra"
+          ]
+        },
+        "flow": {
+          "enum": [
+            "anonymous",
+            "interactive",
+            "api",
+            "api-delegated",
+            "api-application"
+          ]
+        },
+        "state": {
+          "const": "selected"
         }
       }
     },

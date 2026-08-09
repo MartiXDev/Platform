@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 using System.Threading.RateLimiting;
+using MartiX.TemplateTestApp.Api.Infrastructure.Identity;
 using MartiX.Platform.Security;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
@@ -349,7 +350,11 @@ internal static class HostSecurity
             name,
             version: 1,
             occurredAtUtc: DateTimeOffset.UtcNow,
-            initiatingActor: ActorSnapshot.Anonymous(),
+            initiatingActor: ActorAuthorization.Resolve(
+                context.User,
+                "none" == "identity:interactive"
+                    ? "identity"
+                    : null).Actor,
             action: action,
             outcome: outcome,
             source: "MartiX.TemplateTestApp.Api",
@@ -809,7 +814,11 @@ internal sealed class SecurityAuthorizationResultHandler :
                 "security.authorization.denied",
                 version: 1,
                 occurredAtUtc: DateTimeOffset.UtcNow,
-                initiatingActor: ActorSnapshot.Anonymous(),
+                initiatingActor: ActorAuthorization.Resolve(
+                    context.User,
+                    "none" == "identity:interactive"
+                        ? "identity"
+                        : null).Actor,
                 action: "request.authorize",
                 outcome: SecurityAuditOutcome.Denied,
                 source: "MartiX.TemplateTestApp.Api",

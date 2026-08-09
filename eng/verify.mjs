@@ -63,8 +63,18 @@ const MANIFEST_REQUIRED_PROPERTIES = [
 ];
 const MANIFEST_ALLOWED_PROPERTIES = [
   ...MANIFEST_REQUIRED_PROPERTIES,
+  "authentication",
   "modules",
 ];
+const AUTHENTICATION_PROFILES = new Map([
+  ["none", ["none", "anonymous"]],
+  ["identity:interactive", ["identity", "interactive"]],
+  ["oidc:interactive", ["oidc", "interactive"]],
+  ["oidc:api", ["oidc", "api"]],
+  ["entra:interactive", ["entra", "interactive"]],
+  ["entra:api-delegated", ["entra", "api-delegated"]],
+  ["entra:api-application", ["entra", "api-application"]],
+]);
 
 export const REQUIRED_BOOTSTRAP_INPUTS = [
   "martix.platform.json",
@@ -94,6 +104,8 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/MartiX.TemplateTestApp.Api.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Program.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/Host/HostSecurity.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+  `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/contracts/openapi-v1.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Client/MartiX.TemplateTestApp.Client.csproj`,
@@ -333,6 +345,10 @@ function validateManifest(manifest, expectedKind, path) {
     );
   }
 
+  if (manifest.authentication !== undefined) {
+    validateAuthenticationManifest(manifest.authentication, `${path}.authentication`);
+  }
+
   if (manifest.preset === "modular-monolith") {
     validateModularMonolithManifest(manifest, path);
   } else if (Object.hasOwn(manifest, "modules")) {
@@ -364,6 +380,25 @@ function validateManifest(manifest, expectedKind, path) {
     fail(
       `Bootstrap manifest must not make a Supported Capability claim: ${path}.supportClaims`,
     );
+  }
+
+  function validateAuthenticationManifest(authentication, path) {
+    requireRecord(authentication, path);
+    rejectUnknownProperties(authentication, ["profile", "provider", "flow", "state"], path);
+    for (const property of ["profile", "provider", "flow", "state"]) {
+      requireString(authentication[property], `${path}.${property}`);
+    }
+    const expected = AUTHENTICATION_PROFILES.get(authentication.profile);
+    if (expected === undefined) {
+      fail(`Invalid authentication profile at ${path}.profile: ${authentication.profile}.`);
+    }
+    if (
+      authentication.provider !== expected[0]
+      || authentication.flow !== expected[1]
+      || authentication.state !== "selected"
+    ) {
+      fail(`Authentication profile metadata is inconsistent at ${path}.`);
+    }
   }
 
   requireRecord(manifest.security, `${path}.security`);
@@ -468,6 +503,8 @@ function modularMonolithExpectedFiles(manifest) {
     "contracts/openapi-v1.json",
     `src/${applicationName}.Api/${applicationName}.Api.csproj`,
     `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
+    `src/${applicationName}.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+    `src/${applicationName}.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
     `src/${applicationName}.Api/Program.cs`,
     `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
     `src/${applicationName}.Client/${applicationName}.Client.csproj`,
@@ -477,6 +514,15 @@ function modularMonolithExpectedFiles(manifest) {
     `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
     `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
   ];
+
+  if (manifest.authentication?.profile === "identity:interactive") {
+    files.push(
+      `src/${applicationName}.Api/Infrastructure/Identity/IdentityDbContext.cs`,
+      `src/${applicationName}.Api/Infrastructure/Identity/IdentityMigrationComposition.cs`,
+      `src/${applicationName}.Api/Infrastructure/Identity/Migrations/20260101000000_InitialIdentity.cs`,
+      `src/${applicationName}.Api/Infrastructure/Identity/Migrations/IdentityDbContextModelSnapshot.cs`,
+    );
+  }
 
   for (const module of manifest.modules) {
     const project = module.project;
@@ -735,6 +781,12 @@ async function validateModularMonolithComposition(
   const apiHostSource = await readSolutionFile(
     `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
   );
+  const authenticationSource = await readSolutionFile(
+    `src/${applicationName}.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
+  );
+  const actorAuthorizationSource = await readSolutionFile(
+    `src/${applicationName}.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+  );
   const clientProjectPath = `src/${applicationName}.Client/${applicationName}.Client.csproj`;
   const clientProject = await readSolutionFile(clientProjectPath);
   const clientSourcePath = `src/${applicationName}.Client/${applicationName}.Client.cs`;
@@ -749,10 +801,15 @@ async function validateModularMonolithComposition(
       openApiContract.paths?.[
         `/api/v1/${module.name.toLowerCase()}/status`
       ],
+    ) ||
+    !modules.every((module) =>
+      openApiContract.paths?.[
+        `/api/v1/${module.name.toLowerCase()}/status/permissioned`
+      ],
     )
   ) {
     fail(
-      `Modular Monolith OpenAPI contract must describe the versioned module status routes: ${openApiContractPath}.`,
+      `Modular Monolith OpenAPI contract must describe the versioned module status and permissioned routes: ${openApiContractPath}.`,
     );
   }
   validateProjectReferences(clientProject, [], clientProjectPath);
@@ -773,6 +830,76 @@ async function validateModularMonolithComposition(
   const apiReliableEventsSource = await readSolutionFile(
     `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
   );
+  if (
+    !apiSource.includes("AuthenticationComposition.AddServices(") ||
+    !authenticationSource.includes("RequireAuthenticatedUser") ||
+    !authenticationSource.includes("PermissionAuthorizationHandler") ||
+    !authenticationSource.includes("ActorAuthorization.Resolve(") ||
+    !authenticationSource.includes("context.User") ||
+    !actorAuthorizationSource.includes("ActorContext") ||
+    !actorAuthorizationSource.includes("PermissionSet") ||
+    !actorAuthorizationSource.includes("FindFirst(\"iss\")") ||
+    !actorAuthorizationSource.includes("FindFirst(\"sub\")") ||
+    /FindFirst\("(?:email|upn)"\)/i.test(actorAuthorizationSource)
+  ) {
+    fail(
+      "Generated identity composition must resolve provider-independent actors and permissions from issuer and subject claims.",
+    );
+  }
+  if (
+    manifest.authentication?.profile === "identity:interactive" &&
+    (!apiProject.includes(
+      'PackageReference Include="Microsoft.EntityFrameworkCore"',
+    ) ||
+      !apiProject.includes(
+        `PackageReference Include="${relationalProvider === "postgresql"
+          ? "Npgsql.EntityFrameworkCore.PostgreSQL"
+          : "Microsoft.EntityFrameworkCore.SqlServer"}"`,
+      ) ||
+      !apiProject.includes(
+        'PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore"',
+      ))
+  ) {
+    fail(
+      "Local Identity API composition must reference EF Core, the selected relational provider, and Identity stores.",
+    );
+  }
+  const authenticationIsConfigured =
+    manifest.authentication?.profile !== "none";
+  if (
+    authenticationIsConfigured !== apiSource.includes("app.UseAuthentication();")
+  ) {
+    fail(
+      "Generated authentication middleware must match the selected authentication profile.",
+    );
+  }
+  if (manifest.authentication?.profile === "identity:interactive") {
+    const identityMigrationCompositionSource = await readSolutionFile(
+      `src/${applicationName}.Api/Infrastructure/Identity/IdentityMigrationComposition.cs`,
+    );
+    const identityMigrationSource = await readSolutionFile(
+      `src/${applicationName}.Api/Infrastructure/Identity/Migrations/20260101000000_InitialIdentity.cs`,
+    );
+    if (
+      !identityMigrationCompositionSource.includes(
+        "AddMigrationServices(builder.Services, builder.Configuration)",
+      ) &&
+      !identityMigrationCompositionSource.includes("AddMigrationServices(")
+    ) {
+      fail(
+        "Local Identity must expose an explicit migration composition boundary.",
+      );
+    }
+    if (
+      !identityMigrationSource.includes("AspNetUsers") ||
+      !identityMigrationSource.includes("AspNetRoles") ||
+      /CREATE TABLE IF NOT EXISTS|actor_registry/i.test(identityMigrationSource)
+    ) {
+      fail(
+        "Local Identity migration must contain the provider-selected ASP.NET Identity schema without provider-specific raw SQL.",
+      );
+    }
+  }
   if (
     !apiSource.includes('MapGroup("/api/v1")') ||
     !apiSource.includes('WithGroupName("v1")') ||
@@ -833,15 +960,35 @@ async function validateModularMonolithComposition(
       );
     }
   }
+  if (
+    manifest.authentication?.profile === "identity:interactive" &&
+    (!migratorSource.includes(
+      "IdentityMigrationComposition.AddMigrationServices(builder.Services, builder.Configuration);",
+    ) ||
+      !migratorSource.includes(
+        "await IdentityMigrationComposition.ExecuteMigrationAsync(",
+      ))
+  ) {
+    fail(
+      "The one-shot Migrator must execute the API-owned local Identity migration boundary.",
+    );
+  }
   if (/\b(?:Migrate|EnsureCreated|UseSeeding|HasData)(?:Async)?\s*\(/.test(apiSource)) {
     fail("Modular Monolith API composition must not migrate, create, or seed the database.");
   }
 
   const migratorProjectPath = `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`;
   const migratorProject = await readSolutionFile(migratorProjectPath);
+  const migratorProjectReferences =
+    manifest.authentication?.profile === "identity:interactive"
+      ? [
+        ...allModuleProjectReferences,
+        `../${applicationName}.Api/${applicationName}.Api.csproj`,
+      ]
+      : allModuleProjectReferences;
   validateProjectReferences(
     migratorProject,
-    allModuleProjectReferences,
+    migratorProjectReferences,
     migratorProjectPath,
   );
   validateExecutableProject(
@@ -904,6 +1051,17 @@ async function validateModularMonolithComposition(
   const testSource = await readSolutionFile(
     `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
   );
+  if (
+    !testSource.includes("ActorContext.Create") ||
+    !testSource.includes("permission-required") ||
+    !testSource.includes(
+      'RequireAuthorization("permission:platform-access")',
+    )
+  ) {
+    fail(
+      "Modular Monolith acceptance tests must prove Kernel permission decisions and an operation-level authorization policy.",
+    );
+  }
   if (!/\[Test\]/.test(testSource) || !/await\s+Assert\.That/.test(testSource)) {
     fail(
       "Modular Monolith acceptance tests must use TUnit tests with awaited assertions.",

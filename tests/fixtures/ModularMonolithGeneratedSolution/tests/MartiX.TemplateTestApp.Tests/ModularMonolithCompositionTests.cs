@@ -9,6 +9,7 @@ using MartiX.TemplateTestApp.Orders.Infrastructure.Persistence;
 using MartiX.TemplateTestApp.Billing;
 using MartiX.TemplateTestApp.Billing.Infrastructure.Persistence;
 
+using MartiX.Platform.Security;
 using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -109,6 +110,54 @@ public sealed class ModularMonolithCompositionTests
             .IsEqualTo("platform.authentication-required");
         await Assert.That(document.RootElement.GetProperty("detail").GetString())
             .IsEqualTo("Authentication is required.");
+    }
+
+    [Test]
+    public async Task Permissioned_operations_fail_closed_without_the_required_actor_permission()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync("/test/permissioned");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+    }
+
+    [Test]
+    public async Task Business_module_permissioned_operations_fail_closed_without_the_required_actor_permission()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        using var response = await host.Client.GetAsync(
+            "/api/v1/orders/status/permissioned");
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(document.RootElement.GetProperty("code").GetString())
+            .IsEqualTo("platform.authentication-required");
+    }
+
+    [Test]
+    public async Task Kernel_authorization_uses_immutable_actor_and_permission_semantics()
+    {
+        var read = Permission.Create("orders.read");
+        var actor = ActorSnapshot.Human(ActorId.New());
+        var context = ActorContext.Create(
+            actor,
+            PermissionSet.Create(new[] { read }));
+
+        await Assert.That(context.Authorize(read).IsAllowed).IsTrue();
+        await Assert.That(
+                context.Authorize(Permission.Create("orders.write")).Reason)
+            .IsEqualTo("permission-required");
+        await Assert.That(ActorContext.Anonymous().Authorize(read).Reason)
+            .IsEqualTo("authentication-required");
+        await Assert.That(ActorContext.Unresolved().Authorize(read).Reason)
+            .IsEqualTo("actor-unresolved");
     }
 
     [Test, NotInParallel("modular-monolith-alpha-database")]
@@ -349,6 +398,11 @@ public sealed class ModularMonolithCompositionTests
                     "/test/protected",
                     static () => Results.Ok(new { Status = "protected" }))
                 .WithName("ConformanceProtected");
+            app.MapGet(
+                    "/test/permissioned",
+                    static () => Results.Ok(new { Status = "permissioned" }))
+                .WithName("ConformancePermissioned")
+                .RequireAuthorization("permission:platform-access");
             await app.StartAsync();
 
             return new ApiHost(app, app.GetTestClient());

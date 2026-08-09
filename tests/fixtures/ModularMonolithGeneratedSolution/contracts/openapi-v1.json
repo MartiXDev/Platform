@@ -42,6 +42,54 @@
         }
       }
     },
+    "/api/v1/orders/status/permissioned": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Read Orders status with application permission",
+        "operationId": "Orders_PermissionedStatusV1",
+        "responses": {
+          "200": {
+            "description": "The Orders status.",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersStatusResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The actor lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 403
+          },
+          "500": {
+            "description": "The request failed unexpectedly.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 500
+          }
+        },
+        "x-client": {
+          "methodName": "GetOrdersPermissionedStatusAsync",
+          "returnType": "OrdersStatusResponse"
+        }
+      }
+    },
     "/api/v1/billing/status": {
       "get": {
         "tags": [
@@ -75,6 +123,54 @@
         },
         "x-client": {
           "methodName": "GetBillingStatusAsync",
+          "returnType": "BillingStatusResponse"
+        }
+      }
+    },
+    "/api/v1/billing/status/permissioned": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Read Billing status with application permission",
+        "operationId": "Billing_PermissionedStatusV1",
+        "responses": {
+          "200": {
+            "description": "The Billing status.",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingStatusResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The actor lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 403
+          },
+          "500": {
+            "description": "The request failed unexpectedly.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 500
+          }
+        },
+        "x-client": {
+          "methodName": "GetBillingPermissionedStatusAsync",
           "returnType": "BillingStatusResponse"
         }
       }

@@ -55,6 +55,12 @@ test("the modular monolith plan is deterministic and records the Contracts graph
       state: "selected",
     },
   ]);
+  assert.deepEqual(firstPlan.authentication, {
+    profile: "none",
+    provider: "none",
+    flow: "anonymous",
+    state: "selected",
+  });
   assert.deepEqual(firstPlan.businessModules, [
     {
       name: "Orders",
@@ -84,6 +90,190 @@ test("the modular monolith plan is deterministic and records the Contracts graph
     "src/MartiX.Planner.Billing/MartiX.Planner.Billing.csproj",
     "tests/MartiX.Planner.Tests/MartiX.Planner.Tests.csproj",
   ]);
+});
+
+test("the modular monolith selects local and external authentication profiles explicitly", async () => {
+  const identityPlan = createModularMonolithPresetPlan({
+    applicationName: "MartiX.Planner",
+    businessModules: ["Orders"],
+    authenticationProfile: "identity:interactive",
+  });
+  assert.deepEqual(identityPlan.authentication, {
+    profile: "identity:interactive",
+    provider: "identity",
+    flow: "interactive",
+    state: "selected",
+  });
+  assert.ok(
+    identityPlan.packageReferences.some(
+      ({ id }) => id === "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+    ),
+  );
+
+  const root = await createTemporaryDirectory();
+  try {
+    const result = await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      authenticationProfile: "identity:interactive",
+      outputDirectory: join(root, "generated"),
+    });
+    assert.ok(
+      result.files.includes(
+        "src/MartiX.Planner.Api/Infrastructure/Identity/IdentityDbContext.cs",
+      ),
+    );
+    assert.ok(
+      result.files.some((file) =>
+        file.includes("Infrastructure/Identity/Migrations/"),
+      ),
+    );
+    assert.ok(
+      result.files.includes(
+        "src/MartiX.Planner.Api/Infrastructure/Identity/ActorAuthorization.cs",
+      ),
+    );
+    assert.ok(
+      result.files.includes(
+        "src/MartiX.Planner.Api/Infrastructure/Identity/IdentityMigrationComposition.cs",
+      ),
+    );
+    const api = await readFile(
+      join(root, "generated", "src", "MartiX.Planner.Api", "Program.cs"),
+      "utf8",
+    );
+    const apiProject = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "MartiX.Planner.Api.csproj",
+      ),
+      "utf8",
+    );
+    const migrator = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Migrator",
+        "Program.cs",
+      ),
+      "utf8",
+    );
+    const auth = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "Identity",
+        "AuthenticationComposition.cs",
+      ),
+      "utf8",
+    );
+    const identityMigration = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "Identity",
+        "Migrations",
+        "20260101000000_InitialIdentity.cs",
+      ),
+      "utf8",
+    );
+    const identitySnapshot = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "Identity",
+        "Migrations",
+        "IdentityDbContextModelSnapshot.cs",
+      ),
+      "utf8",
+    );
+    assert.match(api, /app\.UseAuthentication\(\);/);
+    assert.match(auth, /AddIdentityCookies/);
+    assert.match(auth, /AddEntityFrameworkStores/);
+    assert.match(auth, /ValidateStartup/);
+    assert.doesNotMatch(auth, /password-value|client-secret-value/);
+    assert.match(apiProject, /Microsoft\.EntityFrameworkCore/);
+    assert.match(apiProject, /Npgsql\.EntityFrameworkCore\.PostgreSQL/);
+    assert.match(migrator, /IdentityMigrationComposition\.AddMigrationServices/);
+    assert.match(migrator, /IdentityMigrationComposition\.ExecuteMigrationAsync/);
+    assert.match(identityMigration, /CreateTable\(/);
+    assert.match(identityMigration, /AspNetUsers/);
+    assert.match(identityMigration, /AspNetUserRoles/);
+    assert.doesNotMatch(identityMigration, /CREATE TABLE IF NOT EXISTS|actor_registry/i);
+    assert.match(identitySnapshot, /ModelSnapshot/);
+    assert.match(identitySnapshot, /IdentityUser<Guid>/);
+    assert.match(identitySnapshot, /AspNetUserTokens/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("local Identity migrations use the selected relational provider", async () => {
+  const roots = await Promise.all([
+    createTemporaryDirectory(),
+    createTemporaryDirectory(),
+  ]);
+
+  try {
+    for (const [index, provider] of ["postgresql", "sqlserver"].entries()) {
+      const output = join(roots[index], "generated");
+      await generateModularMonolithPreset({
+        applicationName: "MartiX.Planner",
+        businessModules: ["Orders"],
+        relationalProvider: provider,
+        authenticationProfile: "identity:interactive",
+        outputDirectory: output,
+      });
+      const migration = await readFile(
+        join(
+          output,
+          "src",
+          "MartiX.Planner.Api",
+          "Infrastructure",
+          "Identity",
+          "Migrations",
+          "20260101000000_InitialIdentity.cs",
+        ),
+        "utf8",
+      );
+
+      assert.match(migration, /AspNetRoles/);
+      assert.match(migration, /AspNetRoleClaims/);
+      assert.match(migration, /AspNetUserClaims/);
+      assert.match(migration, /AspNetUserLogins/);
+      assert.match(migration, /AspNetUserTokens/);
+      assert.match(
+        migration,
+        provider === "postgresql"
+          ? /type: "uuid"/
+          : /type: "uniqueidentifier"/,
+      );
+      assert.match(
+        migration,
+        provider === "postgresql"
+          ? /NpgsqlValueGenerationStrategy/
+          : /"SqlServer:Identity"/,
+      );
+      assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS|actor_registry/i);
+    }
+  } finally {
+    await Promise.all(
+      roots.map((root) => rm(root, { recursive: true, force: true })),
+    );
+  }
 });
 
 test("the selected relational provider is recorded in the plan", () => {
@@ -352,12 +542,28 @@ test("generated module endpoints inherit the versioned HTTP contract", async () 
       ),
       "utf8",
     );
+    const contract = JSON.parse(
+      await readFile(join(output, "contracts", "openapi-v1.json"), "utf8"),
+    );
+    const client = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.Client",
+        "MartiX.Planner.Client.cs",
+      ),
+      "utf8",
+    );
 
     assert.match(api, /MapGroup\("\/api\/v1"\)/);
     assert.match(api, /WithGroupName\("v1"\)/);
     assert.match(orders, /MapGroup\("\/orders"\)/);
     assert.match(orders, /WithSummary\(/);
     assert.match(orders, /ProducesMartiXProblemDetails/);
+    assert.ok(contract.paths["/api/v1/orders/status/permissioned"]);
+    assert.ok(contract.paths["/api/v1/billing/status/permissioned"]);
+    assert.match(client, /GetOrdersPermissionedStatusAsync/);
+    assert.match(client, /GetBillingPermissionedStatusAsync/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -550,8 +756,64 @@ test("generation emits only executable, module, and consolidated test boundaries
       outputDirectory: join(secondRoot, "generated"),
     });
 
+    test("generated authorization evidence combines operation policy and Kernel actor context", async () => {
+      const root = await createTemporaryDirectory();
+
+      try {
+        const output = join(root, "generated");
+        await generateModularMonolithPreset({
+          applicationName: "MartiX.Planner",
+          businessModules: ["Orders"],
+          outputDirectory: output,
+        });
+        const tests = await readFile(
+          join(
+            output,
+            "tests",
+            "MartiX.Planner.Tests",
+            "ModularMonolithCompositionTests.cs",
+          ),
+          "utf8",
+        );
+        const authorization = await readFile(
+          join(
+            output,
+            "src",
+            "MartiX.Planner.Api",
+            "Infrastructure",
+            "Identity",
+            "AuthenticationComposition.cs",
+          ),
+          "utf8",
+        );
+        const moduleFeature = await readFile(
+          join(
+            output,
+            "src",
+            "MartiX.Planner.Orders",
+            "Features",
+            "Status",
+            "OrdersStatus.cs",
+          ),
+          "utf8",
+        );
+
+        assert.match(tests, /RequireAuthorization\("permission:platform-access"\)/);
+        assert.match(authorization, /ActorAuthorization\.Resolve\(\s*context\.User/);
+        assert.match(tests, /ActorContext\.Create/);
+        assert.match(tests, /authentication-required/);
+        assert.match(tests, /permission-required/);
+        assert.match(moduleFeature, /status\/permissioned/);
+        assert.match(moduleFeature, /ActorContext/);
+        assert.match(moduleFeature, /Permission\.Create\("platform\.access"\)/);
+        assert.match(moduleFeature, /RequireAuthorization\("permission:platform-access"\)/);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
     assert.deepEqual(first.files, second.files);
-    assert.equal(first.files.length, 38);
+    assert.equal(first.files.length, 40);
     assert.deepEqual(
       await listFiles(join(firstRoot, "generated")),
       first.files,

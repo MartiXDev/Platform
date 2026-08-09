@@ -106,6 +106,12 @@ function parseCliArguments(argumentsList) {
       case "--persistence":
         options.persistence = value;
         break;
+      case "--auth":
+      case "--auth-profile":
+      case "--authentication":
+      case "--authentication-profile":
+        options.authenticationProfile = value;
+        break;
       default:
         fail(`Unknown option: ${name}.`);
     }
@@ -138,6 +144,7 @@ export async function runModularMonolithCli(
         "       --module <BusinessModule> [--module <BusinessModule> ...]",
         "       [--module-dependency <Consumer>:<Provider>[,<Provider>...]]",
         "       [--relational-provider postgresql|sqlserver] [--dry-run]",
+        "       [--authentication-profile <profile>]",
       ].join("\n"),
     );
     return;
