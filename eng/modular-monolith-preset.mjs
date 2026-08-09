@@ -1,10 +1,10 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   mkdir,
   readdir,
   writeFile,
 } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve } from "node:path";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
@@ -3386,7 +3386,8 @@ function uiContractDocument(plan) {
 }
 
 function uiPackageJsonFile(plan) {
-  const dependencies = plan.ui.provider === "react"
+  const isReact = plan.ui.provider === "react";
+  const dependencies = isReact
     ? {
         "@fluentui/react-components": "9.72.4",
         "@tanstack/react-query": "5.90.2",
@@ -3409,7 +3410,7 @@ function uiPackageJsonFile(plan) {
     vite: "7.1.7",
     vitest: "3.2.4",
   };
-  if (plan.ui.provider === "react") {
+  if (isReact) {
     devDependencies["@testing-library/react"] = "16.3.0";
     devDependencies["@types/react"] = "19.2.18";
     devDependencies["@types/react-dom"] = "19.2.4";
@@ -3421,7 +3422,6 @@ function uiPackageJsonFile(plan) {
     devDependencies["vue-tsc"] = "3.1.0";
   }
 
-  const isReact = plan.ui.provider === "react";
   const packageJson = {
     name: `${plan.applicationName.toLowerCase().replaceAll(".", "-")}-web`,
     private: true,
@@ -3509,6 +3509,13 @@ save-prefix=""
 }
 
 function uiPnpmLockFile(plan) {
+  if (plan.ui.provider === "react") {
+    return REACT_PNPM_LOCKFILE_TEMPLATE.replace(
+      "src/__MARTIX_APPLICATION_NAME__.Web:",
+      `src/${plan.applicationName}.Web:`,
+    );
+  }
+
   const packageJson = JSON.parse(uiPackageJsonFile(plan));
   const renderDependencyBlock = (dependencies) =>
     Object.entries(dependencies)
@@ -3519,8 +3526,7 @@ function uiPnpmLockFile(plan) {
       .join("");
   const dependencies = renderDependencyBlock(packageJson.dependencies);
   const devDependencies = renderDependencyBlock(packageJson.devDependencies);
-  if (plan.ui.provider !== "react") {
-    return `lockfileVersion: '9.0'
+  return `lockfileVersion: '9.0'
 
 settings:
   autoInstallPeers: true
@@ -3532,12 +3538,6 @@ importers:
 ${dependencies || "      {}\n"}    devDependencies:
 ${devDependencies || "      {}\n"}
 `;
-  }
-
-  return REACT_PNPM_LOCKFILE_TEMPLATE.replace(
-    "src/MartiX.FullStackTestApp.Web:",
-    `src/${plan.applicationName}.Web:`,
-  );
 }
 
 function uiIndexHtmlFile(plan) {
@@ -3918,49 +3918,62 @@ function parseSessionState(value: unknown): SessionState {
   if (!isRecord(value) || typeof value.kind !== "string") {
     throw new Error("The session endpoint returned an invalid state.");
   }
-  if (value.kind === "anonymous") {
-    return { kind: "anonymous" };
-  }
-  if (value.kind === "denied" && value.reason === "forbidden") {
-    return { kind: "denied", reason: "forbidden" };
-  }
-  if (
-    value.kind === "authenticated" &&
-    isRecord(value.actor) &&
-    typeof value.actor.id === "string" &&
-    Array.isArray(value.permissions) &&
-    value.permissions.every((permission): permission is string => typeof permission === "string")
-  ) {
-    return {
-      kind: "authenticated",
-      actor: { id: value.actor.id },
-      permissions: value.permissions,
-    };
-  }
-  if (value.kind === "expired" && typeof value.returnPath === "string") {
-    return { kind: "expired", returnPath: value.returnPath };
+  switch (value.kind) {
+    case "anonymous":
+      return { kind: "anonymous" };
+    case "denied":
+      if (value.reason === "forbidden") {
+        return { kind: "denied", reason: "forbidden" };
+      }
+      break;
+    case "authenticated":
+      if (
+        isRecord(value.actor) &&
+        typeof value.actor.id === "string" &&
+        Array.isArray(value.permissions) &&
+        value.permissions.every(
+          (permission): permission is string => typeof permission === "string",
+        )
+      ) {
+        return {
+          kind: "authenticated",
+          actor: { id: value.actor.id },
+          permissions: value.permissions,
+        };
+      }
+      break;
+    case "expired":
+      if (typeof value.returnPath === "string") {
+        return { kind: "expired", returnPath: value.returnPath };
+      }
+      break;
   }
   throw new Error("The session endpoint returned an unsupported state.");
 }
 
 function isTransportFailure(value: unknown): value is TransportFailure {
-  return (
-    isRecord(value) &&
-    (value.kind === "session-expired" ||
-      value.kind === "access-denied" ||
-      value.kind === "problem-details" ||
-      value.kind === "network" ||
-      value.kind === "cancelled")
-  );
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    return false;
+  }
+  switch (value.kind) {
+    case "session-expired":
+    case "access-denied":
+    case "problem-details":
+    case "network":
+    case "cancelled":
+      return true;
+    default:
+      return false;
+  }
 }
 
 export async function readSession(): Promise<SessionState> {
   try {
-    const response = await request("/auth/session", {
-      credentials: "include",
-    }, {
-      retrySafeRead: true,
-    });
+    const response = await request(
+      "/auth/session",
+      { credentials: "include" },
+      { retrySafeRead: true },
+    );
     return parseSessionState(await response.json());
   } catch (error) {
     if (!isTransportFailure(error)) {
@@ -4231,10 +4244,8 @@ function uiApplicationSource(plan) {
 } from "@fluentui/react-components";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import {
-  createGeneratedClient,
-} from "./Platform/Api/generated";
+import { useEffect, useMemo, useState } from "react";
+import { createGeneratedClient } from "./Platform/Api/generated";
 import { request } from "./Platform/Api/transport";
 import { translate } from "./Platform/Localization/messages";
 import {
@@ -4253,9 +4264,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-const ApiClientContext = createContext<ReturnType<
-  typeof createGeneratedClient
-> | null>(null);
 const stateMessages = {
   loading: "ui.state.loading",
   empty: "ui.state.empty",
@@ -4279,20 +4287,32 @@ function useSystemTheme() {
   return prefersDark ? webDarkTheme : webLightTheme;
 }
 
-function SessionView({ session }: { session: SessionState }) {
-  const client = useContext(ApiClientContext);
-  const state =
-    session.kind === "anonymous"
-      ? "empty"
-      : session.kind === "denied"
-        ? "denied"
-        : session.kind === "expired"
-          ? "error"
-          : "empty";
+function sessionViewState(session: SessionState): keyof typeof stateMessages {
+  switch (session.kind) {
+    case "denied":
+      return "denied";
+    case "expired":
+      return "error";
+    case "anonymous":
+    case "authenticated":
+      return "empty";
+    default:
+      return "empty";
+  }
+}
+
+function SessionView({
+  session,
+  clientReady,
+}: {
+  session: SessionState;
+  clientReady: boolean;
+}) {
+  const state = sessionViewState(session);
   return (
     <section
       className="ui-state"
-      data-client-ready={client !== null}
+      data-client-ready={clientReady}
       data-state={state}
       aria-live="polite"
     >
@@ -4311,38 +4331,36 @@ function ApplicationContent() {
     queryFn: () => readSession(),
     enabled: runtime.isSuccess,
   });
-  const client = useMemo(
-    () =>
-      runtime.data === undefined
-        ? null
-        : createGeneratedClient(runtime.data.apiBasePath, request),
-    [runtime.data],
-  );
-  const state = runtime.isPending || session.isPending
-    ? "loading"
-    : runtime.isError || session.isError
-      ? "offline"
-      : null;
+  const client = useMemo(() => {
+    if (runtime.data === undefined) {
+      return null;
+    }
+    return createGeneratedClient(runtime.data.apiBasePath, request);
+  }, [runtime.data]);
+  let state: "loading" | "offline" | null = null;
+  if (runtime.isPending || session.isPending) {
+    state = "loading";
+  } else if (runtime.isError || session.isError) {
+    state = "offline";
+  }
 
   return (
-    <ApiClientContext.Provider value={client}>
-      <main className="application-shell" aria-labelledby="application-title">
-        <h1 id="application-title">{translate("ui.application.title")}</h1>
-        {state === null && session.data !== undefined ? (
-          <SessionView session={session.data} />
-        ) : (
-          <section
-            className="ui-state"
-            data-state={state}
-            aria-live="polite"
-            aria-busy={state === "loading"}
-            role="status"
-          >
-            <p>{translate(stateMessages[state ?? "error"])}</p>
-          </section>
-        )}
-      </main>
-    </ApiClientContext.Provider>
+    <main className="application-shell" aria-labelledby="application-title">
+      <h1 id="application-title">{translate("ui.application.title")}</h1>
+      {state === null && session.data !== undefined ? (
+        <SessionView session={session.data} clientReady={client !== null} />
+      ) : (
+        <section
+          className="ui-state"
+          data-state={state}
+          aria-live="polite"
+          aria-busy={state === "loading"}
+          role="status"
+        >
+          <p>{translate(stateMessages[state ?? "error"])}</p>
+        </section>
+      )}
+    </main>
   );
 }
 

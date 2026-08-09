@@ -88,12 +88,9 @@ const MANIFEST_ALLOWED_PROPERTIES = [
 ];
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const FULL_STACK_UI_INPUTS = [
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/browser.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/build.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/client.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/deployment.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/observability.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/security.md`,
+  ...FULL_STACK_UI_EVIDENCE.map(
+    (evidenceName) => `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/${evidenceName}.md`,
+  ),
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.tsx`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/generated.ts`,
@@ -740,12 +737,9 @@ function fullStackExpectedFiles(manifest) {
   const files = [
     ...modularMonolithExpectedFiles(manifest),
     "contracts/ui-capability-v1.json",
-    "evidence/ui/browser.md",
-    "evidence/ui/build.md",
-    "evidence/ui/client.md",
-    "evidence/ui/deployment.md",
-    "evidence/ui/observability.md",
-    "evidence/ui/security.md",
+    ...FULL_STACK_UI_EVIDENCE.map(
+      (evidenceName) => `evidence/ui/${evidenceName}.md`,
+    ),
     `${root}/Platform/Api/README.md`,
     `${root}/Platform/Api/generated.ts`,
     `${root}/Platform/Api/openapi.ts`,

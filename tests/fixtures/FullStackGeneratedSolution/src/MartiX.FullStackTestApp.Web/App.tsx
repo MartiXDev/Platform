@@ -5,10 +5,8 @@ import {
 } from "@fluentui/react-components";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import {
-  createGeneratedClient,
-} from "./Platform/Api/generated";
+import { useEffect, useMemo, useState } from "react";
+import { createGeneratedClient } from "./Platform/Api/generated";
 import { request } from "./Platform/Api/transport";
 import { translate } from "./Platform/Localization/messages";
 import {
@@ -27,9 +25,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-const ApiClientContext = createContext<ReturnType<
-  typeof createGeneratedClient
-> | null>(null);
 const stateMessages = {
   loading: "ui.state.loading",
   empty: "ui.state.empty",
@@ -53,20 +48,32 @@ function useSystemTheme() {
   return prefersDark ? webDarkTheme : webLightTheme;
 }
 
-function SessionView({ session }: { session: SessionState }) {
-  const client = useContext(ApiClientContext);
-  const state =
-    session.kind === "anonymous"
-      ? "empty"
-      : session.kind === "denied"
-        ? "denied"
-        : session.kind === "expired"
-          ? "error"
-          : "empty";
+function sessionViewState(session: SessionState): keyof typeof stateMessages {
+  switch (session.kind) {
+    case "denied":
+      return "denied";
+    case "expired":
+      return "error";
+    case "anonymous":
+    case "authenticated":
+      return "empty";
+    default:
+      return "empty";
+  }
+}
+
+function SessionView({
+  session,
+  clientReady,
+}: {
+  session: SessionState;
+  clientReady: boolean;
+}) {
+  const state = sessionViewState(session);
   return (
     <section
       className="ui-state"
-      data-client-ready={client !== null}
+      data-client-ready={clientReady}
       data-state={state}
       aria-live="polite"
     >
@@ -85,38 +92,36 @@ function ApplicationContent() {
     queryFn: () => readSession(),
     enabled: runtime.isSuccess,
   });
-  const client = useMemo(
-    () =>
-      runtime.data === undefined
-        ? null
-        : createGeneratedClient(runtime.data.apiBasePath, request),
-    [runtime.data],
-  );
-  const state = runtime.isPending || session.isPending
-    ? "loading"
-    : runtime.isError || session.isError
-      ? "offline"
-      : null;
+  const client = useMemo(() => {
+    if (runtime.data === undefined) {
+      return null;
+    }
+    return createGeneratedClient(runtime.data.apiBasePath, request);
+  }, [runtime.data]);
+  let state: "loading" | "offline" | null = null;
+  if (runtime.isPending || session.isPending) {
+    state = "loading";
+  } else if (runtime.isError || session.isError) {
+    state = "offline";
+  }
 
   return (
-    <ApiClientContext.Provider value={client}>
-      <main className="application-shell" aria-labelledby="application-title">
-        <h1 id="application-title">{translate("ui.application.title")}</h1>
-        {state === null && session.data !== undefined ? (
-          <SessionView session={session.data} />
-        ) : (
-          <section
-            className="ui-state"
-            data-state={state}
-            aria-live="polite"
-            aria-busy={state === "loading"}
-            role="status"
-          >
-            <p>{translate(stateMessages[state ?? "error"])}</p>
-          </section>
-        )}
-      </main>
-    </ApiClientContext.Provider>
+    <main className="application-shell" aria-labelledby="application-title">
+      <h1 id="application-title">{translate("ui.application.title")}</h1>
+      {state === null && session.data !== undefined ? (
+        <SessionView session={session.data} clientReady={client !== null} />
+      ) : (
+        <section
+          className="ui-state"
+          data-state={state}
+          aria-live="polite"
+          aria-busy={state === "loading"}
+          role="status"
+        >
+          <p>{translate(stateMessages[state ?? "error"])}</p>
+        </section>
+      )}
+    </main>
   );
 }
 

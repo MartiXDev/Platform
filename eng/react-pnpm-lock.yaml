@@ -6,7 +6,7 @@ settings:
 
 importers:
 
-  src/MartiX.FullStackTestApp.Web:
+  src/__MARTIX_APPLICATION_NAME__.Web:
     dependencies:
       '@fluentui/react-components':
         specifier: 9.72.4

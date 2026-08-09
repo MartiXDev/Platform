@@ -14,49 +14,62 @@ function parseSessionState(value: unknown): SessionState {
   if (!isRecord(value) || typeof value.kind !== "string") {
     throw new Error("The session endpoint returned an invalid state.");
   }
-  if (value.kind === "anonymous") {
-    return { kind: "anonymous" };
-  }
-  if (value.kind === "denied" && value.reason === "forbidden") {
-    return { kind: "denied", reason: "forbidden" };
-  }
-  if (
-    value.kind === "authenticated" &&
-    isRecord(value.actor) &&
-    typeof value.actor.id === "string" &&
-    Array.isArray(value.permissions) &&
-    value.permissions.every((permission): permission is string => typeof permission === "string")
-  ) {
-    return {
-      kind: "authenticated",
-      actor: { id: value.actor.id },
-      permissions: value.permissions,
-    };
-  }
-  if (value.kind === "expired" && typeof value.returnPath === "string") {
-    return { kind: "expired", returnPath: value.returnPath };
+  switch (value.kind) {
+    case "anonymous":
+      return { kind: "anonymous" };
+    case "denied":
+      if (value.reason === "forbidden") {
+        return { kind: "denied", reason: "forbidden" };
+      }
+      break;
+    case "authenticated":
+      if (
+        isRecord(value.actor) &&
+        typeof value.actor.id === "string" &&
+        Array.isArray(value.permissions) &&
+        value.permissions.every(
+          (permission): permission is string => typeof permission === "string",
+        )
+      ) {
+        return {
+          kind: "authenticated",
+          actor: { id: value.actor.id },
+          permissions: value.permissions,
+        };
+      }
+      break;
+    case "expired":
+      if (typeof value.returnPath === "string") {
+        return { kind: "expired", returnPath: value.returnPath };
+      }
+      break;
   }
   throw new Error("The session endpoint returned an unsupported state.");
 }
 
 function isTransportFailure(value: unknown): value is TransportFailure {
-  return (
-    isRecord(value) &&
-    (value.kind === "session-expired" ||
-      value.kind === "access-denied" ||
-      value.kind === "problem-details" ||
-      value.kind === "network" ||
-      value.kind === "cancelled")
-  );
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    return false;
+  }
+  switch (value.kind) {
+    case "session-expired":
+    case "access-denied":
+    case "problem-details":
+    case "network":
+    case "cancelled":
+      return true;
+    default:
+      return false;
+  }
 }
 
 export async function readSession(): Promise<SessionState> {
   try {
-    const response = await request("/auth/session", {
-      credentials: "include",
-    }, {
-      retrySafeRead: true,
-    });
+    const response = await request(
+      "/auth/session",
+      { credentials: "include" },
+      { retrySafeRead: true },
+    );
     return parseSessionState(await response.json());
   } catch (error) {
     if (!isTransportFailure(error)) {

@@ -115,9 +115,13 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.ok(files.includes("src/MartiX.Portal.Web/tests/ui-capability-contract.test.ts"));
     assert.ok(files.includes("evidence/ui/browser.md"));
     assert.ok(files.includes("evidence/ui/build.md"));
+    assert.ok(files.includes("evidence/ui/client.md"));
     assert.ok(files.includes("evidence/ui/security.md"));
     assert.ok(files.includes("evidence/ui/deployment.md"));
     assert.ok(files.includes("evidence/ui/observability.md"));
+    assert.ok(
+      files.includes("src/MartiX.Portal.Web/public/ui-config.json"),
+    );
     assert.ok(
       files.every((file) => !file.includes("Orders") || !file.includes(".Web/")),
     );
@@ -385,6 +389,8 @@ test("React Full Stack emits an attested provider boundary", async () => {
     assert.match(workspacePolicy, /^\s+esbuild: 0\.25\.12$/m);
     assert.match(lockfile, /^packages:$/m);
     assert.match(lockfile, /^snapshots:$/m);
+    assert.match(lockfile, /^  src\/MartiX\.Portal\.Web:$/m);
+    assert.doesNotMatch(lockfile, /__MARTIX_APPLICATION_NAME__/);
     assert.match(lockfile, /resolution:\s*\{integrity:/);
     assert.match(lockfile, /'@fluentui\/react-icons@/);
     assert.match(lockfile, /'@fluentui\/react-components@[^']+':\n    dependencies:/);
