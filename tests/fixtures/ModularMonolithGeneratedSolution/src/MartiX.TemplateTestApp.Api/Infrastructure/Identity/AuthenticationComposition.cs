@@ -88,32 +88,4 @@ internal static class AuthenticationComposition
             return Task.CompletedTask;
         }
     }
-    private static string RequireConfiguration(
-        IConfiguration configuration,
-        string key)
-    {
-        var value = configuration[key]?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new InvalidOperationException(
-                $"Authentication configuration value '{key}' is required.");
-        }
-
-        return value;
-    }
-
-    private static string RequireHttpsUri(
-        IConfiguration configuration,
-        string key)
-    {
-        var value = RequireConfiguration(configuration, key);
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Authentication configuration value '{key}' must be an HTTPS URI.");
-        }
-
-        return uri.AbsoluteUri.TrimEnd('/');
-    }
 }

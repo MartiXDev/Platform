@@ -40,14 +40,6 @@ internal static class ActorAuthorization
             MapPermissions(principal));
     }
 
-    public static AuthorizationDecision Authorize(
-        ActorContext context,
-        Permission permission)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        return context.Authorize(permission);
-    }
-
     private static PermissionSet MapPermissions(ClaimsPrincipal principal)
     {
         var permissions = new List<Permission>();

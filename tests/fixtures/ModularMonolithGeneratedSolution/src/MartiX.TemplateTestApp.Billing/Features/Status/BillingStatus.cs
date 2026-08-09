@@ -31,6 +31,22 @@ internal sealed class BillingStatusOperation : IBillingStatus
         dependencies.Add((await ordersStatus.GetStatusAsync(cancellationToken)).Module);
         return new BillingStatusResponse(aggregate.Name, dependencies);
     }
+    public async Task<Result<BillingStatusResponse>>
+        GetPermissionedStatusAsync(
+            ActorContext actor,
+            CancellationToken cancellationToken)
+    {
+        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        {
+            return Result<BillingStatusResponse>.Failure(Error.Create(
+                "billing.permission-required",
+                ErrorKind.Forbidden,
+                "The current actor is not allowed."));
+        }
+
+        return Result<BillingStatusResponse>.Success(
+            await GetStatusAsync(cancellationToken));
+    }
 }
 
 internal sealed class BillingPersistenceQuery
@@ -89,15 +105,17 @@ internal static class BillingStatusEndpoint
     private static async Task<Results<Ok<BillingStatusResponse>, ForbidHttpResult>>
         GetPermissionedStatusAsync(
             ActorContext actor,
-            IBillingStatus status,
+            BillingStatusOperation operation,
             CancellationToken cancellationToken)
     {
-        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        var result = await operation.GetPermissionedStatusAsync(
+            actor,
+            cancellationToken);
+        if (!result.IsSuccess)
         {
             return TypedResults.Forbid();
         }
 
-        return TypedResults.Ok(
-            await status.GetStatusAsync(cancellationToken));
+        return TypedResults.Ok(result.Value);
     }
 }

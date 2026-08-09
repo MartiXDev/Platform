@@ -20,7 +20,10 @@ public static class BillingModule
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
-        services.AddSingleton<IBillingStatus, BillingStatusOperation>();
+        services.AddSingleton<BillingStatusOperation>();
+        services.AddSingleton<IBillingStatus>(
+            serviceProvider =>
+                serviceProvider.GetRequiredService<BillingStatusOperation>());
     }
 
     public static void AddMigrationServices(

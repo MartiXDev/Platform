@@ -19,7 +19,10 @@ public static class OrdersModule
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
-        services.AddSingleton<IOrdersStatus, OrdersStatusOperation>();
+        services.AddSingleton<OrdersStatusOperation>();
+        services.AddSingleton<IOrdersStatus>(
+            serviceProvider =>
+                serviceProvider.GetRequiredService<OrdersStatusOperation>());
     }
 
     public static void AddMigrationServices(

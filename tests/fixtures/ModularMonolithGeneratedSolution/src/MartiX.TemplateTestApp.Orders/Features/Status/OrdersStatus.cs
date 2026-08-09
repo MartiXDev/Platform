@@ -28,6 +28,22 @@ internal sealed class OrdersStatusOperation : IOrdersStatus
                 aggregate.Name,
                 Array.Empty<string>()));
     }
+    public async Task<Result<OrdersStatusResponse>>
+        GetPermissionedStatusAsync(
+            ActorContext actor,
+            CancellationToken cancellationToken)
+    {
+        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        {
+            return Result<OrdersStatusResponse>.Failure(Error.Create(
+                "orders.permission-required",
+                ErrorKind.Forbidden,
+                "The current actor is not allowed."));
+        }
+
+        return Result<OrdersStatusResponse>.Success(
+            await GetStatusAsync(cancellationToken));
+    }
 }
 
 internal sealed class OrdersPersistenceQuery
@@ -86,15 +102,17 @@ internal static class OrdersStatusEndpoint
     private static async Task<Results<Ok<OrdersStatusResponse>, ForbidHttpResult>>
         GetPermissionedStatusAsync(
             ActorContext actor,
-            IOrdersStatus status,
+            OrdersStatusOperation operation,
             CancellationToken cancellationToken)
     {
-        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        var result = await operation.GetPermissionedStatusAsync(
+            actor,
+            cancellationToken);
+        if (!result.IsSuccess)
         {
             return TypedResults.Forbid();
         }
 
-        return TypedResults.Ok(
-            await status.GetStatusAsync(cancellationToken));
+        return TypedResults.Ok(result.Value);
     }
 }

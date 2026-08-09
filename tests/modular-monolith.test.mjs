@@ -204,6 +204,7 @@ test("the modular monolith selects local and external authentication profiles ex
     assert.match(auth, /AddIdentityCookies/);
     assert.match(auth, /AddEntityFrameworkStores/);
     assert.match(auth, /ValidateStartup/);
+    assert.doesNotMatch(auth, /RequireHttpsUri/);
     assert.doesNotMatch(auth, /password-value|client-secret-value/);
     assert.match(apiProject, /Microsoft\.EntityFrameworkCore/);
     assert.match(apiProject, /Npgsql\.EntityFrameworkCore\.PostgreSQL/);
@@ -756,62 +757,6 @@ test("generation emits only executable, module, and consolidated test boundaries
       outputDirectory: join(secondRoot, "generated"),
     });
 
-    test("generated authorization evidence combines operation policy and Kernel actor context", async () => {
-      const root = await createTemporaryDirectory();
-
-      try {
-        const output = join(root, "generated");
-        await generateModularMonolithPreset({
-          applicationName: "MartiX.Planner",
-          businessModules: ["Orders"],
-          outputDirectory: output,
-        });
-        const tests = await readFile(
-          join(
-            output,
-            "tests",
-            "MartiX.Planner.Tests",
-            "ModularMonolithCompositionTests.cs",
-          ),
-          "utf8",
-        );
-        const authorization = await readFile(
-          join(
-            output,
-            "src",
-            "MartiX.Planner.Api",
-            "Infrastructure",
-            "Identity",
-            "AuthenticationComposition.cs",
-          ),
-          "utf8",
-        );
-        const moduleFeature = await readFile(
-          join(
-            output,
-            "src",
-            "MartiX.Planner.Orders",
-            "Features",
-            "Status",
-            "OrdersStatus.cs",
-          ),
-          "utf8",
-        );
-
-        assert.match(tests, /RequireAuthorization\("permission:platform-access"\)/);
-        assert.match(authorization, /ActorAuthorization\.Resolve\(\s*context\.User/);
-        assert.match(tests, /ActorContext\.Create/);
-        assert.match(tests, /authentication-required/);
-        assert.match(tests, /permission-required/);
-        assert.match(moduleFeature, /status\/permissioned/);
-        assert.match(moduleFeature, /ActorContext/);
-        assert.match(moduleFeature, /Permission\.Create\("platform\.access"\)/);
-        assert.match(moduleFeature, /RequireAuthorization\("permission:platform-access"\)/);
-      } finally {
-        await rm(root, { recursive: true, force: true });
-      }
-    });
-
     assert.deepEqual(first.files, second.files);
     assert.equal(first.files.length, 40);
     assert.deepEqual(
@@ -923,5 +868,76 @@ test("generation emits only executable, module, and consolidated test boundaries
       rm(firstRoot, { recursive: true, force: true }),
       rm(secondRoot, { recursive: true, force: true }),
     ]);
+  }
+});
+
+test("generated authorization evidence combines operation policy and Kernel actor context", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const output = join(root, "generated");
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      outputDirectory: output,
+    });
+    const tests = await readFile(
+      join(
+        output,
+        "tests",
+        "MartiX.Planner.Tests",
+        "ModularMonolithCompositionTests.cs",
+      ),
+      "utf8",
+    );
+    const authorization = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "Identity",
+        "AuthenticationComposition.cs",
+      ),
+      "utf8",
+    );
+    const moduleFeature = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.Orders",
+        "Features",
+        "Status",
+        "OrdersStatus.cs",
+      ),
+      "utf8",
+    );
+    const moduleComposition = await readFile(
+      join(
+        output,
+        "src",
+        "MartiX.Planner.Orders",
+        "OrdersModule.cs",
+      ),
+      "utf8",
+    );
+
+    assert.match(tests, /RequireAuthorization\("permission:platform-access"\)/);
+    assert.match(authorization, /ActorAuthorization\.Resolve\(\s*context\.User/);
+    assert.match(tests, /ActorContext\.Create/);
+    assert.match(tests, /authentication-required/);
+    assert.match(tests, /permission-required/);
+    assert.match(moduleFeature, /status\/permissioned/);
+    assert.match(moduleFeature, /ActorContext/);
+    assert.match(moduleFeature, /Permission\.Create\("platform\.access"\)/);
+    assert.match(moduleFeature, /GetPermissionedStatusAsync/);
+    assert.match(moduleFeature, /RequireAuthorization\("permission:platform-access"\)/);
+    assert.match(moduleComposition, /AddSingleton<OrdersStatusOperation>\(\)/);
+    assert.match(
+      moduleComposition,
+      /AddSingleton<IOrdersStatus>\(\s*serviceProvider =>/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

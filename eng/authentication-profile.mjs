@@ -94,6 +94,26 @@ const PROFILE_OPTION_NAMES = [
   "authProfile",
   "identityProfile",
 ];
+const IDENTITY_MIGRATION_TYPES = Object.freeze({
+  postgresql: Object.freeze({
+    identifier: "uuid",
+    integer: "integer",
+    boolean: "boolean",
+    shortText: "character varying(128)",
+    text: "text",
+    text256: "character varying(256)",
+    timestamp: "timestamp with time zone",
+  }),
+  sqlserver: Object.freeze({
+    identifier: "uniqueidentifier",
+    integer: "int",
+    boolean: "bit",
+    shortText: "nvarchar(128)",
+    text: "nvarchar(max)",
+    text256: "nvarchar(256)",
+    timestamp: "datetimeoffset",
+  }),
+});
 
 function failWith(message, fail) {
   if (typeof fail === "function") {
@@ -153,21 +173,20 @@ export function resolveAuthenticationProfile(
   const supplied = [];
   for (const optionName of PROFILE_OPTION_NAMES) {
     if (options?.[optionName] !== undefined) {
-      supplied.push({
-        name: optionName,
-        value: resolveProfileAlias(
+      supplied.push(
+        resolveProfileAlias(
           options[optionName],
           optionName,
           fail,
         ),
-      });
+      );
     }
   }
 
   let profileId = DEFAULT_AUTHENTICATION_PROFILE;
   if (supplied.length > 0) {
-    profileId = supplied[0].value;
-    if (supplied.some(({ value }) => value !== profileId)) {
+    profileId = supplied[0];
+    if (supplied.some((value) => value !== profileId)) {
       failWith(
         "Conflicting authentication profile selections are not allowed.",
         fail,
@@ -243,6 +262,16 @@ export function authenticationManifest(authentication) {
     flow: authentication.flow,
     state: authentication.state,
   };
+}
+
+function identityMigrationTypes(relationalProvider) {
+  const types = IDENTITY_MIGRATION_TYPES[relationalProvider];
+  if (types === undefined) {
+    throw new Error(
+      `Unknown relational provider: ${relationalProvider}.`,
+    );
+  }
+  return types;
 }
 
 function renderPermissionAuthorization() {
@@ -359,9 +388,6 @@ function renderProviderRegistration(plan) {
 `;
   }
   if (authentication.flow === "interactive") {
-    const authority = authentication.provider === "entra"
-      ? `RequireHttpsUri(configuration, "Authentication:Authority")`
-      : `RequireHttpsUri(configuration, "Authentication:Authority")`;
     return `        services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme =
@@ -380,7 +406,9 @@ function renderProviderRegistration(plan) {
             })
             .AddOpenIdConnect(options =>
             {
-                options.Authority = ${authority};
+                options.Authority = RequireHttpsUri(
+                    configuration,
+                    "Authentication:Authority");
                 options.ClientId = RequireConfiguration(
                     configuration,
                     "Authentication:ClientId");
@@ -449,21 +477,69 @@ function renderProviderRegistration(plan) {
 `;
 }
 
-export function renderAuthenticationCompositionFile(plan) {
-  const authentication = plan.authentication;
-  const extraUsings = authentication.profile === "none"
-    ? ""
-    : authentication.profile === "identity:interactive"
-      ? `using Microsoft.AspNetCore.Identity;
+function renderAuthenticationUsings(authentication) {
+  switch (authentication.profile) {
+    case "none":
+      return "";
+    case "identity:interactive":
+      return `using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-`
-      : authentication.flow === "interactive"
-        ? `using Microsoft.AspNetCore.Authentication;
+`;
+    default:
+      if (authentication.flow === "interactive") {
+        return `using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-`
-        : `using Microsoft.AspNetCore.Authentication.JwtBearer;
 `;
+      }
+      return `using Microsoft.AspNetCore.Authentication.JwtBearer;
+`;
+    }
+}
+
+function renderAuthenticationConfigurationHelpers(authentication) {
+  if (authentication.profile === "none") {
+    return "";
+  }
+
+  const helpers = [`    private static string RequireConfiguration(
+        IConfiguration configuration,
+        string key)
+    {
+        var value = configuration[key]?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(
+                $"Authentication configuration value '{key}' is required.");
+        }
+
+        return value;
+    }
+`];
+
+  if (authentication.profile !== "identity:interactive") {
+    helpers.push(`    private static string RequireHttpsUri(
+        IConfiguration configuration,
+        string key)
+    {
+        var value = RequireConfiguration(configuration, key);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Authentication configuration value '{key}' must be an HTTPS URI.");
+        }
+
+        return uri.AbsoluteUri.TrimEnd('/');
+    }
+`);
+  }
+
+  return helpers.join("\n");
+}
+
+export function renderAuthenticationCompositionFile(plan) {
+  const authentication = plan.authentication;
   return `using System;
 using System.Linq;
 using System.Security.Claims;
@@ -475,7 +551,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-${extraUsings}
+${renderAuthenticationUsings(authentication)}
 namespace ${plan.applicationName}.Api.Infrastructure.Identity;
 
 internal static class AuthenticationComposition
@@ -509,35 +585,7 @@ ${renderConfigurationValidation(authentication)}    }
 ${renderProviderRegistration(plan)}        AddAuthorization(services);
     }
 
-${renderPermissionAuthorization()}    private static string RequireConfiguration(
-        IConfiguration configuration,
-        string key)
-    {
-        var value = configuration[key]?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new InvalidOperationException(
-                $"Authentication configuration value '{key}' is required.");
-        }
-
-        return value;
-    }
-
-    private static string RequireHttpsUri(
-        IConfiguration configuration,
-        string key)
-    {
-        var value = RequireConfiguration(configuration, key);
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Authentication configuration value '{key}' must be an HTTPS URI.");
-        }
-
-        return uri.AbsoluteUri.TrimEnd('/');
-    }
-}
+${renderPermissionAuthorization()}${renderAuthenticationConfigurationHelpers(authentication)}}
 `;
 }
 
@@ -582,14 +630,6 @@ internal static class ActorAuthorization
         return ActorContext.Create(
             ActorSnapshot.Human(actorId, displayName),
             MapPermissions(principal));
-    }
-
-    public static AuthorizationDecision Authorize(
-        ActorContext context,
-        Permission permission)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        return context.Authorize(permission);
     }
 
     private static PermissionSet MapPermissions(ClaimsPrincipal principal)
@@ -657,26 +697,8 @@ internal sealed class IdentityDbContext :
 }
 
 export function renderIdentityMigrationFile(plan) {
-  const types = plan.relationalProvider === "sqlserver"
-    ? Object.freeze({
-      identifier: "uniqueidentifier",
-      integer: "int",
-      boolean: "bit",
-      shortText: "nvarchar(128)",
-      text: "nvarchar(max)",
-      text256: "nvarchar(256)",
-      timestamp: "datetimeoffset",
-    })
-    : Object.freeze({
-      identifier: "uuid",
-      integer: "integer",
-      boolean: "boolean",
-      shortText: "character varying(128)",
-      text: "text",
-      text256: "character varying(256)",
-      timestamp: "timestamp with time zone",
-    });
-  const roleClaimId = plan.relationalProvider === "sqlserver"
+  const types = identityMigrationTypes(plan.relationalProvider);
+  const claimIdColumn = plan.relationalProvider === "sqlserver"
     ? `table.Column<int>(
                         type: "${types.integer}",
                         nullable: false)
@@ -804,7 +826,7 @@ internal sealed class InitialIdentity : Migration
             schema: "identity",
             columns: table => new
             {
-                Id = ${roleClaimId},
+                Id = ${claimIdColumn},
                 RoleId = table.Column<Guid>(
                     type: "${types.identifier}",
                     nullable: false),
@@ -832,7 +854,7 @@ internal sealed class InitialIdentity : Migration
             schema: "identity",
             columns: table => new
             {
-                Id = ${roleClaimId},
+                Id = ${claimIdColumn},
                 UserId = table.Column<Guid>(
                     type: "${types.identifier}",
                     nullable: false),
@@ -1006,26 +1028,8 @@ internal sealed class InitialIdentity : Migration
 }
 
 export function renderIdentityMigrationSnapshotFile(plan) {
-  const types = plan.relationalProvider === "sqlserver"
-    ? Object.freeze({
-      identifier: "uniqueidentifier",
-      integer: "int",
-      boolean: "bit",
-      shortText: "nvarchar(128)",
-      text: "nvarchar(max)",
-      text256: "nvarchar(256)",
-      timestamp: "datetimeoffset",
-    })
-    : Object.freeze({
-      identifier: "uuid",
-      integer: "integer",
-      boolean: "boolean",
-      shortText: "character varying(128)",
-      text: "text",
-      text256: "character varying(256)",
-      timestamp: "timestamp with time zone",
-    });
-  const identityIdAnnotation = plan.relationalProvider === "sqlserver"
+  const types = identityMigrationTypes(plan.relationalProvider);
+  const claimIdAnnotation = plan.relationalProvider === "sqlserver"
     ? `.HasAnnotation("SqlServer:Identity", "1, 1");`
     : `.HasAnnotation(
             "Npgsql:ValueGenerationStrategy",
@@ -1139,7 +1143,7 @@ ${userNameUniqueIndexFilter}
             entity.Property<int>("Id")
                 .ValueGeneratedOnAdd()
                 .HasColumnType("${types.integer}")
-                ${identityIdAnnotation}
+                ${claimIdAnnotation}
             entity.Property<Guid>("RoleId")
                 .HasColumnType("${types.identifier}");
             entity.Property<string>("ClaimType")
@@ -1160,7 +1164,7 @@ ${userNameUniqueIndexFilter}
             entity.Property<int>("Id")
                 .ValueGeneratedOnAdd()
                 .HasColumnType("${types.integer}")
-                ${identityIdAnnotation}
+                ${claimIdAnnotation}
             entity.Property<Guid>("UserId")
                 .HasColumnType("${types.identifier}");
             entity.Property<string>("ClaimType")

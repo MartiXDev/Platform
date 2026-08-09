@@ -2013,11 +2013,28 @@ ${providerCalls}
         return new ${moduleName}StatusResponse(aggregate.Name, dependencies);
     }`;
   }
+  const permissionedOperationMethod = `    public async Task<Result<${moduleName}StatusResponse>>
+        GetPermissionedStatusAsync(
+            ActorContext actor,
+            CancellationToken cancellationToken)
+    {
+        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        {
+            return Result<${moduleName}StatusResponse>.Failure(Error.Create(
+                "${moduleName.toLowerCase()}.permission-required",
+                ErrorKind.Forbidden,
+                "The current actor is not allowed."));
+        }
+
+        return Result<${moduleName}StatusResponse>.Success(
+            await GetStatusAsync(cancellationToken));
+    }`;
   const operationClass = `internal sealed class ${moduleName}StatusOperation : I${moduleName}Status
 {
 ${providerFields}
 ${constructor}
 ${operationMethod}
+${permissionedOperationMethod}
 }
 `;
   return `${providerUsings}
@@ -2093,16 +2110,18 @@ internal static class ${moduleName}StatusEndpoint
     private static async Task<Results<Ok<${moduleName}StatusResponse>, ForbidHttpResult>>
         GetPermissionedStatusAsync(
             ActorContext actor,
-            I${moduleName}Status status,
+            ${moduleName}StatusOperation operation,
             CancellationToken cancellationToken)
     {
-        if (!actor.Authorize(Permission.Create("platform.access")).IsAllowed)
+        var result = await operation.GetPermissionedStatusAsync(
+            actor,
+            cancellationToken);
+        if (!result.IsSuccess)
         {
             return TypedResults.Forbid();
         }
 
-        return TypedResults.Ok(
-            await status.GetStatusAsync(cancellationToken));
+        return TypedResults.Ok(result.Value);
     }
 }
 `;
@@ -2196,7 +2215,10 @@ public static class ${moduleName}Module
         IConfiguration configuration)
     {
         AddPersistence(services, configuration, "Database");
-        services.AddSingleton<I${moduleName}Status, ${moduleName}StatusOperation>();
+        services.AddSingleton<${moduleName}StatusOperation>();
+        services.AddSingleton<I${moduleName}Status>(
+            serviceProvider =>
+                serviceProvider.GetRequiredService<${moduleName}StatusOperation>());
     }
 
     public static void AddMigrationServices(
