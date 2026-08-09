@@ -3,6 +3,9 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
+  BETA_INTEGRATION_SOLUTION_NAME,
+  BETA_INTEGRATION_SOLUTION_ROOT,
+  BETA_NOT_ATTESTED_SCOPE,
   BETA_REQUIRED_AUTHENTICATION_PROFILES,
   BETA_REQUIRED_DEPLOYMENT_PROFILES,
   BETA_REQUIRED_PRESETS,
@@ -12,25 +15,26 @@ import {
 } from "../eng/beta-integration.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
-const fixtureRoot = join(
-  repositoryRoot,
-  "tests",
-  "fixtures",
-  "BetaIntegrationGeneratedSolution",
-);
+const fixtureRoot = join(repositoryRoot, BETA_INTEGRATION_SOLUTION_ROOT);
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(join(repositoryRoot, relativePath), "utf8"));
 }
 
+async function readBetaIntegrationInputs() {
+  return {
+    fixture: await readJson(
+      `${BETA_INTEGRATION_SOLUTION_ROOT}/beta-integration.json`,
+    ),
+    manifest: await readJson(
+      `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
+    ),
+    schema: await readJson("schemas/beta-integration.schema.json"),
+  };
+}
+
 test("Beta Integration evidence records the complete risk-based scope", async () => {
-  const fixture = await readJson(
-    "tests/fixtures/BetaIntegrationGeneratedSolution/beta-integration.json",
-  );
-  const manifest = await readJson(
-    "tests/fixtures/BetaIntegrationGeneratedSolution/martix.platform.json",
-  );
-  const schema = await readJson("schemas/beta-integration.schema.json");
+  const { fixture, manifest, schema } = await readBetaIntegrationInputs();
 
   const result = verifyBetaIntegrationEvidence(fixture, manifest, schema);
 
@@ -44,20 +48,14 @@ test("Beta Integration evidence records the complete risk-based scope", async ()
   assert.deepEqual(result.uiProviders, BETA_REQUIRED_UI_PROVIDERS);
   assert.deepEqual(result.deploymentProfiles, BETA_REQUIRED_DEPLOYMENT_PROFILES);
   assert.deepEqual(result.supportClaims, []);
-  assert.deepEqual(result.notAttested, ["active24", "native-mobile"]);
+  assert.deepEqual(result.notAttested, BETA_NOT_ATTESTED_SCOPE);
   assert.ok(result.evidencePaths.includes("tests/agent-readiness.test.mjs"));
-  assert.equal(result.solution, "BetaIntegrationGeneratedSolution");
-  assert.equal(fixtureRoot.endsWith(result.fixtureRoot), true);
+  assert.equal(result.solution, BETA_INTEGRATION_SOLUTION_NAME);
+  assert.equal(fixtureRoot, join(repositoryRoot, result.fixtureRoot));
 });
 
 test("Beta Integration evidence fails closed when scope freeze permits a feature", async () => {
-  const fixture = await readJson(
-    "tests/fixtures/BetaIntegrationGeneratedSolution/beta-integration.json",
-  );
-  const manifest = await readJson(
-    "tests/fixtures/BetaIntegrationGeneratedSolution/martix.platform.json",
-  );
-  const schema = await readJson("schemas/beta-integration.schema.json");
+  const { fixture, manifest, schema } = await readBetaIntegrationInputs();
   const weakened = structuredClone(fixture);
   weakened.scopeFreeze.allowedPostFreezeChanges.push("feature");
 
@@ -73,6 +71,6 @@ test("Beta Integration fixture verifies every referenced evidence path", async (
   });
 
   assert.equal(result.status, "passed");
-  assert.equal(result.evidencePaths.length > 0, true);
-  assert.equal(result.evidenceDigest.length > 0, true);
+  assert.ok(result.evidencePaths.length > 0);
+  assert.ok(result.evidenceDigest.length > 0);
 });

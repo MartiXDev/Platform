@@ -205,6 +205,7 @@ const BOOTSTRAP_GATE_IDS = [
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
 const BETA_INTEGRATION_PROFILE_ID = "beta-integration";
 const BETA_INTEGRATION_GATE_IDS = Object.freeze(["beta.integration"]);
+const RELEASE_CANDIDATE_CADENCES = Object.freeze(["release-candidate"]);
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
   "kind",
@@ -2669,7 +2670,7 @@ export function validateQualityGatePolicy(policy) {
     JSON.stringify(alphaProfile.providers) !==
       JSON.stringify(MODULAR_MONOLITH_ALPHA_PROVIDERS) ||
     JSON.stringify(alphaProfile.cadences) !==
-      JSON.stringify(["release-candidate"]) ||
+      JSON.stringify(RELEASE_CANDIDATE_CADENCES) ||
     JSON.stringify(alphaProfile.gates) !==
       JSON.stringify(MODULAR_MONOLITH_ALPHA_GATE_IDS) ||
     alphaProfile.command !== "npm run verify:modular-monolith-alpha"
@@ -2693,9 +2694,9 @@ export function validateQualityGatePolicy(policy) {
     !Array.isArray(betaProfile.providers) ||
     betaProfile.providers.length !== 0 ||
     JSON.stringify(betaProfile.cadences) !==
-      JSON.stringify(["release-candidate"]) ||
+      JSON.stringify(RELEASE_CANDIDATE_CADENCES) ||
     JSON.stringify(betaProfile.gates) !==
-      JSON.stringify([...BETA_INTEGRATION_GATE_IDS]) ||
+      JSON.stringify(BETA_INTEGRATION_GATE_IDS) ||
     betaProfile.command !== "npm run verify:beta-integration"
   ) {
     fail(
@@ -2765,13 +2766,17 @@ export function validateQualityGatePolicy(policy) {
         }
       }
     } else if (BETA_INTEGRATION_GATE_IDS.includes(gate.id)) {
-      if (JSON.stringify(gate.cadences) !== JSON.stringify(["release-candidate"])) {
+      if (
+        JSON.stringify(gate.cadences) !==
+        JSON.stringify(RELEASE_CANDIDATE_CADENCES)
+      ) {
         fail(
           `Beta integration gate ${gate.id} must run on release-candidate.`,
         );
       }
     } else if (
-      JSON.stringify(gate.cadences) !== JSON.stringify(["release-candidate"])
+      JSON.stringify(gate.cadences) !==
+      JSON.stringify(RELEASE_CANDIDATE_CADENCES)
     ) {
       fail(
         `Modular Monolith alpha gate ${gate.id} must run on release-candidate.`,

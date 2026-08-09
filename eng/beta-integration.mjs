@@ -70,19 +70,10 @@ export const BETA_PROHIBITED_POST_FREEZE_CHANGES = Object.freeze([
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const SECRET_KEY_PATTERN =
   /(?:secret|password|token|private.?key|access.?key|api.?key|credential)/i;
-const COVERAGE_STATUSES = new Set(["passed"]);
+const COVERAGE_STATUS = "passed";
 const CHANGE_IMPACTS = new Set(["patch", "minor", "major"]);
 const MIGRATION_DISPOSITIONS = new Set(["none", "optional", "required"]);
 const MATRIX_AXIS_NAMES = Object.freeze([
-  "presets",
-  "endpointModels",
-  "relationalProviders",
-  "authenticationProfiles",
-  "uiProviders",
-  "infrastructureProviders",
-  "deploymentProfiles",
-]);
-const EVIDENCE_SECTION_NAMES = Object.freeze([
   "presets",
   "endpointModels",
   "relationalProviders",
@@ -281,8 +272,8 @@ function requireEvidence(value, label) {
 function requireCoverageEntry(value, label) {
   const entry = requireRecord(value, label);
   const id = requireString(entry.id, `${label}.id`);
-  if (!COVERAGE_STATUSES.has(entry.status)) {
-    fail(`${label}.status must be passed.`);
+  if (entry.status !== COVERAGE_STATUS) {
+    fail(`${label}.status must be ${COVERAGE_STATUS}.`);
   }
   const evidence = requireEvidence(entry.evidence, `${label}.evidence`);
   return { id, evidence };
@@ -458,8 +449,8 @@ function verifyMatrix(matrix) {
     ) {
       fail(`${label}.deploymentProfiles contains an unadmitted profile.`);
     }
-    if (!COVERAGE_STATUSES.has(item.status)) {
-      fail(`${label}.status must be passed.`);
+    if (item.status !== COVERAGE_STATUS) {
+      fail(`${label}.status must be ${COVERAGE_STATUS}.`);
     }
     const evidence = requireEvidence(item.evidence, `${label}.evidence`);
     if (
@@ -771,26 +762,26 @@ function evidencePayload(fixture, matrixDigest) {
 }
 
 function collectEvidencePaths(fixture) {
-  const paths = [];
-  const add = (entries) => {
+  const evidencePaths = [];
+  const appendEvidence = (entries) => {
     for (const entry of entries) {
-      paths.push(...entry.evidence);
+      evidencePaths.push(...entry.evidence);
     }
   };
-  for (const section of EVIDENCE_SECTION_NAMES) {
-    add(fixture.matrix.coverage[section]);
+  for (const axisName of MATRIX_AXIS_NAMES) {
+    appendEvidence(fixture.matrix.coverage[axisName]);
   }
-  add(fixture.matrix.coordinates);
-  add(fixture.matrix.invalidCombinations);
-  add(fixture.performance.baselines);
+  appendEvidence(fixture.matrix.coordinates);
+  appendEvidence(fixture.matrix.invalidCombinations);
+  appendEvidence(fixture.performance.baselines);
   for (const review of fixture.reviews) {
-    paths.push(...review.evidence);
+    evidencePaths.push(...review.evidence);
   }
   for (const input of fixture.compatibility.inputs) {
-    paths.push(...input.evidence);
+    evidencePaths.push(...input.evidence);
   }
-  paths.push(...fixture.changeFragments.map(({ path }) => path));
-  return [...new Set(paths)];
+  evidencePaths.push(...fixture.changeFragments.map(({ path }) => path));
+  return [...new Set(evidencePaths)];
 }
 
 export function verifyBetaIntegrationEvidence(fixture, manifest, schema) {
