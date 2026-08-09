@@ -119,7 +119,7 @@ test("Full Stack verification rejects UI contract version drift", async () => {
   });
 });
 
-test("Full Stack verification rejects a client that omits an HTTP operation", async () => {
+test("Full Stack verification rejects a client that omits an HTTP method", async () => {
   await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const clientPath = fullStackFixturePath(
       temporaryRoot,
@@ -132,7 +132,7 @@ test("Full Stack verification rejects a client that omits an HTTP operation", as
     const client = await readFile(clientPath, "utf8");
     await writeFile(
       clientPath,
-      client.replaceAll('"/api/v1/orders/status"', '"/api/v1/removed"'),
+      client.replace("    get: {", "    post: {"),
     );
 
     await assert.rejects(

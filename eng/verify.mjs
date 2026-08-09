@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
+import { listOpenApiOperations } from "./openapi-client.mjs";
 import { verifyAgentReadiness } from "./agent-readiness.mjs";
 import {
   FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
@@ -783,6 +784,37 @@ function fullStackExpectedFiles(manifest) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function generatedTypeScriptPathBlock(source, path) {
+  const marker = `  ${JSON.stringify(path)}: {`;
+  const start = source.indexOf(marker);
+  if (start === -1) {
+    return null;
+  }
+
+  const remainder = source.slice(start + marker.length);
+  const nextPath = remainder.search(/\n  "[^"]+": \{/);
+  return nextPath === -1 ? remainder : remainder.slice(0, nextPath);
+}
+
+function generatedClientCoversHttpOperations(source, provider, contract) {
+  return listOpenApiOperations(contract).every(({ method, operation, path }) => {
+    if (provider === "blazor-webapp") {
+      const methodName = operation["x-client"]?.methodName;
+      return (
+        typeof methodName === "string" &&
+        source.includes(`"${path}"`) &&
+        source.includes(`${methodName}(`)
+      );
+    }
+
+    const pathBlock = generatedTypeScriptPathBlock(source, path);
+    return (
+      pathBlock !== null &&
+      pathBlock.includes(`\n    ${method}:`)
+    );
+  });
 }
 
 function extractMsbuildItemIncludes(projectSource, itemName) {
@@ -1816,22 +1848,13 @@ async function validateFullStackSolution(rootDir, manifest) {
     manifest.ui.provider === "blazor-webapp"
       ? await readSolutionFile(`${uiRoot}/Platform/Api/GeneratedClient.cs`)
       : await readSolutionFile(`${uiRoot}/Platform/Api/generated.ts`);
-  const generatedClientMatchesHttpContract =
-    manifest.ui.provider === "blazor-webapp"
-      ? Object.entries(httpContract.paths ?? {}).every(([path, pathItem]) =>
-          Object.entries(pathItem)
-            .filter(([method]) =>
-              ["delete", "get", "patch", "post", "put"].includes(method),
-            )
-            .every(([, operation]) =>
-              generatedClientSource.includes(`"${path}"`) &&
-              generatedClientSource.includes(operation["x-client"]?.methodName),
-            ),
-        )
-      : Object.keys(httpContract.paths ?? {}).every((path) =>
-          generatedClientSource.includes(JSON.stringify(path)),
-        );
-  if (!generatedClientMatchesHttpContract) {
+  if (
+    !generatedClientCoversHttpOperations(
+      generatedClientSource,
+      manifest.ui.provider,
+      httpContract,
+    )
+  ) {
     fail(
       "Full Stack generated UI client must expose every operation from contracts/openapi-v1.json.",
     );

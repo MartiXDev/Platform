@@ -8,6 +8,7 @@ import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
 import {
   createModularMonolithHttpContractDocument,
+  listOpenApiOperations,
   renderCSharpClient,
   renderCSharpClientProject,
   renderOpenApiContract,
@@ -3550,6 +3551,12 @@ function typeScriptPropertyName(name) {
     : JSON.stringify(name);
 }
 
+function sortObjectEntries(value) {
+  return Object.entries(value ?? {}).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+}
+
 function typeScriptSchemaType(schema, indent = "") {
   if (schema === undefined || schema === null) {
     return "unknown";
@@ -3590,7 +3597,7 @@ function typeScriptSchemaType(schema, indent = "") {
       return "null";
     case "object": {
       const required = new Set(schema.required ?? []);
-      const properties = Object.entries(schema.properties ?? {});
+      const properties = sortObjectEntries(schema.properties);
       const lines = ["{"];
       for (const [name, property] of properties) {
         lines.push(
@@ -3619,7 +3626,7 @@ function typeScriptSchemaType(schema, indent = "") {
 }
 
 function typeScriptContentType(content, indent) {
-  const entries = Object.entries(content ?? {});
+  const entries = sortObjectEntries(content);
   if (entries.length === 0) {
     return "{}";
   }
@@ -3639,7 +3646,9 @@ function typeScriptContentType(content, indent) {
 
 function typeScriptParametersType(parameters, indent) {
   const groups = new Map();
-  for (const parameter of parameters ?? []) {
+  for (const parameter of [...(parameters ?? [])].sort((left, right) =>
+    `${left.in}:${left.name}`.localeCompare(`${right.in}:${right.name}`),
+  )) {
     const group = groups.get(parameter.in) ?? [];
     group.push(parameter);
     groups.set(parameter.in, group);
@@ -3649,8 +3658,10 @@ function typeScriptParametersType(parameters, indent) {
   }
 
   const lines = ["{"];
-  for (const [location, group] of groups) {
-    lines.push(`${indent}  ${location}?: {`);
+  for (const location of [...groups.keys()].sort()) {
+    const group = groups.get(location);
+    const required = group.some((parameter) => parameter.required);
+    lines.push(`${indent}  ${location}${required ? "" : "?"}: {`);
     for (const parameter of group) {
       lines.push(
         `${indent}    ${typeScriptPropertyName(parameter.name)}${
@@ -3679,7 +3690,7 @@ function typeScriptOperationType(operation, indent) {
     );
   }
   lines.push(`${indent}  responses: {`);
-  for (const [status, response] of Object.entries(operation.responses ?? {})) {
+  for (const [status, response] of sortObjectEntries(operation.responses)) {
     lines.push(`${indent}    ${JSON.stringify(status)}: {`);
     if (response.content !== undefined) {
       lines.push(
@@ -3696,9 +3707,18 @@ function typeScriptOperationType(operation, indent) {
   return lines.join("\n");
 }
 
+function openApiOperationsByPath(contract) {
+  const operationsByPath = new Map();
+  for (const operation of listOpenApiOperations(contract)) {
+    const operations = operationsByPath.get(operation.path) ?? [];
+    operations.push(operation);
+    operationsByPath.set(operation.path, operations);
+  }
+  return operationsByPath;
+}
+
 function uiGeneratedTypeScriptFile(contract) {
-  const schemaEntries = Object.entries(contract.components?.schemas ?? {});
-  const pathEntries = Object.entries(contract.paths ?? {});
+  const schemaEntries = sortObjectEntries(contract.components?.schemas);
   const lines = [
     "/**",
     " * Generated from the OpenAPI 3.1 artifact contracts/openapi-v1.json.",
@@ -3720,12 +3740,9 @@ function uiGeneratedTypeScriptFile(contract) {
   }
   lines.push("  };", "};", "", 'export type ProblemDetails = components["schemas"]["ProblemDetails"];', "");
   lines.push("export type paths = {");
-  for (const [path, pathItem] of pathEntries) {
+  for (const [path, operations] of openApiOperationsByPath(contract)) {
     lines.push(`  ${JSON.stringify(path)}: {`);
-    for (const [method, operation] of Object.entries(pathItem)) {
-      if (!["delete", "get", "patch", "post", "put"].includes(method)) {
-        continue;
-      }
+    for (const { method, operation } of operations) {
       lines.push(
         `    ${method}: ${typeScriptOperationType(operation, "      ")};`,
       );
@@ -4196,57 +4213,42 @@ function cSharpSchemaType(schema) {
 }
 
 function cSharpRecordSource(name, schema) {
-  const properties = Object.entries(schema.properties ?? {});
+  const properties = sortObjectEntries(schema.properties);
   if (properties.length === 0) {
     return `public sealed record ${name};`;
   }
   const required = new Set(schema.required ?? []);
   return `public sealed record ${name}(
 ${properties
-  .map(
-    ([propertyName, property]) =>
-      `    ${cSharpSchemaType(property)}${
-        required.has(propertyName) || cSharpSchemaType(property).endsWith("?")
-          ? ""
-          : "?"
-      } ${cSharpPropertyName(propertyName)}`,
-  )
+  .map(([propertyName, property]) => {
+    const propertyType = cSharpSchemaType(property);
+    const nullable = !required.has(propertyName) && !propertyType.endsWith("?");
+    return `    ${propertyType}${nullable ? "?" : ""} ${cSharpPropertyName(
+      propertyName,
+    )}`;
+  })
   .join(",\n")}
 );`;
 }
 
 function uiBlazorGeneratedClientFile(plan, contract) {
-  const operations = [];
-  for (const [path, pathItem] of Object.entries(contract.paths ?? {})) {
-    for (const [method, operation] of Object.entries(pathItem)) {
-      if (!["delete", "get", "patch", "post", "put"].includes(method)) {
-        continue;
-      }
-      const client = operation["x-client"];
-      if (client?.methodName === undefined) {
-        continue;
-      }
-      operations.push({
-        methodName: client.methodName,
-        path,
-        returnType: client.returnType,
-      });
-    }
-  }
-  const methods = operations.map(({ methodName, path, returnType }) => {
+  const operations = listOpenApiOperations(contract).filter(
+    ({ operation }) => operation["x-client"]?.methodName !== undefined,
+  );
+  const methods = operations.map(({ method, operation, path }) => {
+    const { methodName, returnType } = operation["x-client"];
+    const taskType = returnType === null ? "Task" : `Task<${returnType}>`;
     const successResult =
       returnType === null
         ? "        return;"
         : `        return await response.Content.ReadFromJsonAsync<${returnType}>(
             cancellationToken)
             ?? throw new ApiException("ui.empty-response", response.StatusCode);`;
-    return `    public async Task${returnType === null ? "" : `<${returnType}`}${
-      returnType === null ? "" : ">"
-    } ${methodName}(CancellationToken cancellationToken)
+    const httpMethod = `${method[0].toUpperCase()}${method.slice(1)}`;
+    return `    public async ${taskType} ${methodName}(CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync(
-            "${path}",
-            cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.${httpMethod}, "${path}");
+        using var response = await httpClient.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
             throw new ApiException("session-expired", response.StatusCode);
@@ -4264,7 +4266,7 @@ function uiBlazorGeneratedClientFile(plan, contract) {
 ${successResult}
     }`;
   });
-  const records = Object.entries(contract.components?.schemas ?? {}).map(
+  const records = sortObjectEntries(contract.components?.schemas).map(
     ([name, schema]) => cSharpRecordSource(name, schema),
   );
   return `// Generated by NSwag.ConsoleCore 14.7.1 in client-only mode.

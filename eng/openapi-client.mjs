@@ -34,6 +34,25 @@ const CSHARP_HTTP_METHOD_NAMES = Object.freeze({
   put: "Put",
 });
 
+export const OPENAPI_OPERATION_METHODS = Object.freeze([
+  "delete",
+  "get",
+  "patch",
+  "post",
+  "put",
+]);
+
+export function listOpenApiOperations(document) {
+  return Object.entries(document?.paths ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([path, pathItem]) =>
+      Object.entries(pathItem ?? {})
+        .filter(([method]) => OPENAPI_OPERATION_METHODS.includes(method))
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([method, operation]) => ({ method, operation, path })),
+    );
+}
+
 function ref(name) {
   return { $ref: `#/components/schemas/${name}` };
 }
@@ -570,16 +589,12 @@ function renderClientMethod(path, method, operation) {
 }
 
 function renderOperationMethods(document) {
-  const methods = [];
-  for (const path of Object.keys(document.paths).sort()) {
-    for (const method of Object.keys(document.paths[path]).sort()) {
-      if (method === "parameters") {
-        continue;
-      }
-      methods.push(renderClientMethod(path, method, document.paths[path][method]));
-    }
-  }
-  return methods.filter(Boolean).join("\n");
+  return listOpenApiOperations(document)
+    .map(({ method, operation, path }) =>
+      renderClientMethod(path, method, operation),
+    )
+    .filter(Boolean)
+    .join("\n");
 }
 
 function renderClientPathHelper(document) {

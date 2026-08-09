@@ -281,6 +281,7 @@ test("Blazor Full Stack uses the isolated C# client profile", async () => {
     assert.match(client, /CancellationToken/);
     assert.match(client, /GetOrdersStatusAsync/);
     assert.match(client, /\/api\/v1\/orders\/status/);
+    assert.match(client, /HttpMethod\.Get/);
     assert.match(localization, /ui\.state\.denied/);
     assert.match(localization, /ui\.theme\.dark/);
     assert.match(localization, /ui\.error\.offline/);
