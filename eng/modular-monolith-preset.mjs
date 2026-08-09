@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import {
   mkdir,
   readdir,
   writeFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve } from "node:path";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
@@ -37,12 +39,20 @@ import {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_REACT_NODE_ENGINE,
+  FULL_STACK_REACT_PACKAGE_MANAGER,
+  FULL_STACK_UI_EVIDENCE,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
   FULL_STACK_UI_THEMES,
 } from "./full-stack-ui-contract.mjs";
+
+const REACT_PNPM_LOCKFILE_TEMPLATE = readFileSync(
+  new URL("./react-pnpm-lock.yaml", import.meta.url),
+  "utf8",
+);
 
 export {
   FULL_STACK_DEFAULT_CULTURE,
@@ -52,6 +62,9 @@ export {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_REACT_NODE_ENGINE,
+  FULL_STACK_REACT_PACKAGE_MANAGER,
+  FULL_STACK_UI_EVIDENCE,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
@@ -3365,13 +3378,7 @@ function uiContractDocument(plan) {
         modes: [...FULL_STACK_UI_THEMES],
         tokens: "semantic",
       },
-      evidence: [
-        "browser",
-        "build",
-        "security",
-        "deployment",
-        "observability",
-      ],
+      evidence: [...FULL_STACK_UI_EVIDENCE],
     },
     null,
     2,
@@ -3404,6 +3411,8 @@ function uiPackageJsonFile(plan) {
   };
   if (plan.ui.provider === "react") {
     devDependencies["@testing-library/react"] = "16.3.0";
+    devDependencies["@types/react"] = "19.2.18";
+    devDependencies["@types/react-dom"] = "19.2.4";
     devDependencies["@vitejs/plugin-react"] = "5.0.4";
   }
   if (plan.ui.provider === "vue") {
@@ -3412,37 +3421,70 @@ function uiPackageJsonFile(plan) {
     devDependencies["vue-tsc"] = "3.1.0";
   }
 
-  return `${JSON.stringify(
-    {
-      name: `${plan.applicationName.toLowerCase().replaceAll(".", "-")}-web`,
-      private: true,
-      type: "module",
-      scripts: {
-        build: "tsc --noEmit && vite build",
-        test: "vitest run",
-        "client:check": "node ./scripts/verify-generated-client.mjs",
-      },
-      dependencies,
-      devDependencies,
-      martix: {
-        uiCapabilityContract: FULL_STACK_UI_CONTRACT_VERSION,
-        defaultCulture: plan.ui.defaultCulture,
-        renderingProfile: plan.ui.renderingProfile,
-      },
+  const isReact = plan.ui.provider === "react";
+  const packageJson = {
+    name: `${plan.applicationName.toLowerCase().replaceAll(".", "-")}-web`,
+    private: true,
+    type: "module",
+    ...(isReact
+      ? {
+          packageManager: FULL_STACK_REACT_PACKAGE_MANAGER,
+          engines: {
+            node: FULL_STACK_REACT_NODE_ENGINE,
+            pnpm: FULL_STACK_REACT_PACKAGE_MANAGER.slice("pnpm@".length),
+          },
+          peerDependencies: {
+            react: "19.1.1",
+            "react-dom": "19.1.1",
+          },
+        }
+      : {}),
+    scripts: {
+      build: "tsc --noEmit && vite build",
+      test: "vitest run",
+      "client:check": "node ./scripts/verify-generated-client.mjs",
+      ...(isReact
+        ? { "install:ci": "pnpm install --frozen-lockfile --ignore-scripts" }
+        : {}),
     },
-    null,
-    2,
-  )}\n`;
+    dependencies,
+    devDependencies,
+    martix: {
+      uiCapabilityContract: FULL_STACK_UI_CONTRACT_VERSION,
+      defaultCulture: plan.ui.defaultCulture,
+      renderingProfile: plan.ui.renderingProfile,
+    },
+  };
+  return `${JSON.stringify(packageJson, null, 2)}\n`;
 }
 
-function uiPnpmWorkspaceFile() {
+function uiPnpmWorkspaceFile(plan) {
+  if (plan.ui.provider !== "react") {
+    return `packages:
+  - "src/*"
+`;
+  }
   return `packages:
   - "src/*"
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+trustPolicy: no-downgrade
+trustLockfile: false
+blockExoticSubdeps: true
+strictPeerDependencies: true
+engineStrict: true
+verifyDepsBeforeRun: error
+strictDepBuilds: true
+savePrefix: ""
+allowBuilds:
+  esbuild: 0.25.12
 `;
 }
 
-function uiNpmrcFile() {
-  return `minimum-release-age=4320
+function uiNpmrcFile(plan) {
+  if (plan.ui.provider !== "react") {
+    return `minimum-release-age=4320
 minimum-release-age-strict=true
 trust-policy=no-downgrade
 strict-peer-dependencies=true
@@ -3450,6 +3492,19 @@ engine-strict=true
 verify-deps-before-run=error
 strict-dep-builds=true
 save-prefix=
+`;
+  }
+  return `minimum-release-age=4320
+minimum-release-age-strict=true
+minimum-release-age-ignore-missing-time=false
+trust-policy=no-downgrade
+trust-lockfile=false
+block-exotic-subdeps=true
+strict-peer-dependencies=true
+engine-strict=true
+verify-deps-before-run=error
+strict-dep-builds=true
+save-prefix=""
 `;
 }
 
@@ -3459,13 +3514,13 @@ function uiPnpmLockFile(plan) {
     Object.entries(dependencies)
       .map(
         ([name, version]) =>
-          `      ${JSON.stringify(name)}:\n        specifier: ${JSON.stringify(version)}\n`,
+          `      ${JSON.stringify(name)}:\n        specifier: ${JSON.stringify(version)}\n        version: ${JSON.stringify(version)}\n`,
       )
       .join("");
   const dependencies = renderDependencyBlock(packageJson.dependencies);
   const devDependencies = renderDependencyBlock(packageJson.devDependencies);
-
-  return `lockfileVersion: '9.0'
+  if (plan.ui.provider !== "react") {
+    return `lockfileVersion: '9.0'
 
 settings:
   autoInstallPeers: true
@@ -3477,6 +3532,12 @@ importers:
 ${dependencies || "      {}\n"}    devDependencies:
 ${devDependencies || "      {}\n"}
 `;
+  }
+
+  return REACT_PNPM_LOCKFILE_TEMPLATE.replace(
+    "src/MartiX.FullStackTestApp.Web:",
+    `src/${plan.applicationName}.Web:`,
+  );
 }
 
 function uiIndexHtmlFile(plan) {
@@ -3505,10 +3566,12 @@ function uiTypeScriptConfigFile(plan) {
         useDefineForClassFields: true,
         lib: ["ES2022", "DOM", "DOM.Iterable"],
         allowJs: false,
-        skipLibCheck: true,
+        skipLibCheck: plan.ui.provider !== "react",
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
         strict: true,
+        exactOptionalPropertyTypes: plan.ui.provider === "react",
+        noUncheckedIndexedAccess: plan.ui.provider === "react",
         forceConsistentCasingInFileNames: true,
         module: "ESNext",
         moduleResolution: "Bundler",
@@ -3717,13 +3780,21 @@ function openApiOperationsByPath(contract) {
   return operationsByPath;
 }
 
+function openApiContractDigest(contract) {
+  return createHash("sha256")
+    .update(renderOpenApiContract(contract))
+    .digest("hex");
+}
+
 function uiGeneratedTypeScriptFile(contract) {
   const schemaEntries = sortObjectEntries(contract.components?.schemas);
+  const contractDigest = openApiContractDigest(contract);
   const lines = [
     "/**",
     " * Generated from the OpenAPI 3.1 artifact contracts/openapi-v1.json.",
     " * Generator: openapi-typescript 7.13.0.",
     " * Runtime: openapi-fetch 0.17.0.",
+    ` * Contract SHA-256: ${contractDigest}.`,
     " *",
     " * Do not edit this file. Transport and feature policy belong in composition",
     " * adapters below Platform/Api.",
@@ -3752,8 +3823,10 @@ function uiGeneratedTypeScriptFile(contract) {
   lines.push(
     "};",
     "",
-    "export const createGeneratedClient = (baseUrl: string) =>",
-    "  createClient<paths>({ baseUrl });",
+    "export const createGeneratedClient = (",
+    "  baseUrl: string,",
+    "  fetcher: typeof fetch = fetch,",
+    ") => createClient<paths>({ baseUrl, fetch: fetcher });",
     "",
   );
   return `${lines.join("\n")}`;
@@ -3775,7 +3848,9 @@ function uiTransportFile() {
 export type TransportFailure =
   | { kind: "problem-details"; problem: ProblemDetails }
   | { kind: "network"; messageKey: "ui.error.offline" }
-  | { kind: "cancelled" };
+  | { kind: "cancelled" }
+  | { kind: "session-expired" }
+  | { kind: "access-denied" };
 
 export type RequestPolicy = {
   retrySafeRead: boolean;
@@ -3827,33 +3902,83 @@ export async function request(
 }
 
 function uiSessionFile() {
-  return `export type SessionState =
+  return `import { request, type TransportFailure } from "../Api/transport";
+
+export type SessionState =
   | { kind: "anonymous" }
   | { kind: "authenticated"; actor: { id: string }; permissions: readonly string[] }
   | { kind: "denied"; reason: "forbidden" }
   | { kind: "expired"; returnPath: string };
 
-export async function readSession(): Promise<SessionState> {
-  const response = await fetch("/auth/session", {
-    credentials: "include",
-    headers: { Accept: "application/json" },
-  });
-  if (response.status === 401) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseSessionState(value: unknown): SessionState {
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    throw new Error("The session endpoint returned an invalid state.");
+  }
+  if (value.kind === "anonymous") {
     return { kind: "anonymous" };
   }
-  if (response.status === 403) {
+  if (value.kind === "denied" && value.reason === "forbidden") {
     return { kind: "denied", reason: "forbidden" };
   }
-  if (!response.ok) {
-    return { kind: "expired", returnPath: window.location.pathname };
+  if (
+    value.kind === "authenticated" &&
+    isRecord(value.actor) &&
+    typeof value.actor.id === "string" &&
+    Array.isArray(value.permissions) &&
+    value.permissions.every((permission): permission is string => typeof permission === "string")
+  ) {
+    return {
+      kind: "authenticated",
+      actor: { id: value.actor.id },
+      permissions: value.permissions,
+    };
   }
-  return (await response.json()) as SessionState;
+  if (value.kind === "expired" && typeof value.returnPath === "string") {
+    return { kind: "expired", returnPath: value.returnPath };
+  }
+  throw new Error("The session endpoint returned an unsupported state.");
+}
+
+function isTransportFailure(value: unknown): value is TransportFailure {
+  return (
+    isRecord(value) &&
+    (value.kind === "session-expired" ||
+      value.kind === "access-denied" ||
+      value.kind === "problem-details" ||
+      value.kind === "network" ||
+      value.kind === "cancelled")
+  );
+}
+
+export async function readSession(): Promise<SessionState> {
+  try {
+    const response = await request("/auth/session", {
+      credentials: "include",
+    }, {
+      retrySafeRead: true,
+    });
+    return parseSessionState(await response.json());
+  } catch (error) {
+    if (!isTransportFailure(error)) {
+      throw error;
+    }
+    if (error.kind === "session-expired") {
+      return { kind: "anonymous" };
+    }
+    if (error.kind === "access-denied") {
+      return { kind: "denied", reason: "forbidden" };
+    }
+    throw error;
+  }
 }
 
 export function signOut(): Promise<Response> {
-  return fetch("/auth/logout", {
+  return request("/auth/logout", {
     method: "POST",
-    credentials: "include",
     headers: { "X-CSRF": "required" },
   });
 }
@@ -3886,18 +4011,97 @@ function uiRuntimeConfigurationFile() {
   provider: "blazor-webapp" | "react" | "vue";
 };
 
+const culturePattern = /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isProvider(
+  value: unknown,
+): value is RuntimeUiConfiguration["provider"] {
+  return value === "blazor-webapp" || value === "react" || value === "vue";
+}
+
 export function validateRuntimeConfiguration(
-  configuration: RuntimeUiConfiguration,
+  value: unknown,
 ): RuntimeUiConfiguration {
-  if (!configuration.apiBasePath.startsWith("/")) {
+  if (!isRecord(value)) {
+    throw new Error("The public UI configuration must be an object.");
+  }
+  const {
+    apiBasePath,
+    deploymentVersion,
+    environment,
+    defaultCulture,
+    supportedCultures,
+    provider,
+  } = value;
+  if (
+    typeof apiBasePath !== "string" ||
+    !apiBasePath.startsWith("/") ||
+    apiBasePath.startsWith("//")
+  ) {
     throw new Error("The public UI configuration has an invalid API base path.");
   }
-  if (!configuration.supportedCultures.includes(configuration.defaultCulture)) {
+  if (
+    typeof deploymentVersion !== "string" ||
+    deploymentVersion.length === 0 ||
+    typeof environment !== "string" ||
+    environment.length === 0 ||
+    typeof defaultCulture !== "string" ||
+    !culturePattern.test(defaultCulture) ||
+    !Array.isArray(supportedCultures) ||
+    !supportedCultures.every(
+      (culture): culture is string =>
+        typeof culture === "string" && culturePattern.test(culture),
+    ) ||
+    !isProvider(provider)
+  ) {
+    throw new Error("The public UI configuration has invalid values.");
+  }
+  if (!supportedCultures.includes(defaultCulture)) {
     throw new Error("The public UI configuration has an unsupported default culture.");
   }
-  return configuration;
+  return {
+    apiBasePath,
+    deploymentVersion,
+    environment,
+    defaultCulture,
+    supportedCultures,
+    provider,
+  };
+}
+
+export async function loadRuntimeConfiguration(
+  fetcher: typeof fetch = fetch,
+): Promise<RuntimeUiConfiguration> {
+  const response = await fetcher("/ui-config.json", {
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error("The public UI configuration could not be loaded.");
+  }
+  return validateRuntimeConfiguration(await response.json());
 }
 `;
+}
+
+function uiRuntimeConfigurationAsset(plan) {
+  return `${JSON.stringify(
+    {
+      apiBasePath: "/",
+      deploymentVersion: "development",
+      environment: "development",
+      defaultCulture: plan.ui.defaultCulture,
+      supportedCultures: [plan.ui.defaultCulture],
+      provider: plan.ui.provider,
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function uiDesignContractCssFile() {
@@ -4020,23 +4224,151 @@ export function translate(key: UiMessageKey): string {
 
 function uiApplicationSource(plan) {
   if (plan.ui.provider === "react") {
-    return `import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { useState } from "react";
+    return `import {
+  FluentProvider,
+  webDarkTheme,
+  webLightTheme,
+} from "@fluentui/react-components";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { createBrowserRouter, RouterProvider } from "react-router";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createGeneratedClient,
+} from "./Platform/Api/generated";
+import { request } from "./Platform/Api/transport";
 import { translate } from "./Platform/Localization/messages";
+import {
+  loadRuntimeConfiguration,
+  type RuntimeUiConfiguration,
+} from "./Platform/Runtime/config";
+import { readSession, type SessionState } from "./Platform/Session/session";
 import "./Platform/Ui/DesignContract.css";
 import "./Platform/Ui/themes.css";
 
-export function App() {
-  const [state] = useState<"loading" | "empty" | "error">("loading");
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+const ApiClientContext = createContext<ReturnType<
+  typeof createGeneratedClient
+> | null>(null);
+const stateMessages = {
+  loading: "ui.state.loading",
+  empty: "ui.state.empty",
+  denied: "ui.state.denied",
+  error: "ui.state.error",
+  offline: "ui.state.offline",
+} as const;
+
+function useSystemTheme() {
+  const [prefersDark, setPrefersDark] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event: MediaQueryListEvent) => setPrefersDark(event.matches);
+    setPrefersDark(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  return prefersDark ? webDarkTheme : webLightTheme;
+}
+
+function SessionView({ session }: { session: SessionState }) {
+  const client = useContext(ApiClientContext);
+  const state =
+    session.kind === "anonymous"
+      ? "empty"
+      : session.kind === "denied"
+        ? "denied"
+        : session.kind === "expired"
+          ? "error"
+          : "empty";
   return (
-    <FluentProvider theme={webLightTheme}>
+    <section
+      className="ui-state"
+      data-client-ready={client !== null}
+      data-state={state}
+      aria-live="polite"
+    >
+      <p>{translate(stateMessages[state])}</p>
+    </section>
+  );
+}
+
+function ApplicationContent() {
+  const runtime = useQuery<RuntimeUiConfiguration>({
+    queryKey: ["runtime-ui-configuration"],
+    queryFn: () => loadRuntimeConfiguration(),
+  });
+  const session = useQuery<SessionState>({
+    queryKey: ["server-bff-session"],
+    queryFn: () => readSession(),
+    enabled: runtime.isSuccess,
+  });
+  const client = useMemo(
+    () =>
+      runtime.data === undefined
+        ? null
+        : createGeneratedClient(runtime.data.apiBasePath, request),
+    [runtime.data],
+  );
+  const state = runtime.isPending || session.isPending
+    ? "loading"
+    : runtime.isError || session.isError
+      ? "offline"
+      : null;
+
+  return (
+    <ApiClientContext.Provider value={client}>
       <main className="application-shell" aria-labelledby="application-title">
         <h1 id="application-title">{translate("ui.application.title")}</h1>
-        <section className="ui-state" data-state={state} aria-live="polite">
-          <p>{translate(state === "loading" ? "ui.state.loading" : "ui.state.error")}</p>
+        {state === null && session.data !== undefined ? (
+          <SessionView session={session.data} />
+        ) : (
+          <section
+            className="ui-state"
+            data-state={state}
+            aria-live="polite"
+            aria-busy={state === "loading"}
+            role="status"
+          >
+            <p>{translate(stateMessages[state ?? "error"])}</p>
+          </section>
+        )}
+      </main>
+    </ApiClientContext.Provider>
+  );
+}
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <ApplicationContent />,
+    errorElement: (
+      <main className="application-shell" aria-labelledby="application-title">
+        <h1 id="application-title">{translate("ui.application.title")}</h1>
+        <section className="ui-state" data-state="error" aria-live="polite" role="alert">
+          <p>{translate("ui.state.error")}</p>
         </section>
       </main>
-    </FluentProvider>
+    ),
+  },
+]);
+
+export function App() {
+  const theme = useSystemTheme();
+  return (
+    <QueryClientProvider client={queryClient}>
+      <FluentProvider theme={theme}>
+        <RouterProvider router={router} />
+      </FluentProvider>
+    </QueryClientProvider>
   );
 }
 `;
@@ -4100,6 +4432,66 @@ createApp(App).use(VueQueryPlugin).mount("#app");
 function uiBrowserTestSource(plan) {
   if (plan.ui.provider === "blazor-webapp") {
     return "";
+  }
+  if (plan.ui.provider === "react") {
+    return `import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { App } from "../App";
+
+const runtimeConfiguration = {
+  apiBasePath: "/",
+  deploymentVersion: "test",
+  environment: "test",
+  defaultCulture: "en-US",
+  supportedCultures: ["en-US"],
+  provider: "react",
+};
+const contractStates = [
+  "loading",
+  "empty",
+  "validation",
+  "denied",
+  "error",
+  "offline",
+  "reconnecting",
+];
+
+describe("MartiX React UI Capability Contract", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/ui-config.json")) {
+          return new Response(JSON.stringify(runtimeConfiguration), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ kind: "anonymous" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders a semantic loading surface before the BFF session resolves", () => {
+    expect(contractStates).toContain("reconnecting");
+    expect(contractStates).toContain("denied");
+    expect(contractStates).toContain("offline");
+    render(<App />);
+    expect(screen.getByRole("main")).toBeDefined();
+    expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("does not persist browser access or refresh credentials", () => {
+    expect(localStorage.getItem("access-token")).toBeNull();
+    expect(sessionStorage.getItem("refresh-token")).toBeNull();
+  });
+});
+`;
   }
   return `import { getByRole } from "@testing-library/dom";
 import { describe, expect, it } from "vitest";
@@ -4377,6 +4769,14 @@ function uiTUnitTestSource() {
 
 function uiEvidenceFiles(plan) {
   const provider = plan.ui.provider;
+  const clientKind = provider === "blazor-webapp" ? "C#" : "TypeScript";
+  const clientEvidence =
+    provider === "blazor-webapp"
+      ? "The C# client is generated from the authoritative OpenAPI artifact with the pinned NSwag profile. Operation coverage is verified by path and HTTP method."
+      : `The ${clientKind} client is generated from the authoritative OpenAPI artifact with
+the pinned generator/runtime pair. Its source records the artifact SHA-256
+digest, and the client check compares that digest before a build can consume
+the client. Operation coverage is verified by path and HTTP method.`;
   return {
     "evidence/ui/browser.md": `# UI browser evidence
 
@@ -4395,6 +4795,12 @@ The checked-in OpenAPI client is generated deterministically and is consumed
 without a generation step in ordinary builds. The \`${provider}\` provider build
 uses strict types, a frozen lockfile where applicable, and a clean output
 directory. Client drift and generated-source edits fail the gate.
+`,
+    "evidence/ui/client.md": `# UI client evidence
+
+Provider: \`${provider}\`
+
+${clientEvidence}
 `,
     "evidence/ui/security.md": `# UI security evidence
 
@@ -4465,14 +4871,13 @@ function createUiFiles(plan, contract) {
 Generated from \`contracts/openapi-v1.json\`. Provider: \`${plan.ui.provider}\`.
 This directory contains wire contracts and transport adapters only.
 `],
-    ["evidence/ui/browser.md", evidenceFiles["evidence/ui/browser.md"]],
-    ["evidence/ui/build.md", evidenceFiles["evidence/ui/build.md"]],
-    ["evidence/ui/security.md", evidenceFiles["evidence/ui/security.md"]],
-    ["evidence/ui/deployment.md", evidenceFiles["evidence/ui/deployment.md"]],
-    [
-      "evidence/ui/observability.md",
-      evidenceFiles["evidence/ui/observability.md"],
-    ],
+    ...(plan.ui.provider === "react"
+      ? [[`${root}/public/ui-config.json`, uiRuntimeConfigurationAsset(plan)]]
+      : []),
+    ...FULL_STACK_UI_EVIDENCE.map((evidenceName) => [
+      `evidence/ui/${evidenceName}.md`,
+      evidenceFiles[`evidence/ui/${evidenceName}.md`],
+    ]),
   ]);
 
   if (plan.ui.provider === "blazor-webapp") {
@@ -4496,18 +4901,29 @@ This directory contains wire contracts and transport adapters only.
     files.set(`${root}/tsconfig.json`, uiTypeScriptConfigFile(plan));
     files.set(`${root}/vite.config.ts`, uiViteConfigFile(plan));
     files.set(`${root}/vitest.config.ts`, uiVitestConfigFile());
-    files.set("pnpm-workspace.yaml", uiPnpmWorkspaceFile());
-    files.set(".npmrc", uiNpmrcFile());
+    files.set("pnpm-workspace.yaml", uiPnpmWorkspaceFile(plan));
+    files.set(".npmrc", uiNpmrcFile(plan));
     files.set("pnpm-lock.yaml", uiPnpmLockFile(plan));
     files.set(`${root}/${uiBrowserEntryFileName(plan.ui.provider)}`, uiEntrySource(plan));
     files.set(`${root}/tests/ui-capability-contract.test.ts`, uiBrowserTestSource(plan));
     files.set(
       `${root}/scripts/verify-generated-client.mjs`,
-      `import { readFile } from "node:fs/promises";
+      `import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
-const source = await readFile(new URL("../Platform/Api/generated.ts", import.meta.url), "utf8");
+const [contract, source] = await Promise.all([
+  readFile(new URL("../../../contracts/openapi-v1.json", import.meta.url), "utf8"),
+  readFile(new URL("../Platform/Api/generated.ts", import.meta.url), "utf8"),
+]);
 if (!source.includes("openapi-typescript 7.13.0")) {
   throw new Error("Generated client drifted from the pinned OpenAPI generator.");
+}
+const expectedDigest = source.match(/Contract SHA-256: ([a-f0-9]{64})\\./)?.[1];
+const actualDigest = createHash("sha256")
+  .update(contract.replaceAll(/\\r\\n?/g, "\\n"))
+  .digest("hex");
+if (expectedDigest === undefined || expectedDigest !== actualDigest) {
+  throw new Error("Generated client drifted from contracts/openapi-v1.json.");
 }
 `,
     );

@@ -3,7 +3,9 @@ import type { ProblemDetails } from "./generated";
 export type TransportFailure =
   | { kind: "problem-details"; problem: ProblemDetails }
   | { kind: "network"; messageKey: "ui.error.offline" }
-  | { kind: "cancelled" };
+  | { kind: "cancelled" }
+  | { kind: "session-expired" }
+  | { kind: "access-denied" };
 
 export type RequestPolicy = {
   retrySafeRead: boolean;

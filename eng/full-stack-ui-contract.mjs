@@ -69,3 +69,14 @@ export const FULL_STACK_UI_SESSION_OWNER = "server-bff";
 export const FULL_STACK_DEFAULT_CULTURE = "en-US";
 export const FULL_STACK_UI_CULTURE_PATTERN =
   /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
+
+export const FULL_STACK_REACT_PACKAGE_MANAGER = "pnpm@10.17.1";
+export const FULL_STACK_REACT_NODE_ENGINE = ">=22.14.0 <27";
+export const FULL_STACK_UI_EVIDENCE = Object.freeze([
+  "browser",
+  "build",
+  "client",
+  "security",
+  "deployment",
+  "observability",
+]);

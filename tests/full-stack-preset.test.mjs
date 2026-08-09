@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   mkdtemp,
   readFile,
@@ -204,8 +205,8 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.match(packageJson, /openapi-typescript.*7\.13\.0/);
     assert.match(packageJson, /openapi-fetch.*0\.17\.0/);
     assert.match(packageJson, /"typescript":\s*"5\.9\.3"/);
-    assert.match(lockfile, /"@fluentui\/react-components":/);
-    assert.match(lockfile, /"openapi-typescript":/);
+    assert.match(lockfile, /['"]@fluentui\/react-components['"]:/);
+    assert.match(lockfile, /openapi-typescript(?:@|:)/);
     assert.match(generatedClient, /openapi-typescript/);
     assert.match(generatedClient, /OpenAPI/);
     assert.match(generatedClient, /"\/api\/v1\/orders\/status"/);
@@ -315,6 +316,96 @@ test("API and Modular Monolith generation remain UI-free", async () => {
       [...api.plan.packageReferences, ...modular.plan.packageReferences]
         .some(({ id }) => /Fluent|React|Vue|openapi-fetch|openapi-typescript/i.test(id)),
       false,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("React Full Stack emits an attested provider boundary", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    await generateFullStackPreset({
+      ...baseOptions,
+      outputDirectory: join(root, "generated"),
+    });
+
+    const webRoot = join(root, "generated", "src", "MartiX.Portal.Web");
+    const packageJson = JSON.parse(
+      await readFile(join(webRoot, "package.json"), "utf8"),
+    );
+    const workspacePolicy = await readFile(
+      join(root, "generated", "pnpm-workspace.yaml"),
+      "utf8",
+    );
+    const lockfile = await readFile(
+      join(root, "generated", "pnpm-lock.yaml"),
+      "utf8",
+    );
+    const app = await readFile(join(webRoot, "App.tsx"), "utf8");
+    const generatedClient = await readFile(
+      join(webRoot, "Platform", "Api", "generated.ts"),
+      "utf8",
+    );
+    const openApiContract = await readFile(
+      join(root, "generated", "contracts", "openapi-v1.json"),
+      "utf8",
+    );
+    const session = await readFile(
+      join(webRoot, "Platform", "Session", "session.ts"),
+      "utf8",
+    );
+    const runtimeConfiguration = await readFile(
+      join(webRoot, "Platform", "Runtime", "config.ts"),
+      "utf8",
+    );
+    const generatedClientCheck = await readFile(
+      join(webRoot, "scripts", "verify-generated-client.mjs"),
+      "utf8",
+    );
+
+    assert.match(packageJson.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
+    assert.deepEqual(Object.keys(packageJson.engines).sort(), ["node", "pnpm"]);
+    assert.deepEqual(packageJson.peerDependencies, {
+      react: "19.1.1",
+      "react-dom": "19.1.1",
+    });
+    assert.equal(
+      packageJson.scripts["install:ci"],
+      "pnpm install --frozen-lockfile --ignore-scripts",
+    );
+    assert.match(workspacePolicy, /^minimumReleaseAge: 4320$/m);
+    assert.match(workspacePolicy, /^trustLockfile: false$/m);
+    assert.match(workspacePolicy, /^blockExoticSubdeps: true$/m);
+    assert.match(workspacePolicy, /^strictPeerDependencies: true$/m);
+    assert.match(workspacePolicy, /^engineStrict: true$/m);
+    assert.match(workspacePolicy, /^strictDepBuilds: true$/m);
+    assert.match(workspacePolicy, /^allowBuilds:$/m);
+    assert.match(workspacePolicy, /^\s+esbuild: 0\.25\.12$/m);
+    assert.match(lockfile, /^packages:$/m);
+    assert.match(lockfile, /^snapshots:$/m);
+    assert.match(lockfile, /resolution:\s*\{integrity:/);
+    assert.match(lockfile, /'@fluentui\/react-icons@/);
+    assert.match(lockfile, /'@fluentui\/react-components@[^']+':\n    dependencies:/);
+    assert.match(app, /createGeneratedClient/);
+    assert.match(app, /QueryClientProvider/);
+    assert.match(app, /readSession/);
+    assert.match(session, /credentials: "include"/);
+    assert.doesNotMatch(
+      session,
+      /localStorage|sessionStorage|indexedDB|accessToken|refreshToken/i,
+    );
+    assert.match(runtimeConfiguration, /ui-config\.json/);
+    assert.match(generatedClientCheck, /sha256|createHash/i);
+    const generatedDigest = generatedClient.match(
+      /Contract SHA-256: ([a-f0-9]{64})\./,
+    )?.[1];
+    assert.equal(
+      generatedDigest,
+      createHash("sha256")
+        .update(openApiContract.replaceAll(/\r\n?/g, "\n"))
+        .digest("hex"),
     );
   } finally {
     await rm(root, { recursive: true, force: true });

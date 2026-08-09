@@ -19,6 +19,9 @@ import {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_REACT_NODE_ENGINE,
+  FULL_STACK_REACT_PACKAGE_MANAGER,
+  FULL_STACK_UI_EVIDENCE,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
@@ -87,6 +90,7 @@ const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/browser.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/build.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/client.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/deployment.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/observability.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/security.md`,
@@ -105,6 +109,7 @@ const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/index.html`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.tsx`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/package.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/public/ui-config.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/scripts/verify-generated-client.mjs`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tsconfig.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tests/ui-capability-contract.test.ts`,
@@ -737,6 +742,7 @@ function fullStackExpectedFiles(manifest) {
     "contracts/ui-capability-v1.json",
     "evidence/ui/browser.md",
     "evidence/ui/build.md",
+    "evidence/ui/client.md",
     "evidence/ui/deployment.md",
     "evidence/ui/observability.md",
     "evidence/ui/security.md",
@@ -777,6 +783,10 @@ function fullStackExpectedFiles(manifest) {
       "pnpm-workspace.yaml",
       ".npmrc",
     );
+  }
+
+  if (manifest.ui.provider === "react") {
+    files.push(`${root}/public/ui-config.json`);
   }
 
   return files.sort();
@@ -1787,14 +1797,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     uiContract.theme?.tokens !== "semantic" ||
     JSON.stringify(uiContract.theme?.modes) !==
       JSON.stringify(["light", "dark", "system"]) ||
-    JSON.stringify(uiContract.evidence) !==
-      JSON.stringify([
-        "browser",
-        "build",
-        "security",
-        "deployment",
-        "observability",
-      ])
+    JSON.stringify(uiContract.evidence) !== JSON.stringify(FULL_STACK_UI_EVIDENCE)
   ) {
     fail(
       "Full Stack UI Capability Contract does not match the provider-neutral contract.",
@@ -1865,6 +1868,18 @@ async function validateFullStackSolution(rootDir, manifest) {
           `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
         )
       : await readSolutionFile(`${uiRoot}/tests/ui-capability-contract.test.ts`);
+  const appSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? ""
+      : await readSolutionFile(`${uiRoot}/${fullStackApplicationFileName(manifest.ui.provider)}`);
+  const runtimeConfigurationSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? ""
+      : await readSolutionFile(`${uiRoot}/Platform/Runtime/config.ts`);
+  const clientCheckSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? ""
+      : await readSolutionFile(`${uiRoot}/scripts/verify-generated-client.mjs`);
 
   if (
     !transportSource.includes('credentials: "include"') ||
@@ -1887,6 +1902,15 @@ async function validateFullStackSolution(rootDir, manifest) {
     !themeSource.includes('data-theme="light"') ||
     !themeSource.includes('data-theme="dark"') ||
     !generatedClientSource.includes("ProblemDetails") ||
+    (manifest.ui.provider !== "blazor-webapp" &&
+      (!appSource.includes("createGeneratedClient") ||
+        !appSource.includes("QueryClientProvider") ||
+        !appSource.includes('aria-live="polite"') ||
+        !runtimeConfigurationSource.includes("loadRuntimeConfiguration") ||
+        !clientCheckSource.includes("createHash") ||
+        /localStorage|sessionStorage|indexedDB|accessToken|refreshToken/i.test(
+          sessionSource,
+        ))) ||
     !browserTestSource.includes("loading") ||
     !browserTestSource.includes("offline") ||
     !browserTestSource.includes("denied") ||
@@ -1899,13 +1923,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     );
   }
 
-  for (const evidenceName of [
-    "browser",
-    "build",
-    "security",
-    "deployment",
-    "observability",
-  ]) {
+  for (const evidenceName of FULL_STACK_UI_EVIDENCE) {
     const evidence = await readSolutionFile(`evidence/ui/${evidenceName}.md`);
     if (
       !evidence.includes("# UI") ||
@@ -1930,6 +1948,39 @@ async function validateFullStackSolution(rootDir, manifest) {
       fail(
         "Full Stack TypeScript UI must pin the reviewed OpenAPI and accessibility test profiles.",
       );
+    }
+    if (manifest.ui.provider === "react") {
+      const workspacePolicy = await readSolutionFile("pnpm-workspace.yaml");
+      const lockfile = await readSolutionFile("pnpm-lock.yaml");
+      const runtimeConfiguration = JSON.parse(
+        await readSolutionFile(`${uiRoot}/public/ui-config.json`),
+      );
+      if (
+        packageJson.packageManager !== FULL_STACK_REACT_PACKAGE_MANAGER ||
+        packageJson.engines?.node !== FULL_STACK_REACT_NODE_ENGINE ||
+        packageJson.engines?.pnpm !==
+          FULL_STACK_REACT_PACKAGE_MANAGER.slice("pnpm@".length) ||
+        packageJson.peerDependencies?.react !== "19.1.1" ||
+        packageJson.peerDependencies?.["react-dom"] !== "19.1.1" ||
+        packageJson.scripts?.["install:ci"] !==
+          "pnpm install --frozen-lockfile --ignore-scripts" ||
+        !workspacePolicy.includes("minimumReleaseAge: 4320") ||
+        !workspacePolicy.includes("trustLockfile: false") ||
+        !workspacePolicy.includes("blockExoticSubdeps: true") ||
+        !workspacePolicy.includes("strictPeerDependencies: true") ||
+        !workspacePolicy.includes("engineStrict: true") ||
+        !workspacePolicy.includes("strictDepBuilds: true") ||
+        !workspacePolicy.includes("allowBuilds:") ||
+        !workspacePolicy.includes("esbuild: 0.25.12") ||
+        !lockfile.includes("'@fluentui/react-icons@") ||
+        !lockfile.includes("'@fluentui/react-components@") ||
+        runtimeConfiguration.provider !== "react" ||
+        runtimeConfiguration.defaultCulture !== manifest.ui.defaultCulture
+      ) {
+        fail(
+          "Full Stack React UI must declare the pinned pnpm, runtime configuration, and dependency policy.",
+        );
+      }
     }
   } else {
     const project = await readSolutionFile(

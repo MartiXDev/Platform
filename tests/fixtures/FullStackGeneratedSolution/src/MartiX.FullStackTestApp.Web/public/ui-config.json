@@ -1,0 +1,10 @@
+{
+  "apiBasePath": "/",
+  "deploymentVersion": "development",
+  "environment": "development",
+  "defaultCulture": "en-US",
+  "supportedCultures": [
+    "en-US"
+  ],
+  "provider": "react"
+}
