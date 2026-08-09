@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "1.0.0",
+  "selection": {
+    "preset": "api",
+    "capabilities": [
+      "distributed-cache"
+    ],
+    "providers": [
+      {
+        "capability": "distributed-cache",
+        "id": "valkey"
+      }
+    ],
+    "runtime": "net10.0",
+    "operatingSystem": "linux",
+    "deploymentProfile": "container",
+    "configuration": [
+      "ConnectionStrings:DistributedCache",
+      "DistributedCache:Provider"
+    ]
+  },
+  "observed": {
+    "packages": [
+      {
+        "id": "Microsoft.Extensions.Caching.StackExchangeRedis",
+        "version": "10.0.10"
+      }
+    ],
+    "configuration": [
+      "ConnectionStrings:DistributedCache",
+      "DistributedCache:Provider"
+    ],
+    "registrations": [
+      "IDistributedCache:StackExchangeRedis"
+    ],
+    "workers": [],
+    "healthChecks": [
+      "distributed-cache"
+    ],
+    "telemetry": [
+      "distributed-cache"
+    ],
+    "containers": [
+      "valkey:9.1.0"
+    ],
+    "deployment": [
+      "distributed-cache"
+    ]
+  },
+  "profile": {
+    "serverImage": "valkey/valkey:9.1.0",
+    "connectionEnvironment": "ConnectionStrings__DistributedCache",
+    "instanceName": "martix:valkey:",
+    "abortOnConnectFail": false,
+    "connectRetry": 3,
+    "connectTimeoutMilliseconds": 1000,
+    "asyncTimeoutMilliseconds": 1000
+  },
+  "semantics": [
+    "key-isolation",
+    "serialization",
+    "expiry",
+    "reconnect",
+    "failure-isolation",
+    "cancellation",
+    "multi-instance"
+  ],
+  "failurePolicy": {
+    "businessResults": "cache-failure-falls-back",
+    "authorization": "cache-never-authoritative",
+    "readiness": "optional-cache-failure-does-not-fail-global-readiness"
+  }
+}

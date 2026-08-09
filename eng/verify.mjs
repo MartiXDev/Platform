@@ -63,6 +63,10 @@ const FULL_STACK_SOLUTION_ROOT = `tests/fixtures/${FULL_STACK_SOLUTION_NAME}`;
 const PROVIDER_ADMISSION_SOLUTION_NAME = "ProviderAdmissionGeneratedSolution";
 const PROVIDER_ADMISSION_SOLUTION_ROOT =
   `tests/fixtures/${PROVIDER_ADMISSION_SOLUTION_NAME}`;
+const VALKEY_DISTRIBUTED_CACHE_SOLUTION_NAME =
+  "ValkeyDistributedCacheGeneratedSolution";
+const VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT =
+  `tests/fixtures/${VALKEY_DISTRIBUTED_CACHE_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -80,6 +84,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
+  "bootstrap.valkey-distributed-cache",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -237,6 +242,17 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
   "eng/provider-admission.mjs",
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/README.md`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/AGENTS.md`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/CONTEXT.md`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/MartiX.ValkeyDistributedCacheTestApp.slnx`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/src/MartiX.ValkeyDistributedCacheTestApp.Api/MartiX.ValkeyDistributedCacheTestApp.Api.csproj`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/src/MartiX.ValkeyDistributedCacheTestApp.Api/Program.cs`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/src/MartiX.ValkeyDistributedCacheTestApp.Api/ValkeyHealthCheck.cs`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/tests/MartiX.ValkeyDistributedCacheTestApp.Tests/MartiX.ValkeyDistributedCacheTestApp.Tests.csproj`,
+  `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/tests/MartiX.ValkeyDistributedCacheTestApp.Tests/ValkeyDistributedCacheConformanceTests.cs`,
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -2596,6 +2612,296 @@ export async function validateProviderAdmissionFixture(
   };
 }
 
+const VALKEY_CONFORMANCE_SEMANTICS = Object.freeze([
+  "cancellation",
+  "expiry",
+  "failure-isolation",
+  "key-isolation",
+  "multi-instance",
+  "reconnect",
+  "serialization",
+]);
+
+const VALKEY_CONFORMANCE_EXPECTED_FILES = Object.freeze([
+  "AGENTS.md",
+  "CONTEXT.md",
+  "MartiX.ValkeyDistributedCacheTestApp.slnx",
+  "README.md",
+  "martix.platform.json",
+  "src/MartiX.ValkeyDistributedCacheTestApp.Api/MartiX.ValkeyDistributedCacheTestApp.Api.csproj",
+  "src/MartiX.ValkeyDistributedCacheTestApp.Api/Program.cs",
+  "src/MartiX.ValkeyDistributedCacheTestApp.Api/ValkeyHealthCheck.cs",
+  "tests/MartiX.ValkeyDistributedCacheTestApp.Tests/MartiX.ValkeyDistributedCacheTestApp.Tests.csproj",
+  "tests/MartiX.ValkeyDistributedCacheTestApp.Tests/ValkeyDistributedCacheConformanceTests.cs",
+  "valkey-conformance.json",
+]);
+
+export async function validateValkeyDistributedCacheFixture({
+  rootDir,
+  manifest,
+  profile,
+}) {
+  const solutionRoot = resolve(rootDir, VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT);
+  const actualFiles = await listFiles(solutionRoot, {
+    ignoredDirectories: ["bin", "obj"],
+  });
+  const expectedFiles = [...VALKEY_CONFORMANCE_EXPECTED_FILES];
+  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
+    const missing = expectedFiles.filter((file) => !actualFiles.includes(file));
+    const extra = actualFiles.filter((file) => !expectedFiles.includes(file));
+    fail(
+      `Valkey Distributed Cache Generated Solution inventory mismatch; missing: ${
+        missing.join(", ") || "none"
+      }; extra: ${extra.join(", ") || "none"}.`,
+    );
+  }
+
+  requireRecord(
+    profile,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json`,
+  );
+  assertSecretFree(
+    profile,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json`,
+    "Valkey conformance profile",
+  );
+  requireString(
+    profile.schemaVersion,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json.schemaVersion`,
+  );
+  if (profile.schemaVersion !== "1.0.0") {
+    fail("Valkey conformance profile schemaVersion must be 1.0.0.");
+  }
+  requireRecord(
+    profile.selection,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json.selection`,
+  );
+  requireRecord(
+    profile.observed,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json.observed`,
+  );
+  requireRecord(
+    profile.profile,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json.profile`,
+  );
+  requireRecord(
+    profile.failurePolicy,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json.failurePolicy`,
+  );
+  requireArray(
+    profile.semantics,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json.semantics`,
+  );
+  if (
+    JSON.stringify([...profile.semantics].sort()) !==
+    JSON.stringify([...VALKEY_CONFORMANCE_SEMANTICS])
+  ) {
+    fail(
+      "Valkey conformance profile must cover cancellation, expiry, failure isolation, key isolation, multi-instance behavior, reconnect, and serialization.",
+    );
+  }
+  if (
+    profile.profile.serverImage !== "valkey/valkey:9.1.0" ||
+    profile.profile.connectionEnvironment !==
+      "ConnectionStrings__DistributedCache" ||
+    profile.profile.instanceName !== "martix:valkey:" ||
+    profile.profile.abortOnConnectFail !== false ||
+    profile.profile.connectRetry !== 3 ||
+    profile.profile.connectTimeoutMilliseconds !== 1000 ||
+    profile.profile.asyncTimeoutMilliseconds !== 1000
+  ) {
+    fail(
+      "Valkey conformance profile must pin the declared server and reconnect/timeouts.",
+    );
+  }
+  if (
+    JSON.stringify(profile.failurePolicy) !==
+    JSON.stringify({
+      businessResults: "cache-failure-falls-back",
+      authorization: "cache-never-authoritative",
+      readiness: "optional-cache-failure-does-not-fail-global-readiness",
+    })
+  ) {
+    fail(
+      "Valkey conformance profile must keep cache failure outside business, authorization, and global readiness semantics.",
+    );
+  }
+
+  let admission;
+  try {
+    admission = await verifyProviderAdmission({
+      selection: profile.selection,
+      observed: profile.observed,
+    });
+  } catch (error) {
+    if (error instanceof ProviderAdmissionError) {
+      fail(`Valkey provider admission failed: ${error.message}`);
+    }
+    throw error;
+  }
+  if (
+    admission.plan.providers.length !== 1 ||
+    admission.plan.providers[0].capability !== "distributed-cache" ||
+    admission.plan.providers[0].id !== "valkey"
+  ) {
+    fail("Valkey conformance must select exactly distributed-cache:valkey.");
+  }
+  if (admission.plan.matrix.deploymentProfile !== "container") {
+    fail("Valkey conformance must use the controlled container deployment profile.");
+  }
+  if (
+    manifest.preset !== "api" ||
+    manifest.supportClaims.length !== 0 ||
+    manifest.capabilities.filter(
+      (capability) =>
+        capability?.id === "distributed-cache" &&
+        capability?.state === "selected",
+    ).length !== 1
+  ) {
+    fail(
+      "Valkey Distributed Cache manifest must select the claim-free distributed-cache capability in the api preset.",
+    );
+  }
+  const manifestProviders = manifest.providers
+    .filter((provider) => provider?.state === "selected")
+    .map(({ capability, id }) => ({ capability, id }));
+  if (
+    JSON.stringify(manifestProviders) !==
+    JSON.stringify([{ capability: "distributed-cache", id: "valkey" }])
+  ) {
+    fail(
+      "Valkey Distributed Cache manifest must select only distributed-cache:valkey.",
+    );
+  }
+
+  const readSolutionFile = (relativePath) =>
+    readFile(resolve(solutionRoot, relativePath), "utf8");
+  const apiProjectPath =
+    "src/MartiX.ValkeyDistributedCacheTestApp.Api/MartiX.ValkeyDistributedCacheTestApp.Api.csproj";
+  const apiSourcePath =
+    "src/MartiX.ValkeyDistributedCacheTestApp.Api/Program.cs";
+  const healthSourcePath =
+    "src/MartiX.ValkeyDistributedCacheTestApp.Api/ValkeyHealthCheck.cs";
+  const testProjectPath =
+    "tests/MartiX.ValkeyDistributedCacheTestApp.Tests/MartiX.ValkeyDistributedCacheTestApp.Tests.csproj";
+  const testSourcePath =
+    "tests/MartiX.ValkeyDistributedCacheTestApp.Tests/ValkeyDistributedCacheConformanceTests.cs";
+  const [apiProject, apiSource, healthSource, testProject, testSource] =
+    await Promise.all([
+      readSolutionFile(apiProjectPath),
+      readSolutionFile(apiSourcePath),
+      readSolutionFile(healthSourcePath),
+      readSolutionFile(testProjectPath),
+      readSolutionFile(testSourcePath),
+    ]);
+
+  if (
+    !/<OutputType>\s*Exe\s*<\/OutputType>/.test(apiProject) ||
+    !/<TargetFramework>\s*net10\.0\s*<\/TargetFramework>/.test(apiProject) ||
+    !apiProject.includes(
+      '<PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10"',
+    ) ||
+    /AddDistributedMemoryCache|Microsoft\.NET\.Test\.Sdk|coverlet|ICacheService|MartiX\.Cache/i.test(
+      apiProject,
+    )
+  ) {
+    fail(
+      `Valkey API project must directly reference the pinned StackExchange Redis provider without an in-memory or MartiX cache facade: ${apiProjectPath}.`,
+    );
+  }
+  if (
+    !/<OutputType>\s*Exe\s*<\/OutputType>/.test(testProject) ||
+    !testProject.includes(
+      '<PackageReference Include="Testcontainers.Redis" Version="4.13.0"',
+    ) ||
+    !testProject.includes('<PackageReference Include="TUnit" Version="1.63.0"') ||
+    /Microsoft\.NET\.Test\.Sdk|coverlet/i.test(testProject)
+  ) {
+    fail(
+      `Valkey conformance tests must use the executable TUnit runner and pinned Valkey container package: ${testProjectPath}.`,
+    );
+  }
+  const requiredApiFragments = [
+    "AddStackExchangeRedisCache",
+    "IDistributedCache",
+    "ConfigurationOptions",
+    "AbortOnConnectFail = false",
+    "ConnectRetry = 3",
+    "AsyncTimeout = 1000",
+    "InstanceName = CacheInstanceName",
+    "JsonSerializer",
+    "DistributedCacheEntryOptions",
+    "AbsoluteExpirationRelativeToNow",
+    "CancellationToken",
+    "UseAuthentication()",
+    "UseAuthorization()",
+    "RequireAuthorization(CacheReaderPolicy)",
+    "AddCheck<ValkeyHealthCheck>",
+    '"distributed-cache"',
+    "TimeSpan.FromSeconds(2)",
+    'Predicate = check => check.Tags.Contains("ready")',
+    'Predicate = check => check.Tags.Contains("cache")',
+  ];
+  if (
+    requiredApiFragments.some((fragment) => !apiSource.includes(fragment)) ||
+    /Predicate\s*=\s*check\s*=>\s*check\.Tags\.Contains\("ready"\)[^\n]*check\.Tags\.Contains\("cache"\)/.test(
+      apiSource,
+    ) ||
+    /AddDistributedMemoryCache|Microsoft\.NET\.Test\.Sdk|coverlet|ICacheService|CacheService\b|MartiX\.Cache(?:Service|Facade)/i.test(
+      apiSource,
+    ) ||
+    /catch\s*\(\s*(?:Exception|OperationCanceledException)\b/.test(apiSource)
+  ) {
+    fail(
+      `Valkey API composition must use direct framework cache interfaces, explicit semantics, cancellation, and narrow failure handling: ${apiSourcePath}.`,
+    );
+  }
+  if (
+    !healthSource.includes("IDistributedCache") ||
+    !healthSource.includes("GetAsync") ||
+    !healthSource.includes("HealthCheckResult.Unhealthy") ||
+    healthSource.includes("SetAsync") ||
+    /catch\s*\(\s*(?:Exception|OperationCanceledException)\b/.test(healthSource)
+  ) {
+    fail(
+      `Valkey health must be a read-only, bounded cache signal with explicit provider failures: ${healthSourcePath}.`,
+    );
+  }
+  const requiredTestFragments = [
+    'valkey/valkey:9.1.0',
+    "IDistributedCache",
+    "NotInParallel",
+    "GetConnectionString",
+    "StopAsync",
+    "StartAsync",
+    "OperationCanceledException",
+    "/api/v1/status/",
+    "/api/v1/protected-status/",
+    "/cache/ready",
+    "conformance:key-isolation:a",
+    "conformance:key-isolation:b",
+    "conformance:cancellation",
+    "cancellation.Token",
+  ];
+  if (
+    requiredTestFragments.some((fragment) => !testSource.includes(fragment)) ||
+    /Microsoft\.NET\.Test\.Sdk|coverlet/i.test(testSource) ||
+    /catch\s*\(\s*(?:Exception|OperationCanceledException)\b/.test(testSource)
+  ) {
+    fail(
+      `Valkey TUnit conformance tests must cover the pinned service, cancellation, outage, reconnect, and multi-instance behavior: ${testSourcePath}.`,
+    );
+  }
+
+  return {
+    status: "passed",
+    provider: "distributed-cache:valkey",
+    semantics: [...VALKEY_CONFORMANCE_SEMANTICS],
+    matrixCoordinate: admission.evidence.matrix.coordinate,
+    evidenceDigest: admission.evidence.verification.evidenceDigest,
+  };
+}
+
 export async function verifyBootstrap({
   cadence = "fast",
   rootDir = process.cwd(),
@@ -2643,6 +2949,12 @@ export async function verifyBootstrap({
   );
   const providerAdmissionFixture = parseJson(
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  );
+  const valkeyDistributedCacheManifest = parseJson(
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const valkeyDistributedCacheProfile = parseJson(
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json`,
   );
 
   validateManifestSchema(manifestSchema);
@@ -2720,6 +3032,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    valkeyDistributedCacheManifest,
+    "generated-solution",
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    valkeyDistributedCacheManifest,
+    manifestSchema,
+    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -2733,6 +3055,11 @@ export async function verifyBootstrap({
     providerAdmissionFixture,
     providerAdmissionManifest,
   );
+  const valkeyDistributedCache = await validateValkeyDistributedCacheFixture({
+    rootDir: root,
+    manifest: valkeyDistributedCacheManifest,
+    profile: valkeyDistributedCacheProfile,
+  });
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -2759,6 +3086,8 @@ export async function verifyBootstrap({
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
     providerAdmission,
+    valkeyDistributedCacheSolution: VALKEY_DISTRIBUTED_CACHE_SOLUTION_NAME,
+    valkeyDistributedCache,
     agentReadiness,
   };
 }
