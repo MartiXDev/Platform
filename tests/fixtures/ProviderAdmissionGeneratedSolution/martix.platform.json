@@ -35,6 +35,10 @@
     {
       "id": "modular-monolith.object-storage",
       "state": "selected"
+    },
+    {
+      "id": "broker-transport",
+      "state": "selected"
     }
   ],
   "providers": [
@@ -56,6 +60,11 @@
     {
       "id": "azure-blob",
       "capability": "object-storage",
+      "state": "selected"
+    },
+    {
+      "id": "rabbitmq",
+      "capability": "broker-transport",
       "state": "selected"
     }
   ],

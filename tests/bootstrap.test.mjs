@@ -185,7 +185,7 @@ test("the named Provider Admission fixture proves selection, absence, and invali
   const result = await validateProviderAdmissionFixture(fixture, manifest);
 
   assert.equal(result.status, "passed");
-  assert.equal(result.providerCount, 4);
+  assert.equal(result.providerCount, 5);
   assert.equal(result.invalidSelectionCount, 5);
   assert.match(result.providerEvidenceDigest, /^sha256:[0-9a-f]{64}$/);
   assert.equal(

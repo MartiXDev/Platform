@@ -51,5 +51,5 @@ test("the provider-neutral admission fixture has no unselected SMTP residue", as
   const result = await validateProviderAdmissionFixture(fixture, manifest);
 
   assert.equal(result.status, "passed");
-  assert.equal(result.providerCount, 4);
+  assert.equal(result.providerCount, 5);
 });

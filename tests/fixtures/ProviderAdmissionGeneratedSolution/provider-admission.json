@@ -2,10 +2,12 @@
   "selection": {
     "preset": "modular-monolith",
     "capabilities": [
-      "relational-persistence",
-      "durable-jobs",
-      "secrets",
-      "object-storage"
+    "relational-persistence",
+    "durable-jobs",
+    "reliable-integration-events",
+    "secrets",
+    "object-storage",
+    "broker-transport"
     ],
     "providers": [
       {
@@ -23,6 +25,10 @@
       {
         "capability": "object-storage",
         "id": "azure-blob"
+      },
+      {
+        "capability": "broker-transport",
+        "id": "rabbitmq"
       }
     ],
     "runtime": "net10.0",
@@ -33,7 +39,8 @@
       "Azure:KeyVault:ReloadInterval",
       "Azure:BlobServiceUri",
       "Azure:KeyVault:Uri",
-      "ObjectStorage:Container"
+      "ObjectStorage:Container",
+      "ConnectionStrings:RabbitMq"
     ]
   },
   "observed": {
@@ -57,6 +64,10 @@
       {
         "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
         "version": "10.0.0"
+      },
+      {
+        "id": "RabbitMQ.Client",
+        "version": "7.2.1"
       }
     ],
     "configuration": [
@@ -66,23 +77,29 @@
       "Azure:BlobServiceUri",
       "Azure:KeyVault:Uri",
       "ObjectStorage:Container",
-      "ConnectionStrings:Database"
+      "ConnectionStrings:RabbitMq",
+      "ConnectionStrings:Database",
+      "RabbitMq:Exchange"
     ],
     "registrations": [
       "EntityFrameworkCore:PostgreSQL",
       "Quartz:Scheduler",
       "IConfiguration:AzureKeyVault",
-      "ObjectStorage:AzureBlob"
+      "ObjectStorage:AzureBlob",
+      "IntegrationEvents:RabbitMqTransport"
     ],
     "workers": [
-      "QuartzHostedService"
+      "QuartzHostedService",
+      "RabbitMqConsumer"
     ],
     "healthChecks": [
+      "broker-transport",
       "durable-jobs",
       "object-storage",
       "relational-database"
     ],
     "telemetry": [
+      "broker-transport",
       "durable-jobs",
       "object-storage",
       "relational-database",
@@ -90,9 +107,11 @@
     ],
     "containers": [
       "azurite:3.35.0",
-      "postgresql:17"
+      "postgresql:17",
+      "rabbitmq:4.3.2"
     ],
     "deployment": [
+      "broker-transport",
       "durable-jobs-schema",
       "managed-identity",
       "object-storage",
@@ -106,6 +125,11 @@
     "failClosed": true,
     "provider": null,
     "providers": [
+      {
+        "capability": "broker-transport",
+        "id": "rabbitmq",
+        "state": "selected"
+      },
       {
         "capability": "durable-jobs",
         "id": "quartz",
@@ -139,6 +163,10 @@
       {
         "capability": "relational-persistence",
         "provider": "postgresql"
+      },
+      {
+        "capability": "reliable-integration-events",
+        "provider": null
       }
     ],
     "conflicts": [],
@@ -149,6 +177,7 @@
         "Azure:KeyVault:Uri",
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz",
+        "ConnectionStrings:RabbitMq",
         "ObjectStorage:Container"
       ],
       "selectedKeys": [
@@ -157,6 +186,7 @@
         "Azure:KeyVault:Uri",
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz",
+        "ConnectionStrings:RabbitMq",
         "ObjectStorage:Container"
       ]
     },
@@ -181,6 +211,10 @@
         {
           "id": "Quartz",
           "version": "3.18.2"
+        },
+        {
+          "id": "RabbitMQ.Client",
+          "version": "7.2.1"
         }
      ],
      "configuration": [
@@ -188,40 +222,48 @@
        "Azure:KeyVault:ReloadInterval",
        "Azure:KeyVault:Uri",
        "ConnectionStrings:Database",
-        "ConnectionStrings:Quartz",
-        "ObjectStorage:Container",
-        "Quartz:SchedulerName"
+       "ConnectionStrings:Quartz",
+       "ConnectionStrings:RabbitMq",
+       "ObjectStorage:Container",
+       "Quartz:SchedulerName",
+       "RabbitMq:Exchange"
      ],
      "registrations": [
        "EntityFrameworkCore:PostgreSQL",
        "IConfiguration:AzureKeyVault",
+       "IntegrationEvents:RabbitMqTransport",
        "ObjectStorage:AzureBlob",
        "Quartz:Scheduler"
       ],
       "workers": [
-        "QuartzHostedService"
+        "QuartzHostedService",
+        "RabbitMqConsumer"
       ],
       "healthChecks": [
+        "broker-transport",
         "durable-jobs",
         "object-storage",
         "relational-database"
       ],
       "telemetry": [
+        "broker-transport",
         "durable-jobs",
         "object-storage",
         "relational-database",
         "secrets-provider"
-      ],
-      "containers": [
-        "azurite:3.35.0",
-        "postgresql:17"
-      ],
+     ],
+     "containers": [
+       "azurite:3.35.0",
+       "postgresql:17",
+       "rabbitmq:4.3.2"
+     ],
      "deployment": [
+       "broker-transport",
        "durable-jobs-schema",
        "managed-identity",
        "object-storage",
        "relational-database"
-      ]
+     ]
     },
     "qualityProfile": {
       "id": "composed-provider-admission.operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
@@ -239,13 +281,16 @@
         "conditional-concurrency",
         "live-parity",
         "managed-identity",
+        "manual-acknowledgement",
         "migration",
         "operator-controls",
         "outage",
         "persistent-scheduling",
         "provider-translation",
+        "publisher-confirms",
         "recovery",
         "redaction",
+        "redelivery",
         "reliability",
         "rotation",
         "startup",
@@ -257,14 +302,17 @@
         "conditional-concurrency",
         "live-parity",
         "managed-identity",
+        "manual-acknowledgement",
         "migration",
         "operator-controls",
         "outage",
         "persistent-scheduling",
         "provider-integration",
         "provider-translation",
+        "publisher-confirms",
         "recovery",
         "redaction",
+        "redelivery",
         "release-evidence",
         "reliability",
         "reliability-operations",
@@ -285,6 +333,7 @@
         "selection"
       ],
       "providers": [
+        "broker-transport:rabbitmq",
         "durable-jobs:quartz",
         "object-storage:azure-blob",
         "relational-persistence:postgresql",
@@ -301,8 +350,10 @@
       "capabilities": [
         "relational-persistence",
         "durable-jobs",
+        "reliable-integration-events",
         "secrets",
-        "object-storage"
+        "object-storage",
+        "broker-transport"
       ],
       "providers": [
         {
@@ -313,20 +364,24 @@
           "capability": "durable-jobs",
           "provider": "quartz"
         },
-       {
-         "capability": "secrets",
-         "provider": "azure-key-vault"
-       },
-       {
-         "capability": "object-storage",
-         "provider": "azure-blob"
-       }
+        {
+          "capability": "secrets",
+          "provider": "azure-key-vault"
+        },
+        {
+          "capability": "object-storage",
+          "provider": "azure-blob"
+        },
+        {
+          "capability": "broker-transport",
+          "provider": "rabbitmq"
+        }
       ]
     },
     "verification": {
       "selection": "passed",
       "absence": "passed",
-      "evidenceDigest": "sha256:39dcea2aa47952d6e855337019bc82b51959692302bf900c9b37da9067e4aae2"
+      "evidenceDigest": "sha256:af37cc0022d740862fd58b6f42321ccb964092c688d1e37896712a51d6b7691c"
     },
     "supportClaims": []
   },

@@ -103,6 +103,9 @@ function parseCliArguments(argumentsList) {
       case "--relational-provider":
         options.relationalProvider = value;
         break;
+      case "--broker-provider":
+        options.brokerProvider = value;
+        break;
       case "--ui":
       case "--ui-provider":
       case "--application-ui-provider":
@@ -155,6 +158,7 @@ export async function runModularMonolithCli(
         "       --module <BusinessModule> [--module <BusinessModule> ...]",
         "       [--module-dependency <Consumer>:<Provider>[,<Provider>...]]",
         "       [--relational-provider postgresql|sqlserver] [--dry-run]",
+        "       [--broker-provider rabbitmq]",
         "       [--authentication-profile <profile>]",
         "       [--preset full-stack --ui-provider blazor-webapp|react|vue]",
         "       [--default-culture <BCP-47>] [--rendering-profile application|hybrid-web]",

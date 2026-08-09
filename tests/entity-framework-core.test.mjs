@@ -167,3 +167,16 @@ test("the EF Core package exposes only the admitted persistence policy surface",
     /IOutboxStore|InMemoryOutboxStore|IIntegrationEventHandler/,
   );
 });
+
+test("reliable-events exposes a provider-neutral transport seam", async () => {
+  const transport = await readPackageFile(
+    "ReliableEvents",
+    "IReliableEventsTransport.cs",
+  );
+
+  assert.match(transport, /public interface IReliableEventsTransport/);
+  assert.match(transport, /PublishAsync/);
+  assert.match(transport, /ConsumeAsync/);
+  assert.match(transport, /ReliableEventDeliveryOutcome/);
+  assert.doesNotMatch(transport, /RabbitMQ|RabbitMq/);
+});
