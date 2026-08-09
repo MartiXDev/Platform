@@ -39,8 +39,7 @@ public sealed class RabbitMqTransportOptions
     /// <summary>Validates provider, topology, and bounded operational settings.</summary>
     public void Validate()
     {
-        ValidateSettings();
-        _ = NormalizeSubscriptions(Subscriptions);
+        _ = GetNormalizedSubscriptions();
     }
 
     internal IReadOnlyList<string> GetNormalizedSubscriptions()
@@ -49,7 +48,7 @@ public sealed class RabbitMqTransportOptions
         return NormalizeSubscriptions(Subscriptions);
     }
 
-    internal string GetConfiguredSubscription(string subscription)
+    internal string NormalizeConfiguredSubscription(string subscription)
     {
         var normalized = NormalizeSubscription(subscription);
         if (!GetNormalizedSubscriptions().Contains(
@@ -57,7 +56,7 @@ public sealed class RabbitMqTransportOptions
                 StringComparer.Ordinal))
         {
             throw new InvalidOperationException(
-                $"RabbitMQ subscription '{normalized}' is not configured.");
+                "RabbitMQ subscription is not configured.");
         }
 
         return normalized;

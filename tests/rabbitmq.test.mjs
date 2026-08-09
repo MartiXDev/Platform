@@ -14,26 +14,35 @@ async function readPackageFile(name) {
   return readFile(join(packageRoot, name), "utf8");
 }
 
-test("RabbitMQ adapter normalizes routing and cleans up host-owned resources", async () => {
-  const [options, topology, connectionManager, registration, transport] =
-    await Promise.all([
-      readPackageFile("RabbitMqTransportOptions.cs"),
-      readPackageFile("RabbitMqTopology.cs"),
-      readPackageFile("RabbitMqConnectionManager.cs"),
-      readPackageFile("RabbitMqReliableEventsRegistration.cs"),
-      readPackageFile("RabbitMqReliableEventsTransport.cs"),
-    ]);
+async function readPackageFiles(names) {
+  return Promise.all(names.map((name) => readPackageFile(name)));
+}
+
+test("RabbitMQ adapter centralizes subscription normalization", async () => {
+  const [options, topology, transport] = await readPackageFiles([
+    "RabbitMqTransportOptions.cs",
+    "RabbitMqTopology.cs",
+    "RabbitMqReliableEventsTransport.cs",
+  ]);
 
   assert.match(options, /GetNormalizedSubscriptions/);
-  assert.match(options, /GetConfiguredSubscription/);
+  assert.match(options, /NormalizeConfiguredSubscription/);
   assert.match(options, /Encoding\.UTF8\.GetByteCount/);
   assert.match(options, /Contains\('\*'\)|Contains\('#'\)/);
   assert.match(topology, /options\.GetNormalizedSubscriptions\(\)/);
   assert.match(transport, /options\.GetNormalizedSubscriptions\(\)/);
-  assert.match(transport, /options\.GetConfiguredSubscription/);
+  assert.match(transport, /NormalizeDeliverySubscription/);
+});
+
+test("RabbitMQ adapter validates composition and cleans up host-owned resources", async () => {
+  const [connectionManager, registration] = await readPackageFiles([
+    "RabbitMqConnectionManager.cs",
+    "RabbitMqReliableEventsRegistration.cs",
+  ]);
+
   assert.match(
     connectionManager,
-    /CreateChannelAsync[\s\S]*catch[\s\S]*connection\.DisposeAsync/,
+    /CreateChannelOnConnectionAsync[\s\S]*connection\.DisposeAsync/,
   );
   assert.match(registration, /services\.AddReliableEvents\(\)/);
   assert.match(registration, /callbacks\.ClaimAsync/);
@@ -54,15 +63,15 @@ test("RabbitMQ adapter pins the provider and preserves durable transport boundar
     registration,
     diagnostics,
   ] =
-    await Promise.all([
-      readPackageFile("MartiX.Platform.IntegrationEvents.RabbitMq.csproj"),
-      readPackageFile("RabbitMqTransportOptions.cs"),
-      readPackageFile("RabbitMqTopology.cs"),
-      readPackageFile("RabbitMqEnvelopeSerializer.cs"),
-      readPackageFile("RabbitMqConnectionManager.cs"),
-      readPackageFile("RabbitMqReliableEventsTransport.cs"),
-      readPackageFile("RabbitMqReliableEventsRegistration.cs"),
-      readPackageFile("RabbitMqTransportDiagnostics.cs"),
+    await readPackageFiles([
+      "MartiX.Platform.IntegrationEvents.RabbitMq.csproj",
+      "RabbitMqTransportOptions.cs",
+      "RabbitMqTopology.cs",
+      "RabbitMqEnvelopeSerializer.cs",
+      "RabbitMqConnectionManager.cs",
+      "RabbitMqReliableEventsTransport.cs",
+      "RabbitMqReliableEventsRegistration.cs",
+      "RabbitMqTransportDiagnostics.cs",
     ]);
 
   assert.match(project, /PackageId>MartiX\.Platform\.IntegrationEvents\.RabbitMq/);

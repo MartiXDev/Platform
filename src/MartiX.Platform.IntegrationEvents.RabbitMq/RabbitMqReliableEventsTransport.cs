@@ -39,13 +39,8 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(delivery);
-        var subscription = options.GetConfiguredSubscription(delivery.SubscriptionId);
-        var publishedDelivery = string.Equals(
-                delivery.SubscriptionId,
-                subscription,
-                StringComparison.Ordinal)
-            ? delivery
-            : delivery with { SubscriptionId = subscription };
+        var publishedDelivery = NormalizeDeliverySubscription(delivery);
+        var subscription = publishedDelivery.SubscriptionId;
         await using var lease = await connections
             .CreateChannelAsync(publisherConfirms: true, cancellationToken)
             .ConfigureAwait(false);
@@ -198,8 +193,8 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
                 throw new InvalidOperationException(
                     "RabbitMQ delivered an empty reliable-event subscription.");
             }
-            var subscription = options.GetConfiguredSubscription(
-                delivery.SubscriptionId);
+            delivery = NormalizeDeliverySubscription(delivery);
+            var subscription = delivery.SubscriptionId;
             if (!string.Equals(
                     args.RoutingKey,
                     subscription,
@@ -207,13 +202,6 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
             {
                 throw new InvalidOperationException(
                     "RabbitMQ routing key did not match the reliable-event subscription.");
-            }
-            if (!string.Equals(
-                    delivery.SubscriptionId,
-                    subscription,
-                    StringComparison.Ordinal))
-            {
-                delivery = delivery with { SubscriptionId = subscription };
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -268,6 +256,19 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
                 exception.GetType().Name);
             await RequeueAsync(channel, args.DeliveryTag).ConfigureAwait(false);
         }
+    }
+
+    private ReliableEventDelivery NormalizeDeliverySubscription(
+        ReliableEventDelivery delivery)
+    {
+        var subscription = options.NormalizeConfiguredSubscription(
+            delivery.SubscriptionId);
+        return string.Equals(
+                delivery.SubscriptionId,
+                subscription,
+                StringComparison.Ordinal)
+            ? delivery
+            : delivery with { SubscriptionId = subscription };
     }
 
     private async Task RequeueAsync(IChannel channel, ulong deliveryTag)
