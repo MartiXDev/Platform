@@ -43,26 +43,19 @@ public sealed record SessionState(
 public sealed class ServerSessionAuthenticationStateProvider
     : AuthenticationStateProvider, IApiCredentialProvider
 {
-    private readonly IHttpContextAccessor httpContextAccessor;
     private SessionState session = SessionState.Anonymous;
 
     public ServerSessionAuthenticationStateProvider(
         IHttpContextAccessor httpContextAccessor)
     {
-        this.httpContextAccessor = httpContextAccessor ??
-            throw new ArgumentNullException(nameof(httpContextAccessor));
+        ArgumentNullException.ThrowIfNull(httpContextAccessor);
         session = SessionState.FromPrincipal(httpContextAccessor.HttpContext?.User);
     }
 
     public SessionState Current => session;
 
-    public override Task<AuthenticationState> GetAuthenticationStateAsync()
-    {
-        var current = session.Kind == SessionStateKind.Anonymous
-            ? SessionState.FromPrincipal(httpContextAccessor.HttpContext?.User)
-            : session;
-        return Task.FromResult(new AuthenticationState(CreatePrincipal(current)));
-    }
+    public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+        Task.FromResult(new AuthenticationState(CreatePrincipal(session)));
 
     public void Publish(SessionState next)
     {

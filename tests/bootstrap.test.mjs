@@ -145,6 +145,36 @@ test("Full Stack verification rejects a Blazor client with an incorrect HTTP met
   });
 });
 
+test("Full Stack verification requires normalized Blazor API failures", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const clientPath = fullStackFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.FullStackTestApp.Web",
+      "Platform",
+      "Api",
+      "GeneratedClient.cs",
+    );
+    const client = await readFile(clientPath, "utf8");
+    await writeFile(
+      clientPath,
+      client.replace(
+        `        catch (JsonException)
+        {
+            // Keep malformed error payloads on the canonical failure path.
+        }
+`,
+        "",
+      ),
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Full Stack UI sources must expose transport, session, authorization, accessibility, localization, theme, and browser contract evidence/,
+    );
+  });
+});
+
 test("Full Stack verification rejects a Blazor client missing an OpenAPI parameter", async () => {
   await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const contractPath = fullStackFixturePath(

@@ -423,6 +423,43 @@ test("Blazor Full Stack emits a server-owned Fluent UI composition boundary", as
   }
 });
 
+test("Blazor Full Stack normalizes malformed errors and keeps circuit session state local", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    await generateFullStackPreset({
+      ...baseOptions,
+      uiProvider: "blazor-webapp",
+      outputDirectory: join(root, "generated"),
+    });
+    const webRoot = join(
+      root,
+      "generated",
+      "src",
+      "MartiX.Portal.Web",
+    );
+    const generatedClient = await readFile(
+      join(webRoot, "Platform", "Api", "GeneratedClient.cs"),
+      "utf8",
+    );
+    const session = await readFile(
+      join(webRoot, "Platform", "Session", "Session.cs"),
+      "utf8",
+    );
+    const getAuthenticationState = session.match(
+      /    public override Task<AuthenticationState> GetAuthenticationStateAsync\(\)[\s\S]*?(?=    public void Publish)/,
+    )?.[0];
+
+    assert.match(generatedClient, /ProblemDetails\? problem = null;/);
+    assert.match(generatedClient, /catch \(JsonException\)/);
+    assert.ok(getAuthenticationState);
+    assert.match(getAuthenticationState, /CreatePrincipal\(session\)/);
+    assert.doesNotMatch(getAuthenticationState, /HttpContext/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Blazor hybrid rendering keeps public routes static and private state interactive", async () => {
   const root = await createTemporaryDirectory();
 
