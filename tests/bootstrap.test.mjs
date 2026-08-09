@@ -94,7 +94,7 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
 });
 
-test("the named Full Stack fixture exercises the Vue provider", async () => {
+test("the named Full Stack fixture exercises the Blazor provider", async () => {
   const manifest = JSON.parse(
     await readFile(
       fullStackFixturePath(repositoryRoot, "martix.platform.json"),
@@ -102,11 +102,11 @@ test("the named Full Stack fixture exercises the Vue provider", async () => {
     ),
   );
 
-  assert.equal(manifest.ui.provider, "vue");
+  assert.equal(manifest.ui.provider, "blazor-webapp");
   assert.deepEqual(
     manifest.providers.filter(({ capability }) => capability === "application-ui"),
     [{
-      id: "vue",
+      id: "blazor-webapp",
       capability: "application-ui",
       state: "selected",
     }],
@@ -138,24 +138,7 @@ test("Full Stack verification rejects UI contract version drift", async () => {
   });
 });
 
-test("Full Stack verification rejects UI package-manager drift", async () => {
-  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
-    const packagePath = fullStackFixturePath(
-      temporaryRoot,
-      "package.json",
-    );
-    const packageJson = JSON.parse(await readFile(packagePath, "utf8"));
-    packageJson.packageManager = "npm@11.0.0";
-    await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
-
-    await assert.rejects(
-      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
-      /reviewed toolchain.*pnpm supply-chain profiles/i,
-    );
-  });
-});
-
-test("Full Stack verification rejects a client that omits an HTTP method", async () => {
+test("Full Stack verification rejects a Blazor client with an incorrect HTTP method", async () => {
   await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const clientPath = fullStackFixturePath(
       temporaryRoot,
@@ -163,13 +146,45 @@ test("Full Stack verification rejects a client that omits an HTTP method", async
       "MartiX.FullStackTestApp.Web",
       "Platform",
       "Api",
-      "generated.ts",
+      "GeneratedClient.cs",
     );
     const client = await readFile(clientPath, "utf8");
     await writeFile(
       clientPath,
-      client.replace("    get: {", "    post: {"),
+      client.replace(
+        "HttpMethod.Get,\n            \"/api/v1/orders/status\"",
+        "HttpMethod.Post,\n            \"/api/v1/orders/status\"",
+      ),
     );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /generated UI client must expose every operation/,
+    );
+  });
+});
+
+test("Full Stack verification rejects a Blazor client missing an OpenAPI parameter", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const contractPath = fullStackFixturePath(
+      temporaryRoot,
+      "contracts",
+      "openapi-v1.json",
+    );
+    const contract = JSON.parse(await readFile(contractPath, "utf8"));
+    const operation = contract.paths["/api/v1/orders/status"].get;
+    operation.parameters = [
+      {
+        name: "cursor",
+        in: "query",
+        required: true,
+        schema: { type: "string" },
+      },
+    ];
+    operation["x-client"].queryParameters = [
+      { name: "cursor", type: "string" },
+    ];
+    await writeFile(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
 
     await assert.rejects(
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),

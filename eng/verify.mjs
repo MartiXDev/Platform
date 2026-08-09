@@ -34,6 +34,7 @@ import {
   FULL_STACK_UI_PACKAGE_MANAGER,
   FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS,
   FULL_STACK_UI_PROVIDERS,
+  FULL_STACK_UI_RENDERING_PROFILE_CLAIMS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
   FULL_STACK_UI_THEMES,
@@ -102,32 +103,22 @@ const FULL_STACK_UI_INPUTS = [
     (evidenceName) =>
       `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/${evidenceName}.md`,
   ),
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.vue`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.razor`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/generated.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/openapi.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/transport.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Authorization/authorization.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/GeneratedClient.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/Transport.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Authorization/Authorization.cs`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/en-US.json`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/messages.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Navigation/router.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Runtime/config.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Session/session.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/DesignContract.css`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/themes.css`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/index.html`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/package.json`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/public/ui-config.json`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/scripts/verify-generated-client.mjs`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tsconfig.json`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tests/ui-capability-contract.test.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vite.config.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vitest.config.ts`,
-  `${FULL_STACK_SOLUTION_ROOT}/package.json`,
-  `${FULL_STACK_SOLUTION_ROOT}/.npmrc`,
-  `${FULL_STACK_SOLUTION_ROOT}/pnpm-lock.yaml`,
-  `${FULL_STACK_SOLUTION_ROOT}/pnpm-workspace.yaml`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/Messages.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Runtime/Config.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Session/Session.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/wwwroot/Platform/Ui/DesignContract.css`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/wwwroot/Platform/Ui/themes.css`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Components/Routes.razor`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Components/Routes.razor.css`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/MartiX.FullStackTestApp.Web.csproj`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Program.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/tests/MartiX.FullStackTestApp.Tests/UiCapabilityContractTests.cs`,
 ];
 const AUTHENTICATION_PROFILES = new Map([
   ["none", ["none", "anonymous"]],
@@ -747,6 +738,11 @@ function fullStackBrowserEntryFileName(provider) {
 function fullStackExpectedFiles(manifest) {
   const applicationName = manifest.repository.name;
   const root = `src/${applicationName}.Web`;
+  const isBlazorProvider = manifest.ui.provider === "blazor-webapp";
+  const uiAssetRoot =
+    isBlazorProvider
+      ? `${root}/wwwroot/Platform/Ui`
+      : `${root}/Platform/Ui`;
   const files = [
     ...modularMonolithExpectedFiles(manifest),
     "contracts/ui-capability-v1.json",
@@ -754,30 +750,35 @@ function fullStackExpectedFiles(manifest) {
       (evidenceName) => `evidence/ui/${evidenceName}.md`,
     ),
     `${root}/Platform/Api/README.md`,
-    `${root}/Platform/Api/generated.ts`,
-    `${root}/Platform/Api/openapi.ts`,
-    `${root}/Platform/Api/transport.ts`,
-    `${root}/Platform/Authorization/authorization.ts`,
     `${root}/Platform/Localization/${manifest.ui.defaultCulture}.json`,
-    `${root}/Platform/Runtime/config.ts`,
-    `${root}/Platform/Session/session.ts`,
-    `${root}/Platform/Ui/DesignContract.css`,
-    `${root}/Platform/Ui/themes.css`,
+    `${uiAssetRoot}/DesignContract.css`,
+    `${uiAssetRoot}/themes.css`,
     `${root}/${fullStackApplicationFileName(manifest.ui.provider)}`,
   ];
 
-  if (manifest.ui.provider === "blazor-webapp") {
+  if (isBlazorProvider) {
     files.push(
       `${root}/${applicationName}.Web.csproj`,
       `${root}/Components/Routes.razor`,
+      `${root}/Components/Routes.razor.css`,
       `${root}/Platform/Api/GeneratedClient.cs`,
+      `${root}/Platform/Api/Transport.cs`,
+      `${root}/Platform/Authorization/Authorization.cs`,
       `${root}/Platform/Localization/Messages.cs`,
+      `${root}/Platform/Runtime/Config.cs`,
+      `${root}/Platform/Session/Session.cs`,
       `${root}/Program.cs`,
       `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
     );
   } else {
     files.push(
+      `${root}/Platform/Api/generated.ts`,
+      `${root}/Platform/Api/openapi.ts`,
+      `${root}/Platform/Api/transport.ts`,
+      `${root}/Platform/Authorization/authorization.ts`,
       `${root}/Platform/Localization/messages.ts`,
+      `${root}/Platform/Runtime/config.ts`,
+      `${root}/Platform/Session/session.ts`,
       `${root}/${fullStackBrowserEntryFileName(manifest.ui.provider)}`,
       `${root}/index.html`,
       `${root}/package.json`,
@@ -834,29 +835,106 @@ function generatedClientMatchesHttpContract(source, contract) {
   return digest === expectedDigest;
 }
 
-function generatedClientCoversHttpOperations(source, provider, contract) {
+function generatedBlazorClientMethodSource(source, methodName) {
+  const methodNameStart = source.indexOf(` ${methodName}(`);
+  if (methodNameStart === -1) {
+    return null;
+  }
+
+  const methodStart = source.lastIndexOf("    public ", methodNameStart);
+  if (methodStart === -1) {
+    return null;
+  }
+
+  const memberEnds = [
+    source.indexOf("\n    public ", methodStart + 1),
+    source.indexOf("\n    private ", methodStart + 1),
+  ].filter((index) => index !== -1);
+  const methodEnd =
+    memberEnds.length === 0 ? undefined : Math.min(...memberEnds);
+  return source.slice(methodStart, methodEnd);
+}
+
+function generatedBlazorClientCoversOperation(source, method, operation, path) {
+  const methodName = operation["x-client"]?.methodName;
+  if (typeof methodName !== "string") {
+    return false;
+  }
+
+  const methodSource = generatedBlazorClientMethodSource(source, methodName);
+  if (methodSource === null) {
+    return false;
+  }
+
+  const httpMethod = `HttpMethod.${
+    method[0].toUpperCase() + method.slice(1)
+  }`;
   if (
-    provider !== "blazor-webapp" &&
-    !generatedClientMatchesHttpContract(source, contract)
+    !methodSource.includes(httpMethod) ||
+    !methodSource.includes(`"${path}"`) ||
+    !methodSource.includes("CancellationToken cancellationToken") ||
+    !methodSource.includes("apiTransport.SendAsync") ||
+    !methodSource.includes("response.IsSuccessStatusCode") ||
+    !methodSource.includes("CreateApiExceptionAsync") ||
+    !source.includes("ProblemDetails")
   ) {
     return false;
   }
 
-  return listOpenApiOperations(contract).every(({ method, operation, path }) => {
-    if (provider === "blazor-webapp") {
-      const methodName = operation["x-client"]?.methodName;
-      return (
-        typeof methodName === "string" &&
-        source.includes(`"${path}"`) &&
-        source.includes(`${methodName}(`)
-      );
-    }
+  const client = operation["x-client"] ?? {};
+  const parameterNames = [
+    ...(operation.parameters ?? [])
+      .filter(({ in: location }) =>
+        ["path", "query", "header"].includes(location),
+      )
+      .map(({ name }) => name),
+    ...(client.pathParameters ?? []).map(({ name }) => name),
+    ...(client.queryParameters ?? []).map(({ name }) => name),
+    ...(client.headers ?? []).map(({ name }) => name),
+  ];
+  if (
+    parameterNames.some(
+      (name) =>
+        !methodSource.includes(`("${name}",`) &&
+        !methodSource.includes(`"${name}"`),
+    )
+  ) {
+    return false;
+  }
 
-    const pathBlock = generatedTypeScriptPathBlock(source, path);
-    return (
-      pathBlock !== null &&
-      pathBlock.includes(`\n    ${method}:`)
+  if (operation.requestBody !== undefined) {
+    if (
+      typeof client.bodyType !== "string" ||
+      !methodSource.includes(client.bodyType) ||
+      !methodSource.includes("JsonContent.Create")
+    ) {
+      return false;
+    }
+  }
+
+  const expectedReturnType = client.returnType;
+  const returnSignature =
+    expectedReturnType === null
+      ? `Task ${methodName}(`
+      : `Task<${expectedReturnType}> ${methodName}(`;
+  return methodSource.includes(returnSignature);
+}
+
+function generatedClientCoversHttpOperations(source, provider, contract) {
+  const operations = listOpenApiOperations(contract);
+  if (provider === "blazor-webapp") {
+    return operations.every(({ method, operation, path }) =>
+      generatedBlazorClientCoversOperation(source, method, operation, path),
     );
+  }
+
+  if (!generatedClientMatchesHttpContract(source, contract)) {
+    return false;
+  }
+
+  return operations.every(({ method, path }) => {
+    const pathBlock = generatedTypeScriptPathBlock(source, path);
+    return pathBlock !== null && pathBlock.includes(`\n    ${method}:`);
   });
 }
 
@@ -1337,17 +1415,26 @@ async function validateModularMonolithComposition(
 
   const testProjectPath = `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`;
   const testProject = await readSolutionFile(testProjectPath);
+  const testProjectReferences = [
+    `../../src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    `../../src/${applicationName}.Client/${applicationName}.Client.csproj`,
+    `../../src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
+    ...modules.map(
+      (module) =>
+        `../../${module.project}/${moduleProjectNames.get(module.name)}.csproj`,
+    ),
+  ];
+  if (
+    manifest.preset === "full-stack" &&
+    manifest.ui?.provider === "blazor-webapp"
+  ) {
+    testProjectReferences.push(
+      `../../src/${applicationName}.Web/${applicationName}.Web.csproj`,
+    );
+  }
   validateProjectReferences(
     testProject,
-    [
-      `../../src/${applicationName}.Api/${applicationName}.Api.csproj`,
-      `../../src/${applicationName}.Client/${applicationName}.Client.csproj`,
-      `../../src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
-      ...modules.map(
-        (module) =>
-          `../../${module.project}/${moduleProjectNames.get(module.name)}.csproj`,
-      ),
-    ],
+    testProjectReferences,
     testProjectPath,
   );
   validateExecutableProject(
@@ -1834,6 +1921,7 @@ async function validateFullStackSolution(rootDir, manifest) {
 
   const applicationName = manifest.repository.name;
   const uiRoot = `src/${applicationName}.Web`;
+  const isBlazorProvider = manifest.ui.provider === "blazor-webapp";
   const readSolutionFile = (relativePath) =>
     readFile(resolve(solutionRoot, relativePath), "utf8");
   const uiContract = JSON.parse(
@@ -1878,6 +1966,13 @@ async function validateFullStackSolution(rootDir, manifest) {
     uiContract.theme?.tokens !== "semantic" ||
     JSON.stringify(uiContract.theme?.modes) !==
       JSON.stringify(["light", "dark", "system"]) ||
+    uiContract.rendering?.profile !== manifest.ui.renderingProfile ||
+    JSON.stringify(uiContract.rendering?.claims) !==
+      JSON.stringify(
+        FULL_STACK_UI_RENDERING_PROFILE_CLAIMS[
+          manifest.ui.renderingProfile
+        ],
+      ) ||
     JSON.stringify(uiContract.evidence) !==
       JSON.stringify(FULL_STACK_UI_EVIDENCE)
   ) {
@@ -1924,24 +2019,34 @@ async function validateFullStackSolution(rootDir, manifest) {
   }
 
   const transportSource = await readSolutionFile(
-    `${uiRoot}/Platform/Api/transport.ts`,
+    isBlazorProvider
+      ? `${uiRoot}/Platform/Api/Transport.cs`
+      : `${uiRoot}/Platform/Api/transport.ts`,
   );
   const sessionSource = await readSolutionFile(
-    `${uiRoot}/Platform/Session/session.ts`,
+    isBlazorProvider
+      ? `${uiRoot}/Platform/Session/Session.cs`
+      : `${uiRoot}/Platform/Session/session.ts`,
   );
   const authorizationSource = await readSolutionFile(
-    `${uiRoot}/Platform/Authorization/authorization.ts`,
+    isBlazorProvider
+      ? `${uiRoot}/Platform/Authorization/Authorization.cs`
+      : `${uiRoot}/Platform/Authorization/authorization.ts`,
   );
+  const uiAssetRoot =
+    isBlazorProvider
+      ? `${uiRoot}/wwwroot/Platform/Ui`
+      : `${uiRoot}/Platform/Ui`;
   const designSource = await readSolutionFile(
-    `${uiRoot}/Platform/Ui/DesignContract.css`,
+    `${uiAssetRoot}/DesignContract.css`,
   );
-  const themeSource = await readSolutionFile(`${uiRoot}/Platform/Ui/themes.css`);
+  const themeSource = await readSolutionFile(`${uiAssetRoot}/themes.css`);
   const localizationSource =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? await readSolutionFile(`${uiRoot}/Platform/Localization/Messages.cs`)
       : await readSolutionFile(`${uiRoot}/Platform/Localization/messages.ts`);
   const generatedClientSource =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? await readSolutionFile(`${uiRoot}/Platform/Api/GeneratedClient.cs`)
       : await readSolutionFile(`${uiRoot}/Platform/Api/generated.ts`);
   if (
@@ -1956,7 +2061,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     );
   }
   const browserTestSource =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? await readSolutionFile(
           `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
         )
@@ -1966,17 +2071,47 @@ async function validateFullStackSolution(rootDir, manifest) {
       ? ""
       : await readSolutionFile(`${uiRoot}/scripts/verify-generated-client.mjs`);
 
+  let transportContractValid;
+  if (isBlazorProvider) {
+    transportContractValid =
+      transportSource.includes("HttpClient") &&
+      transportSource.includes("If-Match") &&
+      transportSource.includes("Idempotency-Key") &&
+      transportSource.includes("traceparent") &&
+      transportSource.includes("IApiCredentialProvider") &&
+      transportSource.includes("RetrySafeRead") &&
+      transportSource.includes("ResponseHeadersRead") &&
+      transportSource.includes("HttpRequestException") &&
+      transportSource.includes("CloneSafeReadRequest") &&
+      generatedClientSource.includes("apiTransport.SendAsync");
+  } else {
+    transportContractValid =
+      transportSource.includes('credentials: "include"') &&
+      transportSource.includes("ProblemDetails") &&
+      transportSource.includes("If-Match") &&
+      transportSource.includes("Idempotency-Key") &&
+      transportSource.includes("traceparent");
+  }
+  let sessionContractValid;
+  if (isBlazorProvider) {
+    sessionContractValid =
+      sessionSource.includes("AuthenticationStateProvider") &&
+      sessionSource.includes("server") &&
+      sessionSource.includes("Publish") &&
+      sessionSource.includes("IHttpContextAccessor") &&
+      !sessionSource.includes("localStorage");
+  } else {
+    sessionContractValid = sessionSource.includes('credentials: "include"');
+  }
+  const authorizationContractValid =
+    /anonymous/i.test(authorizationSource) &&
+    /authenticated/i.test(authorizationSource) &&
+    /denied/i.test(authorizationSource) &&
+    /expired/i.test(authorizationSource);
   if (
-    !transportSource.includes('credentials: "include"') ||
-    !transportSource.includes("ProblemDetails") ||
-    !transportSource.includes("If-Match") ||
-    !transportSource.includes("Idempotency-Key") ||
-    !transportSource.includes("traceparent") ||
-    !sessionSource.includes("credentials: \"include\"") ||
-    !authorizationSource.includes("anonymous") ||
-    !authorizationSource.includes("authenticated") ||
-    !authorizationSource.includes("denied") ||
-    !authorizationSource.includes("expired") ||
+    !transportContractValid ||
+    !sessionContractValid ||
+    !authorizationContractValid ||
     !FULL_STACK_UI_MESSAGE_KEYS.every((key) => localizationSource.includes(key)) ||
     !designSource.includes("--mx-color-focus") ||
     !designSource.includes("--mx-color-danger-surface") ||
@@ -2016,8 +2151,12 @@ async function validateFullStackSolution(rootDir, manifest) {
     !browserTestSource.includes("offline") ||
     !browserTestSource.includes("denied") ||
     !browserTestSource.includes("reconnect") ||
-    (manifest.ui.provider !== "blazor-webapp" &&
-      !browserTestSource.includes("getByRole"))
+    (!isBlazorProvider &&
+      !browserTestSource.includes("getByRole")) ||
+    (isBlazorProvider &&
+      (!browserTestSource.includes("BunitContext") ||
+       !browserTestSource.includes("IPage") ||
+       !uiSource.includes("AuthorizeView")))
   ) {
     fail(
       "Full Stack UI sources must expose transport, session, authorization, accessibility, localization, theme, and browser contract evidence.",
@@ -2037,7 +2176,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     }
   }
 
-  if (manifest.ui.provider !== "blazor-webapp") {
+  if (!isBlazorProvider) {
     const packageJson = JSON.parse(
       await readSolutionFile(`${uiRoot}/package.json`),
     );
@@ -2110,12 +2249,63 @@ async function validateFullStackSolution(rootDir, manifest) {
     const project = await readSolutionFile(
       `${uiRoot}/${applicationName}.Web.csproj`,
     );
+    const testProject = await readSolutionFile(
+      `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
+    );
+    const programSource = await readSolutionFile(`${uiRoot}/Program.cs`);
+    const componentCss = await readSolutionFile(
+      `${uiRoot}/Components/Routes.razor.css`,
+    );
+    const appSource = await readSolutionFile(`${uiRoot}/App.razor`);
+    const routesSource = await readSolutionFile(
+      `${uiRoot}/Components/Routes.razor`,
+    );
     if (
       !project.includes('NSwag.ConsoleCore" Version="14.7.1"') ||
+      !project.includes("TargetFramework>net10.0") ||
+      !project.includes("<OutputType>Exe</OutputType>") ||
+      !project.includes("<TreatWarningsAsErrors>true</TreatWarningsAsErrors>") ||
       project.includes("ProjectReference")
     ) {
       fail(
         "Full Stack Blazor UI must use the isolated NSwag client profile without backend project references.",
+      );
+    }
+    if (
+      !project.includes(
+        'Microsoft.FluentUI.AspNetCore.Components" Version="4.14.0"',
+      ) ||
+      !testProject.includes('PackageReference Include="bunit"') ||
+      !testProject.includes(
+        'PackageReference Include="Microsoft.Playwright"',
+      ) ||
+      !testProject.includes(
+        `ProjectReference Include="../../src/${applicationName}.Web/${applicationName}.Web.csproj"`,
+      ) ||
+      !testProject.includes("<OutputType>Exe</OutputType>") ||
+      !testProject.includes('PackageReference Include="TUnit"') ||
+      testProject.includes("Microsoft.NET.Test.Sdk") ||
+      !appSource.includes("FluentDesignTheme") ||
+      !appSource.includes("blazor.web.js") ||
+      !routesSource.includes("FluentButton") ||
+      !routesSource.includes("ApiClient") ||
+      !componentCss.includes(":host") ||
+      !componentCss.includes(".application-shell") ||
+      !componentCss.includes("--neutral-foreground-rest") ||
+      !programSource.includes("AddCascadingAuthenticationState") ||
+      !programSource.includes("UseAntiforgery") ||
+      !programSource.includes("CacheControl = \"no-store\"") ||
+      !programSource.includes("IApiCredentialProvider") ||
+      (manifest.ui.renderingProfile === "application" &&
+        !appSource.includes('<Routes @rendermode="InteractiveServer" />')) ||
+      (manifest.ui.renderingProfile === "hybrid-web" &&
+        (!appSource.includes("<Routes />") ||
+          !routesSource.includes(
+            '<AuthorizeView @rendermode="InteractiveServer">',
+          )))
+    ) {
+      fail(
+        "Full Stack Blazor UI must expose Fluent styling, isolated component CSS, and bUnit/Playwright evidence.",
       );
     }
   }

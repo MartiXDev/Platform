@@ -13,6 +13,7 @@
     <ProjectReference Include="../../src/MartiX.FullStackTestApp.Client/MartiX.FullStackTestApp.Client.csproj" />
     <ProjectReference Include="../../src/MartiX.FullStackTestApp.Migrator/MartiX.FullStackTestApp.Migrator.csproj" />
     <ProjectReference Include="../../src/MartiX.FullStackTestApp.Orders/MartiX.FullStackTestApp.Orders.csproj" />
+    <ProjectReference Include="../../src/MartiX.FullStackTestApp.Web/MartiX.FullStackTestApp.Web.csproj" />
     <PackageReference Include="MartiX.Platform" Version="$(MartiXPlatformVersion)" />
     <PackageReference Include="MartiX.Platform.AspNetCore" Version="$(MartiXPlatformVersion)" />
     <PackageReference Include="MartiX.Platform.Analyzers" Version="$(MartiXPlatformVersion)" PrivateAssets="all" />
@@ -25,5 +26,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.10" />
     <PackageReference Include="TUnit" Version="1.63.0" />
+    <PackageReference Include="bunit" Version="2.9.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.55.0" />
   </ItemGroup>
 </Project>

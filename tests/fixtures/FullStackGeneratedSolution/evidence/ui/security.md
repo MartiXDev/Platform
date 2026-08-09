@@ -1,6 +1,7 @@
 # UI security evidence
 
-Provider: `vue`
+Provider: `blazor-webapp`
+Rendering profile: `application`
 
 The UI uses a same-origin, server-owned session cookie and never stores access
 or refresh credentials in browser persistence. Problem Details are normalized

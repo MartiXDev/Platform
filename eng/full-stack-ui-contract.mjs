@@ -93,6 +93,18 @@ export const FULL_STACK_UI_RENDERING_PROFILES = Object.freeze([
   "hybrid-web",
 ]);
 export const FULL_STACK_DEFAULT_RENDERING_PROFILE = "application";
+export const FULL_STACK_UI_RENDERING_PROFILE_CLAIMS = Object.freeze({
+  application: Object.freeze({
+    serverRendering: "interactive-server-prerendered",
+    publicSeo: "not-guaranteed",
+    privateCaching: "no-store",
+  }),
+  "hybrid-web": Object.freeze({
+    serverRendering: "static-public-interactive-private",
+    publicSeo: "indexable-public-routes-only",
+    privateCaching: "no-store",
+  }),
+});
 
 export const FULL_STACK_UI_THEMES = Object.freeze([
   "light",

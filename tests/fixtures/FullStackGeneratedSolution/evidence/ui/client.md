@@ -1,8 +1,8 @@
 # UI client evidence
 
-Provider: `vue`
+Provider: `blazor-webapp`
+Rendering profile: `application`
 
 The client surface is generated from the checked-in OpenAPI contract, records the
-contract digest, and is composed with the cookie-aware transport adapter. The
-generated-client check rejects stale output; the Full Stack gate verifies required
-operations and transport composition.
+contract digest, and is composed with the server-owned transport adapter. The
+Full Stack gate verifies required operations and transport composition.

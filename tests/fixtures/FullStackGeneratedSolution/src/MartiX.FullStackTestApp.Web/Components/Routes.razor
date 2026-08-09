@@ -1,0 +1,41 @@
+@page "/"
+@namespace MartiX.FullStackTestApp.Web.Components
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.FluentUI.AspNetCore.Components
+@using MartiX.FullStackTestApp.Web.Platform.Api
+@using MartiX.FullStackTestApp.Web.Platform.Localization
+@inject GeneratedClient ApiClient
+@inject ApiTransport Transport
+
+<main class="application-shell" aria-labelledby="application-title">
+    <h1 id="application-title">@Messages.ApplicationTitle</h1>
+    <nav aria-label="@Messages.ApplicationTitle">
+        <FluentButton Appearance="Appearance.Stealth" Type="ButtonType.Button">
+            @Messages.ApplicationTitle
+        </FluentButton>
+    </nav>
+    <AuthorizeView>
+        <Authorizing>
+            <section class="ui-state" data-state="loading" aria-live="polite" role="status">
+                <p>@Messages.Loading</p>
+            </section>
+        </Authorizing>
+        <Authorized>
+            <p class="session-state" data-state="authenticated">@Messages.SessionAuthenticated</p>
+        </Authorized>
+        <NotAuthorized>
+            <p class="session-state" data-state="anonymous">@Messages.SessionAnonymous</p>
+        </NotAuthorized>
+    </AuthorizeView>
+    <section class="ui-state-list" aria-label="@Messages.ApplicationTitle">
+        <p class="ui-state" data-state="empty" hidden>@Messages.Empty</p>
+        <p class="ui-state" data-state="validation" hidden>@Messages.Validation</p>
+        <p class="ui-state" data-state="denied" hidden>@Messages.Denied</p>
+        <p class="ui-state" data-state="expired" hidden>@Messages.SessionExpired</p>
+        <p class="ui-state" data-state="error" hidden>@Messages.Error</p>
+        <p class="ui-state" data-state="offline" hidden>@Messages.Offline</p>
+        <p class="ui-state" data-state="reconnecting" hidden>@Messages.Reconnecting</p>
+        <p class="ui-state" data-state="stale" hidden>@Messages.Stale</p>
+    </section>
+</main>

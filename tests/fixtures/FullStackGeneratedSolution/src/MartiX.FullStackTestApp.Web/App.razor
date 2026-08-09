@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+@namespace MartiX.FullStackTestApp.Web
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using MartiX.FullStackTestApp.Web.Components
+@using Microsoft.FluentUI.AspNetCore.Components
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="Platform/Ui/DesignContract.css" />
+    <link rel="stylesheet" href="Platform/Ui/themes.css" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+<body>
+    <FluentDesignTheme />
+    <Routes @rendermode="InteractiveServer" />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>
