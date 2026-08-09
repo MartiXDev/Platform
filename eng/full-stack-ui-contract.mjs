@@ -60,6 +60,15 @@ export const FULL_STACK_UI_CAPABILITIES = Object.freeze([
   "ui.observability",
 ]);
 
+export const FULL_STACK_UI_EVIDENCE = Object.freeze([
+  "browser",
+  "build",
+  "client",
+  "security",
+  "deployment",
+  "observability",
+]);
+
 export const FULL_STACK_UI_MESSAGE_KEYS = Object.freeze([
   "ui.application.title",
   "ui.state.loading",

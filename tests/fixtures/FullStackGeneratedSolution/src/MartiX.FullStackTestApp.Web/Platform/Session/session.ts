@@ -4,8 +4,36 @@ export type SessionState =
   | { kind: "denied"; reason: "forbidden" }
   | { kind: "expired"; returnPath: string };
 
-export async function readSession(): Promise<SessionState> {
-  const response = await fetch("/auth/session", {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSessionState(value: unknown): value is SessionState {
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    return false;
+  }
+  if (value.kind === "anonymous") {
+    return true;
+  }
+  if (value.kind === "denied") {
+    return value.reason === "forbidden";
+  }
+  if (value.kind === "expired") {
+    return typeof value.returnPath === "string";
+  }
+  return (
+    value.kind === "authenticated" &&
+    isRecord(value.actor) &&
+    typeof value.actor.id === "string" &&
+    Array.isArray(value.permissions) &&
+    value.permissions.every((permission) => typeof permission === "string")
+  );
+}
+
+export async function readSession(
+  fetcher: typeof fetch = fetch,
+): Promise<SessionState> {
+  const response = await fetcher("/auth/session", {
     credentials: "include",
     headers: { Accept: "application/json" },
   });
@@ -16,13 +44,20 @@ export async function readSession(): Promise<SessionState> {
     return { kind: "denied", reason: "forbidden" };
   }
   if (!response.ok) {
-    return { kind: "expired", returnPath: window.location.pathname };
+    return {
+      kind: "expired",
+      returnPath: typeof window === "undefined" ? "/" : window.location.pathname,
+    };
   }
-  return (await response.json()) as SessionState;
+  const session = await response.json();
+  if (!isSessionState(session)) {
+    throw new Error("The server returned an invalid session state.");
+  }
+  return session;
 }
 
-export function signOut(): Promise<Response> {
-  return fetch("/auth/logout", {
+export function signOut(fetcher: typeof fetch = fetch): Promise<Response> {
+  return fetcher("/auth/logout", {
     method: "POST",
     credentials: "include",
     headers: { "X-CSRF": "required" },

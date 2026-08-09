@@ -74,6 +74,7 @@
   "evidence": [
     "browser",
     "build",
+    "client",
     "security",
     "deployment",
     "observability"
