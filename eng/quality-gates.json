@@ -52,6 +52,19 @@
         "modular-monolith.release-evidence"
       ],
       "command": "npm run verify:modular-monolith-alpha"
+    },
+    {
+      "id": "beta-integration",
+      "maturity": "beta",
+      "preset": "platform",
+      "providers": [],
+      "cadences": [
+        "release-candidate"
+      ],
+      "gates": [
+        "beta.integration"
+      ],
+      "command": "npm run verify:beta-integration"
     }
   ],
   "gates": [
@@ -236,6 +249,16 @@
         "release-candidate"
       ],
       "purpose": "The named Quartz Generated Solution proves explicit durable invocation, bounded clustered recovery, operator controls, observable health, and Migrator-owned schema lifecycle while the default fixture remains Quartz-free."
+    },
+    {
+      "id": "beta.integration",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "The named Beta Integration Generated Solution records claim-free risk-based coverage, security and supply-chain review, performance baselines, compatibility inputs, explicit Not Attested scope, and the frozen 1.0 feature/provider boundary."
     },
     {
       "id": "bootstrap.host-baseline",

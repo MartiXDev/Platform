@@ -1,0 +1,879 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/beta-integration.schema.json",
+  "schemaVersion": "1.0.0",
+  "kind": "beta-integration-evidence",
+  "solution": "BetaIntegrationGeneratedSolution",
+  "targetPlatformVersion": "1.0.0-beta.1",
+  "maturity": "beta",
+  "matrix": {
+    "strategy": "risk-based-covering-array",
+    "axes": {
+      "presets": [
+        "api",
+        "modular-monolith",
+        "full-stack"
+      ],
+      "endpointModels": [
+        "minimal-api",
+        "fastendpoints"
+      ],
+      "relationalProviders": [
+        "postgresql",
+        "sqlserver"
+      ],
+      "authenticationProfiles": [
+        "none",
+        "identity:interactive",
+        "oidc:interactive",
+        "oidc:api",
+        "entra:interactive",
+        "entra:api-delegated",
+        "entra:api-application"
+      ],
+      "uiProviders": [
+        "blazor-webapp",
+        "react",
+        "vue"
+      ],
+      "infrastructureProviders": [
+        {
+          "capability": "relational-persistence",
+          "id": "postgresql"
+        },
+        {
+          "capability": "relational-persistence",
+          "id": "sqlserver"
+        },
+        {
+          "capability": "distributed-cache",
+          "id": "valkey"
+        },
+        {
+          "capability": "durable-jobs",
+          "id": "quartz"
+        },
+        {
+          "capability": "broker-transport",
+          "id": "rabbitmq"
+        },
+        {
+          "capability": "object-storage",
+          "id": "azure-blob"
+        },
+        {
+          "capability": "notification-delivery",
+          "id": "mailkit-smtp"
+        },
+        {
+          "capability": "secrets",
+          "id": "azure-key-vault"
+        },
+        {
+          "capability": "feature-management",
+          "id": "microsoft-feature-management"
+        },
+        {
+          "capability": "observability-export",
+          "id": "otlp"
+        }
+      ],
+      "deploymentProfiles": [
+        "process",
+        "oci",
+        "direct",
+        "aspire",
+        "compose"
+      ]
+    },
+    "coverage": {
+      "presets": [
+        {
+          "id": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "tests/api-release.test.mjs",
+            "tests/fixtures/RepositoryBootstrapGeneratedSolution/README.md"
+          ]
+        },
+        {
+          "id": "modular-monolith",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith.test.mjs",
+            "tests/modular-monolith-alpha.test.mjs",
+            "tests/fixtures/ModularMonolithGeneratedSolution/README.md"
+          ]
+        },
+        {
+          "id": "full-stack",
+          "status": "passed",
+          "evidence": [
+            "tests/full-stack-preset.test.mjs",
+            "tests/bootstrap.test.mjs",
+            "tests/fixtures/FullStackGeneratedSolution/README.md"
+          ]
+        }
+      ],
+      "endpointModels": [
+        {
+          "id": "minimal-api",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "tests/api-release.test.mjs"
+          ]
+        },
+        {
+          "id": "fastendpoints",
+          "status": "passed",
+          "evidence": [
+            "tests/fastendpoints.test.mjs",
+            "tests/Compatibility/FastEndpointsAdapterGeneratedSolution/FastEndpointsAdapterContractTests.cs",
+            "eng/verify-fastendpoints.mjs"
+          ]
+        }
+      ],
+      "relationalProviders": [
+        {
+          "id": "postgresql",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith-alpha.test.mjs",
+            "eng/verify-modular-monolith-alpha.mjs"
+          ]
+        },
+        {
+          "id": "sqlserver",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith-alpha.test.mjs",
+            "eng/verify-modular-monolith-alpha.mjs"
+          ]
+        }
+      ],
+      "authenticationProfiles": [
+        {
+          "id": "none",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "tests/modular-monolith.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        },
+        {
+          "id": "identity:interactive",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        },
+        {
+          "id": "oidc:interactive",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "tests/modular-monolith.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        },
+        {
+          "id": "oidc:api",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        },
+        {
+          "id": "entra:interactive",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "tests/modular-monolith.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        },
+        {
+          "id": "entra:api-delegated",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        },
+        {
+          "id": "entra:api-application",
+          "status": "passed",
+          "evidence": [
+            "tests/api-preset.test.mjs",
+            "eng/authentication-profile.mjs"
+          ]
+        }
+      ],
+      "uiProviders": [
+        {
+          "id": "blazor-webapp",
+          "status": "passed",
+          "evidence": [
+            "tests/full-stack-preset.test.mjs",
+            "tests/fixtures/FullStackGeneratedSolution/README.md",
+            "eng/full-stack-ui-contract.mjs"
+          ]
+        },
+        {
+          "id": "react",
+          "status": "passed",
+          "evidence": [
+            "tests/full-stack-preset.test.mjs",
+            "eng/full-stack-ui-contract.mjs"
+          ]
+        },
+        {
+          "id": "vue",
+          "status": "passed",
+          "evidence": [
+            "tests/full-stack-preset.test.mjs",
+            "eng/full-stack-ui-contract.mjs"
+          ]
+        }
+      ],
+      "infrastructureProviders": [
+        {
+          "capability": "relational-persistence",
+          "id": "postgresql",
+          "preset": "modular-monolith",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith-alpha.test.mjs",
+            "eng/provider-admission.mjs"
+          ]
+        },
+        {
+          "capability": "relational-persistence",
+          "id": "sqlserver",
+          "preset": "modular-monolith",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith-alpha.test.mjs",
+            "eng/provider-admission.mjs"
+          ]
+        },
+        {
+          "capability": "distributed-cache",
+          "id": "valkey",
+          "preset": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/valkey-distributed-cache.test.mjs",
+            "tests/fixtures/ValkeyDistributedCacheGeneratedSolution/valkey-conformance.json"
+          ]
+        },
+        {
+          "capability": "durable-jobs",
+          "id": "quartz",
+          "preset": "modular-monolith",
+          "status": "passed",
+          "evidence": [
+            "tests/modular-monolith.test.mjs",
+            "tests/fixtures/QuartzDurableJobsGeneratedSolution/README.md"
+          ]
+        },
+        {
+          "capability": "broker-transport",
+          "id": "rabbitmq",
+          "preset": "modular-monolith",
+          "status": "passed",
+          "evidence": [
+            "tests/rabbitmq.test.mjs",
+            "tests/provider-admission.test.mjs"
+          ]
+        },
+        {
+          "capability": "object-storage",
+          "id": "azure-blob",
+          "preset": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/object-storage.test.mjs",
+            "tests/fixtures/ProviderAdmissionGeneratedSolution/provider-admission.json"
+          ]
+        },
+        {
+          "capability": "notification-delivery",
+          "id": "mailkit-smtp",
+          "preset": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/mailkit-smtp.test.mjs",
+            "tests/fixtures/MailKitSmtpGeneratedSolution/mailkit-smtp.json"
+          ]
+        },
+        {
+          "capability": "secrets",
+          "id": "azure-key-vault",
+          "preset": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/azure-key-vault.test.mjs",
+            "eng/azure-key-vault.mjs"
+          ]
+        },
+        {
+          "capability": "feature-management",
+          "id": "microsoft-feature-management",
+          "preset": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/feature-management.test.mjs",
+            "tests/fixtures/FeatureManagementGeneratedSolution/README.md"
+          ]
+        },
+        {
+          "capability": "observability-export",
+          "id": "otlp",
+          "preset": "api",
+          "status": "passed",
+          "evidence": [
+            "tests/otlp-export.test.mjs",
+            "tests/fixtures/OtlpExportGeneratedSolution/otlp-export.json"
+          ]
+        }
+      ],
+      "deploymentProfiles": [
+        {
+          "id": "process",
+          "status": "passed",
+          "evidence": [
+            "tests/deployment-manifest.test.mjs",
+            "tests/portable-host-conformance.test.mjs",
+            "tests/fixtures/DeploymentManifestGeneratedSolution/deployment-manifest.json"
+          ]
+        },
+        {
+          "id": "oci",
+          "status": "passed",
+          "evidence": [
+            "tests/deployment-manifest.test.mjs",
+            "tests/portable-host-conformance.test.mjs",
+            "tests/fixtures/PortableHostConformanceGeneratedSolution/portable-host-conformance.json"
+          ]
+        },
+        {
+          "id": "direct",
+          "status": "passed",
+          "evidence": [
+            "tests/local-orchestration.test.mjs",
+            "tests/fixtures/LocalOrchestrationGeneratedSolution/orchestration-manifest.json"
+          ]
+        },
+        {
+          "id": "aspire",
+          "status": "passed",
+          "evidence": [
+            "tests/local-orchestration.test.mjs",
+            "tests/fixtures/LocalOrchestrationGeneratedSolution/apphost.cs"
+          ]
+        },
+        {
+          "id": "compose",
+          "status": "passed",
+          "evidence": [
+            "tests/local-orchestration.test.mjs",
+            "tests/fixtures/LocalOrchestrationGeneratedSolution/compose.yaml"
+          ]
+        }
+      ]
+    },
+    "coordinates": [
+      {
+        "id": "api-minimal-none-process",
+        "preset": "api",
+        "endpointModel": "minimal-api",
+        "relationalProvider": null,
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "process",
+          "direct"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/api-preset.test.mjs",
+          "tests/api-release.test.mjs"
+        ]
+      },
+      {
+        "id": "api-minimal-oidc-api-oci",
+        "preset": "api",
+        "endpointModel": "minimal-api",
+        "relationalProvider": null,
+        "authenticationProfile": "oidc:api",
+        "uiProvider": null,
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "oci",
+          "direct"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/api-preset.test.mjs",
+          "eng/authentication-profile.mjs"
+        ]
+      },
+      {
+        "id": "api-fastendpoints-none",
+        "preset": "api",
+        "endpointModel": "fastendpoints",
+        "relationalProvider": null,
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "process",
+          "oci"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/fastendpoints.test.mjs",
+          "eng/verify-fastendpoints.mjs"
+        ]
+      },
+      {
+        "id": "modular-monolith-postgresql-identity",
+        "preset": "modular-monolith",
+        "endpointModel": "minimal-api",
+        "relationalProvider": "postgresql",
+        "authenticationProfile": "identity:interactive",
+        "uiProvider": null,
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "process",
+          "direct"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/modular-monolith.test.mjs",
+          "tests/modular-monolith-alpha.test.mjs"
+        ]
+      },
+      {
+        "id": "modular-monolith-sqlserver-none",
+        "preset": "modular-monolith",
+        "endpointModel": "minimal-api",
+        "relationalProvider": "sqlserver",
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "process",
+          "oci"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/modular-monolith-alpha.test.mjs",
+          "eng/verify-modular-monolith-alpha.mjs"
+        ]
+      },
+      {
+        "id": "full-stack-blazor-postgresql-none",
+        "preset": "full-stack",
+        "endpointModel": "minimal-api",
+        "relationalProvider": "postgresql",
+        "authenticationProfile": "none",
+        "uiProvider": "blazor-webapp",
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "process",
+          "oci",
+          "direct",
+          "aspire",
+          "compose"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/full-stack-preset.test.mjs",
+          "tests/fixtures/FullStackGeneratedSolution/README.md"
+        ]
+      },
+      {
+        "id": "full-stack-react-postgresql-oidc",
+        "preset": "full-stack",
+        "endpointModel": "minimal-api",
+        "relationalProvider": "postgresql",
+        "authenticationProfile": "oidc:interactive",
+        "uiProvider": "react",
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "process",
+          "direct"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/full-stack-preset.test.mjs",
+          "eng/full-stack-ui-contract.mjs"
+        ]
+      },
+      {
+        "id": "full-stack-vue-sqlserver-entra",
+        "preset": "full-stack",
+        "endpointModel": "minimal-api",
+        "relationalProvider": "sqlserver",
+        "authenticationProfile": "entra:interactive",
+        "uiProvider": "vue",
+        "infrastructureProviders": [],
+        "deploymentProfiles": [
+          "oci",
+          "compose"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/full-stack-preset.test.mjs",
+          "eng/full-stack-ui-contract.mjs"
+        ]
+      },
+      {
+        "id": "api-valkey",
+        "preset": "api",
+        "endpointModel": "minimal-api",
+        "relationalProvider": null,
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [
+          {
+            "capability": "distributed-cache",
+            "id": "valkey"
+          }
+        ],
+        "deploymentProfiles": [
+          "process",
+          "oci"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/valkey-distributed-cache.test.mjs",
+          "tests/fixtures/ValkeyDistributedCacheGeneratedSolution/valkey-conformance.json"
+        ]
+      },
+      {
+        "id": "modular-monolith-quartz-rabbitmq",
+        "preset": "modular-monolith",
+        "endpointModel": "minimal-api",
+        "relationalProvider": "postgresql",
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [
+          {
+            "capability": "durable-jobs",
+            "id": "quartz"
+          },
+          {
+            "capability": "broker-transport",
+            "id": "rabbitmq"
+          }
+        ],
+        "deploymentProfiles": [
+          "process",
+          "oci"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/modular-monolith.test.mjs",
+          "tests/rabbitmq.test.mjs"
+        ]
+      },
+      {
+        "id": "api-blob-keyvault",
+        "preset": "api",
+        "endpointModel": "minimal-api",
+        "relationalProvider": null,
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [
+          {
+            "capability": "object-storage",
+            "id": "azure-blob"
+          },
+          {
+            "capability": "secrets",
+            "id": "azure-key-vault"
+          }
+        ],
+        "deploymentProfiles": [
+          "process",
+          "oci"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/object-storage.test.mjs",
+          "tests/azure-key-vault.test.mjs"
+        ]
+      },
+      {
+        "id": "api-mailkit-feature-otlp",
+        "preset": "api",
+        "endpointModel": "minimal-api",
+        "relationalProvider": null,
+        "authenticationProfile": "none",
+        "uiProvider": null,
+        "infrastructureProviders": [
+          {
+            "capability": "notification-delivery",
+            "id": "mailkit-smtp"
+          },
+          {
+            "capability": "feature-management",
+            "id": "microsoft-feature-management"
+          },
+          {
+            "capability": "observability-export",
+            "id": "otlp"
+          }
+        ],
+        "deploymentProfiles": [
+          "process",
+          "direct"
+        ],
+        "status": "passed",
+        "evidence": [
+          "tests/mailkit-smtp.test.mjs",
+          "tests/feature-management.test.mjs",
+          "tests/otlp-export.test.mjs"
+        ]
+      }
+    ],
+    "invalidCombinations": [
+      {
+        "id": "fastendpoints-trim",
+        "combination": "api/fastendpoints/trim",
+        "outcome": "invalid",
+        "reason": "FastEndpoints reflection discovery is not declared for the beta trim profile.",
+        "evidence": [
+          "tests/fastendpoints.test.mjs",
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md"
+        ]
+      },
+      {
+        "id": "fastendpoints-native-aot",
+        "combination": "api/fastendpoints/native-aot",
+        "outcome": "invalid",
+        "reason": "FastEndpoints Native AOT support remains undeclared until generated discovery evidence exists.",
+        "evidence": [
+          "tests/fastendpoints.test.mjs",
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md"
+        ]
+      }
+    ]
+  },
+  "notAttested": [
+    {
+      "id": "active24",
+      "state": "not-attested",
+      "maturity": "planned",
+      "reason": "Active24-specific VPS evidence is unavailable for this beta gate.",
+      "reentryTrigger": "Run the portable-host profile with pinned provider evidence and failure tests."
+    },
+    {
+      "id": "native-mobile",
+      "state": "not-attested",
+      "maturity": "parked",
+      "reason": "Native Android and iOS remain a future optional consumer with no generated Capability.",
+      "reentryTrigger": "Admit a concrete mobile consumer and complete its independent threat, identity, and deployment matrix."
+    }
+  ],
+  "performance": {
+    "status": "recorded",
+    "baselineVersion": "1.0.0-beta.1",
+    "runner": {
+      "id": "controlled-reference-linux-x64",
+      "os": "linux",
+      "runtime": "net10.0",
+      "architecture": "x64"
+    },
+    "noiseFloorRuns": 5,
+    "baselines": [
+      {
+        "id": "generation-to-healthy-host",
+        "signal": "generation-to-healthy-host",
+        "unit": "minutes",
+        "value": 5,
+        "budget": {
+          "kind": "absolute",
+          "maximum": 5
+        },
+        "evidence": [
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md",
+          "docs/architecture/quality-and-release.md"
+        ]
+      },
+      {
+        "id": "controlled-host-p50",
+        "signal": "controlled-host-p50",
+        "unit": "relative-index",
+        "value": 100,
+        "budget": {
+          "kind": "relative",
+          "regressionPercent": 5
+        },
+        "evidence": [
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md"
+        ]
+      },
+      {
+        "id": "controlled-host-p99",
+        "signal": "controlled-host-p99",
+        "unit": "relative-index",
+        "value": 100,
+        "budget": {
+          "kind": "relative",
+          "regressionPercent": 10
+        },
+        "evidence": [
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md"
+        ]
+      },
+      {
+        "id": "controlled-host-throughput",
+        "signal": "controlled-host-throughput",
+        "unit": "relative-index",
+        "value": 100,
+        "budget": {
+          "kind": "relative",
+          "regressionPercent": 5
+        },
+        "evidence": [
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md"
+        ]
+      },
+      {
+        "id": "published-artifact-size",
+        "signal": "published-artifact-size",
+        "unit": "relative-index",
+        "value": 100,
+        "budget": {
+          "kind": "relative",
+          "regressionPercent": 10
+        },
+        "evidence": [
+          "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md"
+        ]
+      }
+    ]
+  },
+  "reviews": [
+    {
+      "id": "threat-model",
+      "status": "complete",
+      "scope": "authentication, authorization, tenant and secret boundaries, outbound integrations, deployment, and agent hostile-input surfaces",
+      "evidence": [
+        "docs/architecture/quality-and-release.md",
+        "docs/wayfinder/martix-platform/tickets/111-security-observability-baseline.md",
+        "docs/wayfinder/martix-platform/tickets/103-define-quality-attributes.md"
+      ]
+    },
+    {
+      "id": "supply-chain",
+      "status": "complete",
+      "scope": "pinned package and UI toolchains, provider admission, license/provenance inputs, SBOM, and generated artifact integrity",
+      "evidence": [
+        "docs/architecture/quality-and-release.md",
+        "docs/wayfinder/martix-platform/tickets/113-quality-gates.md",
+        "docs/wayfinder/martix-platform/tickets/119-infrastructure-provider-catalog.md"
+      ]
+    }
+  ],
+  "changeFragments": [
+    {
+      "path": "docs/changes/20260809-beta-integration-scope-freeze.md",
+      "impact": "minor",
+      "migration": "none",
+      "status": "reconciled"
+    }
+  ],
+  "compatibility": {
+    "status": "recorded",
+    "inputs": [
+      {
+        "id": "presets-and-providers",
+        "status": "included",
+        "evidence": [
+          "tests/api-preset.test.mjs",
+          "tests/modular-monolith.test.mjs",
+          "tests/full-stack-preset.test.mjs",
+          "tests/provider-admission.test.mjs"
+        ]
+      },
+      {
+        "id": "packages-and-public-api",
+        "status": "included",
+        "evidence": [
+          "tests/api-release.test.mjs",
+          "tests/kernel.test.mjs",
+          "tests/fastendpoints.test.mjs"
+        ]
+      },
+      {
+        "id": "deployment-and-hosts",
+        "status": "included",
+        "evidence": [
+          "tests/deployment-manifest.test.mjs",
+          "tests/portable-host-conformance.test.mjs",
+          "tests/local-orchestration.test.mjs"
+        ]
+      },
+      {
+        "id": "platform-migration",
+        "status": "included",
+        "evidence": [
+          "tests/platform-migration.test.mjs",
+          "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json"
+        ]
+      },
+      {
+        "id": "ui-providers",
+        "status": "included",
+        "evidence": [
+          "tests/full-stack-preset.test.mjs",
+          "eng/full-stack-ui-contract.mjs"
+        ]
+      },
+      {
+        "id": "agent-context",
+        "status": "included",
+        "evidence": [
+          "tests/agent-readiness.test.mjs",
+          "eng/agent-context.mjs",
+          "schemas/agent-context.schema.json"
+        ]
+      }
+    ]
+  },
+  "scopeFreeze": {
+    "status": "frozen",
+    "version": "1.0",
+    "allowedPostFreezeChanges": [
+      "defect",
+      "evidence-gap",
+      "release-blocker"
+    ],
+    "prohibitedPostFreezeChanges": [
+      "feature",
+      "provider"
+    ],
+    "decision": "The 1.0 Capability and public-contract scope is frozen at Beta; later work may only repair defects, close evidence gaps, or remove release blockers."
+  },
+  "supportClaims": [],
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "command": "npm run verify:beta-integration",
+    "failClosed": true,
+    "requiredGates": [
+      "beta.integration"
+    ],
+    "matrixDigest": "sha256:e75b39b9e06b3d56de7fce35bed94e54ebff51ed04bf9c4847f3f9ea6eccde27",
+    "evidenceDigest": "sha256:30a8c44e47fe2f0e85162146283c3a315ea12593c9e7c2c814d0786e532e3fb5"
+  }
+}

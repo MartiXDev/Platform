@@ -78,6 +78,12 @@ import {
   ObjectStorageEvidenceError,
   verifyAzureBlobObjectStorageEvidence,
 } from "./object-storage.mjs";
+import {
+  BETA_INTEGRATION_SOLUTION_NAME,
+  BETA_INTEGRATION_SOLUTION_ROOT,
+  BetaIntegrationError,
+  verifyBetaIntegrationFixture,
+} from "./beta-integration.mjs";
 
 const CADENCES = [
   "fast",
@@ -197,6 +203,8 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.agent-readiness",
 ];
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
+const BETA_INTEGRATION_PROFILE_ID = "beta-integration";
+const BETA_INTEGRATION_GATE_IDS = Object.freeze(["beta.integration"]);
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
   "kind",
@@ -258,6 +266,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   "schemas/agent-context.schema.json",
   "schemas/quality-gates.schema.json",
   "eng/quality-gates.json",
+  "schemas/beta-integration.schema.json",
   "eng/agent-context.mjs",
   "eng/agent-readiness.mjs",
   "skills/martix-platform/SKILL.md",
@@ -272,6 +281,11 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${GENERATED_SOLUTION_ROOT}/README.md`,
   `${GENERATED_SOLUTION_ROOT}/AGENTS.md`,
   `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
+  `${BETA_INTEGRATION_SOLUTION_ROOT}/README.md`,
+  `${BETA_INTEGRATION_SOLUTION_ROOT}/AGENTS.md`,
+  `${BETA_INTEGRATION_SOLUTION_ROOT}/CONTEXT.md`,
+  `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
+  `${BETA_INTEGRATION_SOLUTION_ROOT}/beta-integration.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/README.md`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/AGENTS.md`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/CONTEXT.md`,
@@ -2664,6 +2678,30 @@ export function validateQualityGatePolicy(policy) {
       `${MODULAR_MONOLITH_ALPHA_PROFILE_ID} quality profile is not the declared Experimental provider matrix.`,
     );
   }
+  const betaProfiles = policy.profiles.filter(
+    (profile) => profile?.id === BETA_INTEGRATION_PROFILE_ID,
+  );
+  if (betaProfiles.length !== 1) {
+    fail(
+      `Quality policy must declare exactly one ${BETA_INTEGRATION_PROFILE_ID} profile.`,
+    );
+  }
+  const betaProfile = betaProfiles[0];
+  if (
+    betaProfile.maturity !== "beta" ||
+    betaProfile.preset !== "platform" ||
+    !Array.isArray(betaProfile.providers) ||
+    betaProfile.providers.length !== 0 ||
+    JSON.stringify(betaProfile.cadences) !==
+      JSON.stringify(["release-candidate"]) ||
+    JSON.stringify(betaProfile.gates) !==
+      JSON.stringify([...BETA_INTEGRATION_GATE_IDS]) ||
+    betaProfile.command !== "npm run verify:beta-integration"
+  ) {
+    fail(
+      `${BETA_INTEGRATION_PROFILE_ID} quality profile is not the declared Beta integration matrix.`,
+    );
+  }
 
   requireArray(policy.cadences, "eng/quality-gates.json.cadences");
   const declaredCadences = policy.cadences.map((cadence) => cadence?.id);
@@ -2683,7 +2721,8 @@ export function validateQualityGatePolicy(policy) {
     requireString(gate.id, "eng/quality-gates.json.gates[].id");
     if (
       !BOOTSTRAP_GATE_IDS.includes(gate.id) &&
-      !MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id)
+      !MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) &&
+      !BETA_INTEGRATION_GATE_IDS.includes(gate.id)
     ) {
       fail(`Unsupported bootstrap quality gate: ${gate.id}`);
     }
@@ -2712,6 +2751,11 @@ export function validateQualityGatePolicy(policy) {
       fail(`Missing required Modular Monolith alpha quality gate: ${requiredGate}`);
     }
   }
+  for (const requiredGate of BETA_INTEGRATION_GATE_IDS) {
+    if (!gateIds.has(requiredGate)) {
+      fail(`Missing required Beta integration quality gate: ${requiredGate}`);
+    }
+  }
 
   for (const gate of policy.gates) {
     if (BOOTSTRAP_GATE_IDS.includes(gate.id)) {
@@ -2719,6 +2763,12 @@ export function validateQualityGatePolicy(policy) {
         if (!gate.cadences.includes(cadence)) {
           fail(`Required gate ${gate.id} is not declared for cadence ${cadence}.`);
         }
+      }
+    } else if (BETA_INTEGRATION_GATE_IDS.includes(gate.id)) {
+      if (JSON.stringify(gate.cadences) !== JSON.stringify(["release-candidate"])) {
+        fail(
+          `Beta integration gate ${gate.id} must run on release-candidate.`,
+        );
       }
     } else if (
       JSON.stringify(gate.cadences) !== JSON.stringify(["release-candidate"])
@@ -2743,6 +2793,23 @@ export function validateQualityGatePolicy(policy) {
     ) {
       fail(
         `Modular Monolith alpha gate ${gate.id} is not selected by its quality profile.`,
+      );
+    }
+  }
+  for (const gateId of betaProfile.gates) {
+    if (!gateIds.has(gateId)) {
+      fail(
+        `Quality profile ${BETA_INTEGRATION_PROFILE_ID} references an unknown gate: ${gateId}.`,
+      );
+    }
+  }
+  for (const gate of policy.gates) {
+    if (
+      BETA_INTEGRATION_GATE_IDS.includes(gate.id) &&
+      !betaProfile.gates.includes(gate.id)
+    ) {
+      fail(
+        `Beta integration gate ${gate.id} is not selected by its quality profile.`,
       );
     }
   }
@@ -4305,6 +4372,15 @@ export async function verifyBootstrap({
   const qualityGateSchema = parseJson("schemas/quality-gates.schema.json");
   const agentContextSchema = parseJson("schemas/agent-context.schema.json");
   const qualityPolicy = parseJson("eng/quality-gates.json");
+  const betaIntegrationSchema = parseJson(
+    "schemas/beta-integration.schema.json",
+  );
+  const betaIntegrationManifest = parseJson(
+    `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const betaIntegrationFixture = parseJson(
+    `${BETA_INTEGRATION_SOLUTION_ROOT}/beta-integration.json`,
+  );
   const generatedManifest = parseJson(
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
   );
@@ -4519,6 +4595,16 @@ export async function verifyBootstrap({
     "generated-solution",
     `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    betaIntegrationManifest,
+    "generated-solution",
+    `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    betaIntegrationManifest,
+    manifestSchema,
+    `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     localOrchestrationManifest,
     manifestSchema,
@@ -4587,11 +4673,22 @@ export async function verifyBootstrap({
     rootDir: root,
     platformRoot: root,
   });
+  const betaIntegration =
+    cadence === "release-candidate"
+      ? await verifyBetaIntegrationFixture({
+          rootDir: root,
+          fixture: betaIntegrationFixture,
+          manifest: betaIntegrationManifest,
+          schema: betaIntegrationSchema,
+        })
+      : null;
 
   const gates = qualityPolicy.gates
     .filter(
       (gate) =>
-        BOOTSTRAP_GATE_IDS.includes(gate.id) &&
+        (BOOTSTRAP_GATE_IDS.includes(gate.id) ||
+          (cadence === "release-candidate" &&
+            BETA_INTEGRATION_GATE_IDS.includes(gate.id))) &&
         gate.cadences.includes(cadence),
     )
     .map((gate) => gate.id);
@@ -4625,6 +4722,11 @@ export async function verifyBootstrap({
     valkeyDistributedCacheSolution: VALKEY_DISTRIBUTED_CACHE_SOLUTION_NAME,
     valkeyDistributedCache,
     agentReadiness,
+    betaIntegrationSolution:
+      cadence === "release-candidate"
+        ? BETA_INTEGRATION_SOLUTION_NAME
+        : null,
+    betaIntegration,
   };
 }
 
@@ -4640,7 +4742,10 @@ const invokedFile = process.argv[1]
 
 if (invokedFile === import.meta.url) {
   runCli().catch((error) => {
-    if (error instanceof BootstrapVerificationError) {
+    if (
+      error instanceof BootstrapVerificationError ||
+      error instanceof BetaIntegrationError
+    ) {
       console.error(`Verification failed: ${error.message}`);
     } else {
       console.error("Verification failed due to an unexpected internal error.");

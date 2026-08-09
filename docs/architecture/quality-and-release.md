@@ -1,9 +1,9 @@
 # Quality and release architecture
 
-> Status: **Approved target with implemented bootstrap and Experimental alpha
-> evidence**. The current repository exposes bootstrap gates plus the
-> claim-free Modular Monolith alpha profile; neither is a Supported Capability
-> claim.
+> Status: **Approved target with implemented bootstrap, Beta integration, and
+> Experimental alpha evidence**. The current repository exposes bootstrap
+> gates, a claim-free Beta integration profile, and the claim-free Modular
+> Monolith alpha profile; none is a Supported Capability claim.
 
 ## Current bootstrap evidence
 
@@ -26,6 +26,7 @@ npm run verify:fast
 npm run verify:pr
 npm run verify:api
 npm run verify:fastendpoints
+npm run verify:beta-integration
 ```
 
 The `modular-monolith-alpha` profile is release-candidate-only and requires
@@ -35,6 +36,23 @@ restores each generated variant from the isolated feed into its own cache, runs
 migration and real-provider reliability evidence for rollback, optimistic
 concurrency, lease expiry, and Inbox deduplication, and writes immutable
 Experimental candidate evidence. Its `supportClaims` remain empty.
+
+The `beta-integration` profile is also release-candidate-only. It verifies the
+named `BetaIntegrationGeneratedSolution` fixture and its
+[`beta-integration.schema.json`](../../schemas/beta-integration.schema.json)
+evidence manifest. The risk-based covering array covers the three Presets,
+Minimal API and FastEndpoints, both relational providers, all admitted
+authentication and UI profiles, the complete infrastructure-provider catalog,
+and process/OCI/direct/Aspire/Compose deployment profiles. It records
+threat-model and supply-chain reviews, controlled performance baselines,
+compatibility inputs, reconciled Change Fragments, and matrix/evidence
+digests. Active24-specific deployment and native-mobile remain explicit
+Not Attested scope, and the manifest keeps `supportClaims` empty.
+
+The 1.0 Capability and public-contract scope is frozen at Beta. Post-freeze
+changes are limited to defects, evidence gaps, and release blockers; new
+features and providers require a later scope decision and independent
+attestation.
 
 The target roadmap later calls for one .NET file-based Verification Entrypoint
 with the same cadence contract. Until that tracer is implemented, the

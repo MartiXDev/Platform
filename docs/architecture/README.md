@@ -50,6 +50,10 @@ Repository Bootstrap establishes this minimum structure:
 - `MartiX.Platform` contains the implemented BCL-only Result/Error Kernel.
 - `MartiX.Platform.AspNetCore` contains the implemented safe HTTP failure
   adapter and OpenAPI contract seam.
+- `tests/fixtures/BetaIntegrationGeneratedSolution/` is the claim-free Beta
+  release-evidence seam. It records the risk-based covering array, explicit
+  Not Attested scope, review and performance inputs, compatibility evidence,
+  and the frozen 1.0 feature/provider boundary.
 - `MartiX.Platform.Analyzers` contains the implemented compile-time
   error-code diagnostics.
 
