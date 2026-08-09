@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/MartiX.ValkeyDistributedCacheTestApp.Api/MartiX.ValkeyDistributedCacheTestApp.Api.csproj" />
+  <Project Path="tests/MartiX.ValkeyDistributedCacheTestApp.Tests/MartiX.ValkeyDistributedCacheTestApp.Tests.csproj" />
+</Solution>

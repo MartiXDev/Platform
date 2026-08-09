@@ -73,6 +73,34 @@ function deploymentManifestFixturePath(rootDir, ...segments) {
   );
 }
 
+function valkeyFixturePath(rootDir, ...segments) {
+  return join(
+    rootDir,
+    "tests",
+    "fixtures",
+    "ValkeyDistributedCacheGeneratedSolution",
+    ...segments,
+  );
+}
+
+async function assertValkeyProgramChangeRejected(search, replacement) {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const sourcePath = valkeyFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.ValkeyDistributedCacheTestApp.Api",
+      "Program.cs",
+    );
+    const source = await readFile(sourcePath, "utf8");
+    await writeFile(sourcePath, source.replace(search, replacement));
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Valkey API composition must use direct framework cache interfaces/,
+    );
+  });
+}
+
 test("fast cadence verifies the repository bootstrap contract", async () => {
   const result = await verifyBootstrap({
     cadence: "fast",
@@ -112,6 +140,11 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.equal(result.otlpExport.signalCount, 3);
   assert.equal(result.featureManagementSolution, "FeatureManagementGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.feature-management"));
+  assert.equal(
+    result.valkeyDistributedCacheSolution,
+    "ValkeyDistributedCacheGeneratedSolution",
+  );
+  assert.ok(result.gates.includes("bootstrap.valkey-distributed-cache"));
 });
 
 test("the named Full Stack fixture exercises the Blazor provider", async () => {
@@ -246,6 +279,27 @@ test("the named MailKit SMTP fixture proves durable notification delivery", asyn
   assert.equal(result.status, "passed");
   assert.equal(result.providerCount, 2);
   assert.equal(result.behavior.outcomeCount, 4);
+});
+
+test("Valkey verification rejects cache-facade residue", async () => {
+  await assertValkeyProgramChangeRejected(
+    "services.AddStackExchangeRedisCache",
+    "services.AddDistributedMemoryCache",
+  );
+});
+
+test("Valkey verification rejects cache-coupled global readiness", async () => {
+  await assertValkeyProgramChangeRejected(
+    'Predicate = check => check.Tags.Contains("ready")',
+    'Predicate = check => check.Tags.Contains("ready") && check.Tags.Contains("cache")',
+  );
+});
+
+test("Valkey verification rejects missing direct cache registration", async () => {
+  await assertValkeyProgramChangeRejected(
+    "services.AddStackExchangeRedisCache",
+    "services.AddSingleton",
+  );
 });
 
 test("Full Stack verification rejects UI contract version drift", async () => {
