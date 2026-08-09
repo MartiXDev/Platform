@@ -7,9 +7,9 @@ import {
   CANONICAL_CUTOVER_GATE_ID,
   CANONICAL_CUTOVER_REQUIRED_GATES,
   CANONICAL_CUTOVER_SOLUTION_NAME,
-  sha256,
   verifyCanonicalCutoverEvidence,
 } from "../eng/canonical-cutover.mjs";
+import { sha256 } from "../eng/stable-promotion.mjs";
 import { validateQualityGatePolicy } from "../eng/verify.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");

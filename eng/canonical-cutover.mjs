@@ -12,8 +12,6 @@ import {
   verifyStablePromotionFixture,
 } from "./stable-promotion.mjs";
 
-export { canonicalJson, sha256 };
-
 export const CANONICAL_CUTOVER_SCHEMA_VERSION = "1.0.0";
 export const CANONICAL_CUTOVER_SCHEMA_URI =
   "https://github.com/MartiXDev/Platform/schemas/canonical-cutover.schema.json";
@@ -226,6 +224,17 @@ function validateSchema(evidence, schema) {
   }
 }
 
+function requireCompleteIdSet(items, expectedIds, message) {
+  const ids = items.map(({ id }) => id);
+  if (
+    new Set(ids).size !== ids.length ||
+    canonicalJson([...ids].sort()) !== canonicalJson([...expectedIds].sort())
+  ) {
+    fail(message);
+  }
+  return items.sort((left, right) => left.id.localeCompare(right.id));
+}
+
 function normalizeSource(value) {
   const source = requireRecord(value, "source");
   const normalized = {
@@ -424,14 +433,11 @@ function normalizeInstallations(value, stableArtifacts) {
     }
     return normalized;
   });
-  if (
-    new Set(installations.map(({ id }) => id)).size !== installations.length ||
-    canonicalJson(installations.map(({ id }) => id).sort()) !==
-      canonicalJson([...INSTALLATION_IDS].sort())
-  ) {
-    fail("installations must contain each public installation check exactly once.");
-  }
-  return installations.sort((left, right) => left.id.localeCompare(right.id));
+  return requireCompleteIdSet(
+    installations,
+    INSTALLATION_IDS,
+    "installations must contain each public installation check exactly once.",
+  );
 }
 
 function normalizeSmokeTests(value, stableArtifacts) {
@@ -482,14 +488,11 @@ function normalizeSmokeTests(value, stableArtifacts) {
     }
     return normalized;
   });
-  if (
-    new Set(smokeTests.map(({ id }) => id)).size !== smokeTests.length ||
-    canonicalJson(smokeTests.map(({ id }) => id).sort()) !==
-      canonicalJson([...SMOKE_TEST_IDS].sort())
-  ) {
-    fail("smokeTests must contain each named Generated Solution exactly once.");
-  }
-  return smokeTests.sort((left, right) => left.id.localeCompare(right.id));
+  return requireCompleteIdSet(
+    smokeTests,
+    SMOKE_TEST_IDS,
+    "smokeTests must contain each named Generated Solution exactly once.",
+  );
 }
 
 function normalizeDocumentation(value) {
@@ -832,17 +835,14 @@ function normalizeVerification(value) {
   return normalized;
 }
 
-function normalizeEvidence(value, paths) {
+function normalizeEvidence(value) {
   const evidence = requireRecord(value, "evidence");
   const normalized = {
     paths: requirePaths(evidence.paths, "evidence.paths"),
     immutable: requireBoolean(evidence.immutable, "evidence.immutable"),
     digest: requireDigest(evidence.digest, "evidence.digest"),
   };
-  if (
-    canonicalJson(normalized.paths) !== canonicalJson(paths) ||
-    !normalized.immutable
-  ) {
+  if (!normalized.immutable) {
     fail("Canonical cutover evidence must be immutable and cover its complete evidence index.");
   }
   const { digest, ...body } = normalized;
@@ -904,8 +904,7 @@ function createCanonicalCutoverEvidenceBody(input) {
     fail("Canonical cutover evidence must not make Supported claims.");
   }
   const verification = normalizeVerification(input.verification);
-  const evidencePaths = requirePaths(input.evidence.paths, "evidence.paths");
-  const evidence = normalizeEvidence(input.evidence, evidencePaths);
+  const evidence = normalizeEvidence(input.evidence);
   const installationDigest = sha256(installations);
   const smokeTestDigest = sha256(smokeTests);
   const archivalDigest = sha256(predecessors);
@@ -1074,16 +1073,24 @@ async function readJson(root, relativePath, label = "canonical cutover input") {
   }
 }
 
+async function verifyFileExists(root, path, missingMessage) {
+  try {
+    await readFile(join(root, path));
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      fail(`${missingMessage}: ${path}.`, "missing-evidence");
+    }
+    throw error;
+  }
+}
+
 async function verifyPaths(root, paths) {
   for (const path of paths) {
-    try {
-      await readFile(join(root, path));
-    } catch (error) {
-      if (error?.code === "ENOENT") {
-        fail(`Canonical cutover evidence path is missing: ${path}.`, "missing-evidence");
-      }
-      throw error;
-    }
+    await verifyFileExists(
+      root,
+      path,
+      "Canonical cutover evidence path is missing",
+    );
   }
 }
 
@@ -1099,18 +1106,14 @@ async function verifyDocumentation(root, documentation) {
 }
 
 function verifyGeneratedSolutions(smokeTests, rootDir) {
+  const evidencePaths = smokeTests.flatMap(({ evidencePaths: paths }) => paths);
   return Promise.all(
-    smokeTests.flatMap(({ evidencePaths }) =>
-      evidencePaths.map(async (path) => {
-        try {
-          await readFile(join(rootDir, path));
-        } catch (error) {
-          if (error?.code === "ENOENT") {
-            fail(`Generated Solution smoke evidence is missing: ${path}.`, "missing-evidence");
-          }
-          throw error;
-        }
-      }),
+    evidencePaths.map((path) =>
+      verifyFileExists(
+        rootDir,
+        path,
+        "Generated Solution smoke evidence is missing",
+      ),
     ),
   );
 }
