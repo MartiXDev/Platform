@@ -78,6 +78,19 @@
         "release-candidate.evidence"
       ],
       "command": "npm run verify:release-candidate"
+    },
+    {
+      "id": "stable-promotion",
+      "maturity": "stable",
+      "preset": "platform",
+      "providers": [],
+      "cadences": [
+        "release-candidate"
+      ],
+      "gates": [
+        "stable.promotion"
+      ],
+      "command": "npm run verify:stable-promotion"
     }
   ],
   "gates": [
@@ -381,6 +394,16 @@
         "release-candidate"
       ],
       "purpose": "Immutable candidate evidence records exact artifacts, manifests, gates, compatibility coordinates, and Experimental maturity without Supported claims."
+    },
+    {
+      "id": "stable.promotion",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "The accepted Release Candidate is promoted to Stable 1.0.0 only when every synchronized artifact retains its exact digest, authoritative publication receipts are complete, and the first major-floor baseline is recorded without new support claims."
     }
   ]
 }

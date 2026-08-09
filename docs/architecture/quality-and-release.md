@@ -1,15 +1,17 @@
 # Quality and release architecture
 
 > Status: **Approved target with implemented bootstrap, Beta integration,
-> Experimental alpha, and Release Candidate evidence**. The current repository
+> Experimental alpha, Release Candidate evidence, and Stable promotion evidence**.
+> The current repository
 > exposes bootstrap gates, a claim-free Beta integration profile, the
 > claim-free Modular Monolith alpha profile, and a digest-bound Release
-> Candidate profile; none is a Supported Capability claim.
+> Candidate plus Stable promotion profiles; none is a Supported Capability claim.
 
 ## Current bootstrap evidence
 
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
-[`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
+[`eng/verify.mjs`](../../eng/verify.mjs), [`eng/stable-promotion.mjs`](../../eng/stable-promotion.mjs),
+[`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
 [`eng/deployment-manifest.mjs`](../../eng/deployment-manifest.mjs), and
 [`martix.platform.json`](../../martix.platform.json).
 They define four cadences and the required bootstrap gates while keeping
@@ -29,6 +31,7 @@ npm run verify:api
 npm run verify:fastendpoints
 npm run verify:beta-integration
 npm run verify:release-candidate
+npm run verify:stable-promotion
 ```
 
 The `modular-monolith-alpha` profile is release-candidate-only and requires
@@ -66,7 +69,9 @@ evidence, documentation, and agent readiness to one canonical content digest.
 The candidate is clean, reviewed, claim-free, built once, promoted without
 rebuild, and verified against exact bytes. A release-blocking fix creates a
 new candidate, reruns affected gates, and invalidates the prior candidate;
-in-place patching is rejected.
+in-place patching is rejected. The release-candidate cadence also runs the
+`stable.promotion` gate, which verifies the accepted candidate against the
+immutable Stable `1.0.0` promotion evidence.
 
 The target roadmap later calls for one .NET file-based Verification Entrypoint
 with the same cadence contract. Until that tracer is implemented, the
@@ -210,9 +215,15 @@ invalidated rather than patched. The trust chain binds author identity, OIDC
 publishing identity, SBOM, provenance, content-addressed Candidate Evidence,
 Promotion Receipts, and final Release Evidence.
 
-The first production line starts at `1.0.0`. The support model retains the
-current Active major and the immediately previous Maintenance major, subject to
-upstream support and the evidence required by the release policy.
+Stable `1.0.0` is a separate, claim-free promotion evidence seam. The
+`StablePromotionGeneratedSolution` fixture binds every accepted RC artifact
+identity to the same promoted digest, verifies the complete authoritative
+destination set and immutable versioned documentation, and records the
+preflight/reserve/build-once/finalize/approve/promote state machine. It
+establishes `1.0.0` as the first Major Floor baseline with no predecessor,
+provider, deployment, migration, or Supported Capability claim. The support
+model retains the current Active major and the immediately previous Maintenance
+major only after the applicable evidence exists.
 
 ## Canonical knowledge and documentation
 

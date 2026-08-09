@@ -1,0 +1,462 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/stable-promotion.schema.json",
+  "schemaVersion": "1.0.0",
+  "kind": "stable-promotion-evidence",
+  "solution": "StablePromotionGeneratedSolution",
+  "promotionId": "stable-1.0.0-bf6c2af7800a51a4",
+  "stableVersion": "1.0.0",
+  "platformContractVersion": "1.0.0",
+  "maturity": "stable",
+  "source": {
+    "commit": "70749a5838ff24611b085010201e00eb595f27c8",
+    "clean": true,
+    "reviewed": true,
+    "reviewEvidence": [
+      "docs/architecture/quality-and-release.md",
+      "docs/wayfinder/martix-platform/migration-roadmap.md"
+    ]
+  },
+  "acceptedReleaseCandidate": {
+    "candidateId": "rc-1.0.0-rc.1-c9de6825b2906876",
+    "platformVersion": "1.0.0-rc.1",
+    "platformContractVersion": "1.0.0-rc.1",
+    "sourceCommit": "70749a5838ff24611b085010201e00eb595f27c8",
+    "artifactSetDigest": "sha256:2aa7b5643a5f11a838c1c06de1c90f64b3b3ab0bbee9ecce600bc9432544f0f0",
+    "evidenceDigest": "sha256:d4542303ae11f1b15ed59a5214ab268eb7c8c5365a3f7a491cde028c5a3357a6",
+    "status": "accepted"
+  },
+  "artifacts": [
+    {
+      "id": "release-docs",
+      "sourceArtifactId": "release-docs",
+      "kind": "documentation",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:87b7774f515d6bc57e54139f16b4799f5fc6e0635e83e0669bc5671d5bbde48c",
+      "promotedDigest": "sha256:87b7774f515d6bc57e54139f16b4799f5fc6e0635e83e0669bc5671d5bbde48c",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:47a2af41125a4bb8b51f16a0e260bd8b874ea0049a27d866a8937d864a107c55"
+      },
+      "path": "docs/architecture/quality-and-release.md",
+      "destination": "github-pages"
+    },
+    {
+      "id": "release-evidence",
+      "sourceArtifactId": "release-evidence",
+      "kind": "evidence-bundle",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:2066681f591e8ba1bdf9772e24a8136e76c30fbc95ec8662bbeff93e49c3a1b4",
+      "promotedDigest": "sha256:2066681f591e8ba1bdf9772e24a8136e76c30fbc95ec8662bbeff93e49c3a1b4",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:0f913a02b3ae192afb908e116d19c8a06e3c2f6d8f4ed024efcac04830a7e1eb"
+      },
+      "path": "tests/fixtures/ReleaseCandidateGeneratedSolution/README.md",
+      "destination": "github-release"
+    },
+    {
+      "id": "MartiX.Verification.Client",
+      "sourceArtifactId": "MartiX.Verification.Client",
+      "kind": "generated-client",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:be43ba896dba1a365979cb4e0cf190ae1edaef6cf52f20bb6b32674683da629f",
+      "promotedDigest": "sha256:be43ba896dba1a365979cb4e0cf190ae1edaef6cf52f20bb6b32674683da629f",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:5a42fbb593ce21a62da9afcd405be8cd993e4a8ba6836fbf1641471654328868"
+      },
+      "path": "tests/fixtures/FullStackGeneratedSolution/src/MartiX.FullStackTestApp.Web/Platform/Api/GeneratedClient.cs",
+      "destination": "github-release"
+    },
+    {
+      "id": "platform-migration",
+      "sourceArtifactId": "platform-migration",
+      "kind": "migration",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:f8f6f6e1f6cc1bb580c30a455d7b39212706efcedca255ddcfc20b1c9e98cd25",
+      "promotedDigest": "sha256:f8f6f6e1f6cc1bb580c30a455d7b39212706efcedca255ddcfc20b1c9e98cd25",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:3805e049ad70c2641359110a167c943884096e990c147bc8137dd5f73244ff4c"
+      },
+      "path": "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
+      "destination": "github-release"
+    },
+    {
+      "id": "ghcr.io/martixdev/platform",
+      "sourceArtifactId": "ghcr.io/martixdev/platform",
+      "kind": "oci-image",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:6a1049353f41975d324c3ce41f057a1e1dae55b9803da47d4822914ae2a50d8d",
+      "promotedDigest": "sha256:6a1049353f41975d324c3ce41f057a1e1dae55b9803da47d4822914ae2a50d8d",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:278bf1a512e9c65ea7d1b2eea827410817a626cb6725628b7269c5c0fd55a2de"
+      },
+      "path": "tests/fixtures/DeploymentManifestGeneratedSolution/deployment-evidence.json",
+      "destination": "github-release"
+    },
+    {
+      "id": "MartiX.Platform",
+      "sourceArtifactId": "MartiX.Platform",
+      "kind": "package",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:01af6bfb1167c157d0ff108ee9cbe81e58d64cbd0a7b3347873ee53390ac97a6",
+      "promotedDigest": "sha256:01af6bfb1167c157d0ff108ee9cbe81e58d64cbd0a7b3347873ee53390ac97a6",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:f2d0c1ad7eb70f0eaff8f192eee02ebe4185a57c155d10e04e6979a0d913d51a"
+      },
+      "path": "src/MartiX.Platform/MartiX.Platform.csproj",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "MartiX.Platform.Analyzers",
+      "sourceArtifactId": "MartiX.Platform.Analyzers",
+      "kind": "package",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:5b8f2eb711f04d85cac685b9e2d3f5039fbec83823a0165f7981d4d683801955",
+      "promotedDigest": "sha256:5b8f2eb711f04d85cac685b9e2d3f5039fbec83823a0165f7981d4d683801955",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:81606025e182b747d2a524e8989d262321290b25f2ddf7df7bff43cabadea2e2"
+      },
+      "path": "src/MartiX.Platform.Analyzers/MartiX.Platform.Analyzers.csproj",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "MartiX.Platform.AspNetCore",
+      "sourceArtifactId": "MartiX.Platform.AspNetCore",
+      "kind": "package",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:394bdbd9b6e0eb5b676dab6bf0bbcd479db564643c8a950deee9e96e050716f0",
+      "promotedDigest": "sha256:394bdbd9b6e0eb5b676dab6bf0bbcd479db564643c8a950deee9e96e050716f0",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:acdb28e4236fce179ae4f48529ae367d5f005f6552dc98de0daf489d296af95f"
+      },
+      "path": "src/MartiX.Platform.AspNetCore/MartiX.Platform.AspNetCore.csproj",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "MartiX.Platform.AspNetCore.FastEndpoints",
+      "sourceArtifactId": "MartiX.Platform.AspNetCore.FastEndpoints",
+      "kind": "package",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:3d07460505eeb275752964221738f54caa65c5a53f3c01c04543c189f6828ad4",
+      "promotedDigest": "sha256:3d07460505eeb275752964221738f54caa65c5a53f3c01c04543c189f6828ad4",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:c0965ee91b43a219d69fbbf35f3cb234e0519c482c5a33e3184699a86fa1339e"
+      },
+      "path": "src/MartiX.Platform.AspNetCore.FastEndpoints/MartiX.Platform.AspNetCore.FastEndpoints.csproj",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "MartiX.Platform.EntityFrameworkCore",
+      "sourceArtifactId": "MartiX.Platform.EntityFrameworkCore",
+      "kind": "package",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:e4ecbcb5906ff72a225bbc7490215f0f7f8f70046b7d28cbd20c2478cb9c138e",
+      "promotedDigest": "sha256:e4ecbcb5906ff72a225bbc7490215f0f7f8f70046b7d28cbd20c2478cb9c138e",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:0725f08b84ab8e8f17e51ad5aea962ae8c4f0048e41afa3284635b6d89259876"
+      },
+      "path": "src/MartiX.Platform.EntityFrameworkCore/MartiX.Platform.EntityFrameworkCore.csproj",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "MartiX.Platform.IntegrationEvents.RabbitMq",
+      "sourceArtifactId": "MartiX.Platform.IntegrationEvents.RabbitMq",
+      "kind": "package",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:6b77f18ecaf2c178bc232b023de73e1b997b8e0732777c09624d57b8e4dc3b7a",
+      "promotedDigest": "sha256:6b77f18ecaf2c178bc232b023de73e1b997b8e0732777c09624d57b8e4dc3b7a",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:e5b43486f0d3bd5171ede74c082c3d1ba3159161f3fb90aa857103167288ca1c"
+      },
+      "path": "src/MartiX.Platform.IntegrationEvents.RabbitMq/MartiX.Platform.IntegrationEvents.RabbitMq.csproj",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "martix-platform-process",
+      "sourceArtifactId": "martix-platform-process",
+      "kind": "process-archive",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:cb8696b97a0bcbe8a8717352dfbd7ba51152fef85b1b278bc4689ef94bd09f2e",
+      "promotedDigest": "sha256:cb8696b97a0bcbe8a8717352dfbd7ba51152fef85b1b278bc4689ef94bd09f2e",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:f3138869a564595e8376d18524900b3b6d9d43bf80f45d4b4c28b35e46d795c1"
+      },
+      "path": "tests/fixtures/DeploymentManifestGeneratedSolution/deployment-manifest.json",
+      "destination": "github-release"
+    },
+    {
+      "id": "martix-platform.provenance",
+      "sourceArtifactId": "martix-platform.provenance",
+      "kind": "provenance",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:a695b0a8d223f8feed91bc7749c5e1a041e92efee372cd3fda0a86318cd34bab",
+      "promotedDigest": "sha256:a695b0a8d223f8feed91bc7749c5e1a041e92efee372cd3fda0a86318cd34bab",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:cb04822871aa898264caae7a1e1457c20b0e12f3dcb2ab555eb74f7333e3b4e8"
+      },
+      "path": "PROVENANCE.md",
+      "destination": "github-release"
+    },
+    {
+      "id": "martix-platform.sbom",
+      "sourceArtifactId": "martix-platform.sbom",
+      "kind": "sbom",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:a8346a5d6237111d792d9d90624c58887bbe043f309390cecfde4e7194d2ff68",
+      "promotedDigest": "sha256:a8346a5d6237111d792d9d90624c58887bbe043f309390cecfde4e7194d2ff68",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:3ddb792815e9e69b8c2ebe1161ec0666dd146d0fc3a67a5e7738349aa3d8552d"
+      },
+      "path": "docs/architecture/quality-and-release.md",
+      "destination": "github-release"
+    },
+    {
+      "id": "martix.platform.schema",
+      "sourceArtifactId": "martix.platform.schema",
+      "kind": "schema",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:fcd060192987f5e5ba1e51b5e676c08a2504757b4a77c0046dc3632fd7740c83",
+      "promotedDigest": "sha256:fcd060192987f5e5ba1e51b5e676c08a2504757b4a77c0046dc3632fd7740c83",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:caa0392310c00d7d8d09cf6aa591a4ad32392810f2d2f1a1281d72bef7cc062e"
+      },
+      "path": "schemas/martix.platform.schema.json",
+      "destination": "MartiXDev/Platform"
+    },
+    {
+      "id": "martix-platform",
+      "sourceArtifactId": "martix-platform",
+      "kind": "skill",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462",
+      "promotedDigest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:d7e3ea17b5fc1a1d0470455d2041614a71fb51da097316fc3f10b392e964ed61"
+      },
+      "path": "skills/martix-platform/SKILL.md",
+      "destination": "martix/skills"
+    },
+    {
+      "id": "martix-app",
+      "sourceArtifactId": "martix-app",
+      "kind": "template",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f",
+      "promotedDigest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:80a978556bcf72d5863af84e666a46925bbca5f17f44bb0456a1f2433c1eea48"
+      },
+      "path": "eng/generate.mjs",
+      "destination": "nuget.org"
+    },
+    {
+      "id": "MartiX.Platform.Tool",
+      "sourceArtifactId": "MartiX.Platform.Tool",
+      "kind": "tool",
+      "version": "1.0.0",
+      "acceptedDigest": "sha256:cab1944ef49ef0f6273da35c505c57106c13e28a2069bd889cd75a8d06b404e7",
+      "promotedDigest": "sha256:cab1944ef49ef0f6273da35c505c57106c13e28a2069bd889cd75a8d06b404e7",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:42b34bf99ee97817a6ec057324510a4b93fce2a43f5467080811c839922e6dec"
+      },
+      "path": "eng/platform-migration.mjs",
+      "destination": "nuget.org"
+    }
+  ],
+  "artifactSetDigest": "sha256:723351694a284009d0c1b1b0e98d1119278b85d9d7be07d4bb31b77c72739ee2",
+  "publications": [
+    {
+      "destination": "github-pages",
+      "artifactIds": [
+        "release-docs"
+      ],
+      "status": "verified",
+      "receiptDigest": "sha256:3d10e4431331bd0bb915200d060ab09e91e29d798de50d311cf561b649653ed5"
+    },
+    {
+      "destination": "github-release",
+      "artifactIds": [
+        "MartiX.Verification.Client",
+        "ghcr.io/martixdev/platform",
+        "martix-platform-process",
+        "martix-platform.provenance",
+        "martix-platform.sbom",
+        "platform-migration",
+        "release-evidence"
+      ],
+      "status": "verified",
+      "receiptDigest": "sha256:03ab7e0ef2a5c5d2c975bbe5378f1a20ebb6b9b7afbc2456951029b4be8738ae"
+    },
+    {
+      "destination": "martix/skills",
+      "artifactIds": [
+        "martix-platform"
+      ],
+      "status": "verified",
+      "receiptDigest": "sha256:d52d8983fd451efca6e485b5cf69f5f0dd44d4da3ba21228b1fc8bb81e34f223"
+    },
+    {
+      "destination": "MartiXDev/Platform",
+      "artifactIds": [
+        "martix.platform.schema"
+      ],
+      "status": "verified",
+      "receiptDigest": "sha256:6ec25934ed5978b7d2ec3b71fa64f001408182fa47feb01c435fcda3ce9ff743"
+    },
+    {
+      "destination": "nuget.org",
+      "artifactIds": [
+        "MartiX.Platform",
+        "MartiX.Platform.Analyzers",
+        "MartiX.Platform.AspNetCore",
+        "MartiX.Platform.AspNetCore.FastEndpoints",
+        "MartiX.Platform.EntityFrameworkCore",
+        "MartiX.Platform.IntegrationEvents.RabbitMq",
+        "MartiX.Platform.Tool",
+        "martix-app"
+      ],
+      "status": "verified",
+      "receiptDigest": "sha256:6ad813973d70478eb6d7a62506e776c9f802da6a91fbfaa3952b9cb753bebe63"
+    }
+  ],
+  "publicationDigest": "sha256:a97b36a2cb5621d9d63194b118ad0773b0e19c8ec0567b42d6f68b0bb296c0b5",
+  "documentation": {
+    "version": "1.0.0",
+    "versionedPath": "docs/releases/1.0.0/README.md",
+    "releaseEvidencePath": "tests/fixtures/StablePromotionGeneratedSolution/stable-promotion.json",
+    "immutable": true,
+    "contentDigest": "sha256:d06fdf852b6010d815a2a580858d5a51e54a43ff09fb038aaa2294b0946f0c3a",
+    "indexDigest": "sha256:287078811697c6bad6aa74a9cfba25711faf2f44e157f2898d0f483da7ca1a81"
+  },
+  "approval": {
+    "status": "recorded",
+    "method": "authenticated-review",
+    "evidencePath": "docs/releases/1.0.0/README.md",
+    "digest": "sha256:633836da0e9e847ac4d7fed0610e05c8f998563185551dcf2a84bb4ff32256a1"
+  },
+  "compatibilityBaseline": {
+    "kind": "major-floor",
+    "major": 1,
+    "version": "1.0.0",
+    "status": "established",
+    "immediate": {
+      "status": "not-applicable",
+      "reason": "No preceding stable release exists for the first production major."
+    },
+    "minorCohorts": [],
+    "predecessor": {
+      "status": "not-applicable",
+      "reason": "No preceding stable release exists for the first production major."
+    },
+    "providerClaims": [],
+    "deploymentClaims": [],
+    "migrationClaims": [],
+    "digest": "sha256:7d2a4a6407c534ddeb28d013e6b491b8e194613b971951a4663fa7c4f1097bef"
+  },
+  "releasePolicy": {
+    "states": [
+      "preflight",
+      "reserve",
+      "build-once",
+      "finalize",
+      "approve",
+      "promote"
+    ],
+    "terminalState": "promote",
+    "builtOnce": true,
+    "exactBytes": true,
+    "promotionWithoutRebuild": true,
+    "patchInPlace": false,
+    "approvalRequired": true,
+    "atomicCompleteSet": true,
+    "failedPublicationBurnsVersion": true,
+    "publicationOrder": [
+      "nuget.org",
+      "github-release",
+      "MartiXDev/Platform",
+      "martix/skills",
+      "github-pages"
+    ]
+  },
+  "verification": {
+    "cadence": "release-candidate",
+    "policyVersion": "0.0.0-bootstrap",
+    "entrypoint": "eng/verify.mjs",
+    "command": "npm run verify:stable-promotion",
+    "failClosed": true,
+    "requiredGates": [
+      "bootstrap.manifest",
+      "bootstrap.governance",
+      "bootstrap.generated-solution",
+      "bootstrap.modular-monolith",
+      "bootstrap.full-stack",
+      "bootstrap.provider-admission",
+      "bootstrap.deployment-manifest",
+      "bootstrap.portable-host-conformance",
+      "bootstrap.local-orchestration",
+      "bootstrap.otlp-export",
+      "bootstrap.feature-management",
+      "bootstrap.mailkit-smtp",
+      "bootstrap.valkey-distributed-cache",
+      "bootstrap.quartz-durable-jobs",
+      "bootstrap.host-baseline",
+      "bootstrap.secret-free",
+      "bootstrap.agent-readiness",
+      "modular-monolith.generated-solution",
+      "modular-monolith.architecture",
+      "modular-monolith.provider-integration",
+      "modular-monolith.migration",
+      "modular-monolith.reliability",
+      "modular-monolith.release-evidence",
+      "beta.integration",
+      "release-candidate.evidence",
+      "stable.promotion"
+    ],
+    "notApplicable": [],
+    "notSelected": []
+  },
+  "promotionGate": {
+    "id": "stable.promotion",
+    "outcome": "passed",
+    "inputDigest": "sha256:131255e398e8fa502f001f51a48f2e8bd052aa1486ccfcb0000bc0e3ffa5e284",
+    "evidenceDigest": "sha256:6d7f5601e1436e3c634435659f4974f334ac9ea6d2d4a2fa9af34e0b1529ce87",
+    "attempts": [
+      {
+        "number": 1,
+        "outcome": "passed"
+      }
+    ]
+  },
+  "evidence": {
+    "paths": [
+      "docs/architecture/quality-and-release.md",
+      "docs/wayfinder/martix-platform/migration-roadmap.md",
+      "docs/releases/1.0.0/README.md",
+      "tests/fixtures/ReleaseCandidateGeneratedSolution/release-candidate.json",
+      "tests/fixtures/ReleaseCandidateGeneratedSolution/README.md",
+      "tests/fixtures/StablePromotionGeneratedSolution/README.md",
+      "tests/fixtures/StablePromotionGeneratedSolution/martix.platform.json",
+      "schemas/stable-promotion.schema.json",
+      "PROVENANCE.md"
+    ],
+    "digest": "sha256:d7b658689a889eed6ab27bbcf31f974317c0fb157dc5f82a4f7aa3895b0550fe"
+  },
+  "supportClaims": [],
+  "evidenceDigest": "sha256:0f83655fda3340fc6302098161746ffe92216a316b217fecc2bdff7c4ce41e7c"
+}

@@ -107,7 +107,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^(?:bootstrap|modular-monolith|beta|release-candidate)\\.[a-z0-9-]+$"
+          "pattern": "^(?:bootstrap|modular-monolith|beta|release-candidate|stable)\\.[a-z0-9-]+$"
         },
         "family": {
           "enum": [
@@ -158,6 +158,9 @@
         },
         {
           "$ref": "#/$defs/releaseCandidateProfile"
+        },
+        {
+          "$ref": "#/$defs/stablePromotionProfile"
         }
       ]
     },
@@ -312,6 +315,53 @@
         "command": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "stablePromotionProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "maturity",
+        "preset",
+        "providers",
+        "cadences",
+        "gates",
+        "command"
+      ],
+      "properties": {
+        "id": {
+          "const": "stable-promotion"
+        },
+        "maturity": {
+          "const": "stable"
+        },
+        "preset": {
+          "const": "platform"
+        },
+        "providers": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "cadences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "const": "release-candidate"
+          }
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "const": "stable.promotion"
+          }
+        },
+        "command": {
+          "const": "npm run verify:stable-promotion"
         }
       }
     }

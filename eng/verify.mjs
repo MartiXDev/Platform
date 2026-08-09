@@ -95,6 +95,16 @@ import {
   ReleaseCandidateError,
   verifyReleaseCandidateFixture,
 } from "./release-candidate.mjs";
+import {
+  STABLE_PROMOTION_CADENCES,
+  STABLE_PROMOTION_GATE_ID,
+  STABLE_PROMOTION_REQUIRED_GATES,
+  STABLE_PROMOTION_SOLUTION_NAME,
+  STABLE_PROMOTION_SOLUTION_ROOT,
+  STABLE_PROMOTION_VERIFICATION_COMMAND,
+  StablePromotionError,
+  verifyStablePromotionFixture,
+} from "./stable-promotion.mjs";
 
 const CADENCES = [
   "fast",
@@ -216,6 +226,7 @@ const BOOTSTRAP_GATE_IDS = [
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
 const BETA_INTEGRATION_PROFILE_ID = "beta-integration";
 const RELEASE_CANDIDATE_PROFILE_ID = RELEASE_CANDIDATE_CADENCE;
+const STABLE_PROMOTION_PROFILE_ID = "stable-promotion";
 const BETA_INTEGRATION_GATE_IDS = Object.freeze(["beta.integration"]);
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
@@ -280,6 +291,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   "eng/quality-gates.json",
   "schemas/beta-integration.schema.json",
   "schemas/release-candidate.schema.json",
+  "schemas/stable-promotion.schema.json",
   "eng/agent-context.mjs",
   "eng/agent-readiness.mjs",
   "skills/martix-platform/SKILL.md",
@@ -304,6 +316,9 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${RELEASE_CANDIDATE_SOLUTION_ROOT}/CONTEXT.md`,
   `${RELEASE_CANDIDATE_SOLUTION_ROOT}/martix.platform.json`,
   `${RELEASE_CANDIDATE_SOLUTION_ROOT}/release-candidate.json`,
+  `${STABLE_PROMOTION_SOLUTION_ROOT}/README.md`,
+  `${STABLE_PROMOTION_SOLUTION_ROOT}/martix.platform.json`,
+  `${STABLE_PROMOTION_SOLUTION_ROOT}/stable-promotion.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/README.md`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/AGENTS.md`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/CONTEXT.md`,
@@ -2744,6 +2759,30 @@ export function validateQualityGatePolicy(policy) {
       `${RELEASE_CANDIDATE_PROFILE_ID} quality profile is not the declared Release Candidate evidence matrix.`,
     );
   }
+  const stablePromotionProfiles = policy.profiles.filter(
+    (profile) => profile?.id === STABLE_PROMOTION_PROFILE_ID,
+  );
+  if (stablePromotionProfiles.length !== 1) {
+    fail(
+      `Quality policy must declare exactly one ${STABLE_PROMOTION_PROFILE_ID} profile.`,
+    );
+  }
+  const stablePromotionProfile = stablePromotionProfiles[0];
+  if (
+    stablePromotionProfile.maturity !== "stable" ||
+    stablePromotionProfile.preset !== "platform" ||
+    !Array.isArray(stablePromotionProfile.providers) ||
+    stablePromotionProfile.providers.length !== 0 ||
+    JSON.stringify(stablePromotionProfile.cadences) !==
+      JSON.stringify(STABLE_PROMOTION_CADENCES) ||
+    JSON.stringify(stablePromotionProfile.gates) !==
+      JSON.stringify([STABLE_PROMOTION_GATE_ID]) ||
+    stablePromotionProfile.command !== STABLE_PROMOTION_VERIFICATION_COMMAND
+  ) {
+    fail(
+      `${STABLE_PROMOTION_PROFILE_ID} quality profile is not the declared Stable promotion evidence matrix.`,
+    );
+  }
 
   requireArray(policy.cadences, "eng/quality-gates.json.cadences");
   const declaredCadences = policy.cadences.map((cadence) => cadence?.id);
@@ -2765,7 +2804,8 @@ export function validateQualityGatePolicy(policy) {
       !BOOTSTRAP_GATE_IDS.includes(gate.id) &&
       !MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) &&
       !BETA_INTEGRATION_GATE_IDS.includes(gate.id) &&
-      !RELEASE_CANDIDATE_GATE_IDS.includes(gate.id)
+      !RELEASE_CANDIDATE_GATE_IDS.includes(gate.id) &&
+      gate.id !== STABLE_PROMOTION_GATE_ID
     ) {
       fail(`Unsupported bootstrap quality gate: ${gate.id}`);
     }
@@ -2799,7 +2839,10 @@ export function validateQualityGatePolicy(policy) {
       fail(`Missing required Beta integration quality gate: ${requiredGate}`);
     }
   }
-  for (const requiredGate of [RELEASE_CANDIDATE_GATE_ID]) {
+  for (const requiredGate of [
+    RELEASE_CANDIDATE_GATE_ID,
+    STABLE_PROMOTION_GATE_ID,
+  ]) {
     if (!gateIds.has(requiredGate)) {
       fail(`Missing required Release Candidate quality gate: ${requiredGate}`);
     }
@@ -2828,6 +2871,15 @@ export function validateQualityGatePolicy(policy) {
       ) {
         fail(
           `Release Candidate gate ${gate.id} must run on release-candidate.`,
+        );
+      }
+    } else if (gate.id === STABLE_PROMOTION_GATE_ID) {
+      if (
+        JSON.stringify(gate.cadences) !==
+        JSON.stringify(STABLE_PROMOTION_CADENCES)
+      ) {
+        fail(
+          `Stable promotion gate ${gate.id} must run on release-candidate.`,
         );
       }
     } else if (
@@ -2888,6 +2940,23 @@ export function validateQualityGatePolicy(policy) {
     ) {
       fail(
         `Release Candidate gate ${gate.id} is not selected by its quality profile.`,
+      );
+    }
+  }
+  for (const gateId of stablePromotionProfile.gates) {
+    if (!gateIds.has(gateId)) {
+      fail(
+        `Quality profile ${STABLE_PROMOTION_PROFILE_ID} references an unknown gate: ${gateId}.`,
+      );
+    }
+  }
+  for (const gate of policy.gates) {
+    if (
+      gate.id === STABLE_PROMOTION_GATE_ID &&
+      !stablePromotionProfile.gates.includes(gate.id)
+    ) {
+      fail(
+        `Stable promotion gate ${gate.id} is not selected by its quality profile.`,
       );
     }
   }
@@ -4457,6 +4526,9 @@ export async function verifyBootstrap({
   const releaseCandidateSchema = parseJson(
     "schemas/release-candidate.schema.json",
   );
+  const stablePromotionSchema = parseJson(
+    "schemas/stable-promotion.schema.json",
+  );
   const betaIntegrationManifest = parseJson(
     `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
   );
@@ -4468,6 +4540,12 @@ export async function verifyBootstrap({
   );
   const releaseCandidateFixture = parseJson(
     `${RELEASE_CANDIDATE_SOLUTION_ROOT}/release-candidate.json`,
+  );
+  const stablePromotionManifest = parseJson(
+    `${STABLE_PROMOTION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const stablePromotionFixture = parseJson(
+    `${STABLE_PROMOTION_SOLUTION_ROOT}/stable-promotion.json`,
   );
   const generatedManifest = parseJson(
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
@@ -4713,6 +4791,21 @@ export async function verifyBootstrap({
     manifestSchema,
     `${RELEASE_CANDIDATE_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    stablePromotionManifest,
+    "generated-solution",
+    `${STABLE_PROMOTION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    stablePromotionManifest,
+    manifestSchema,
+    `${STABLE_PROMOTION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    stablePromotionFixture,
+    stablePromotionSchema,
+    `${STABLE_PROMOTION_SOLUTION_ROOT}/stable-promotion.json`,
+  );
   validateQualityGatePolicy(qualityPolicy);
   validateGovernanceDocuments(documents);
   await validateModularMonolithSolution(root, modularMonolithManifest);
@@ -4789,6 +4882,17 @@ export async function verifyBootstrap({
           schema: releaseCandidateSchema,
         })
       : null;
+  const stablePromotion =
+    isReleaseCandidate
+      ? await verifyStablePromotionFixture({
+          rootDir: root,
+          fixture: stablePromotionFixture,
+          manifest: stablePromotionManifest,
+          schema: stablePromotionSchema,
+          releaseCandidate: releaseCandidateFixture,
+          releaseCandidateSchema,
+        })
+      : null;
 
   const gates = qualityPolicy.gates
     .filter(
@@ -4797,15 +4901,16 @@ export async function verifyBootstrap({
           (isReleaseCandidate &&
             (MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) ||
               BETA_INTEGRATION_GATE_IDS.includes(gate.id) ||
-              gate.id === RELEASE_CANDIDATE_GATE_ID))) &&
+            gate.id === RELEASE_CANDIDATE_GATE_ID ||
+            gate.id === STABLE_PROMOTION_GATE_ID))) &&
         gate.cadences.includes(cadence),
     )
     .map((gate) => gate.id);
   if (isReleaseCandidate) {
     gates.sort(
       (left, right) =>
-        RELEASE_CANDIDATE_GATE_IDS.indexOf(left) -
-        RELEASE_CANDIDATE_GATE_IDS.indexOf(right),
+        STABLE_PROMOTION_REQUIRED_GATES.indexOf(left) -
+        STABLE_PROMOTION_REQUIRED_GATES.indexOf(right),
     );
   }
 
@@ -4814,10 +4919,10 @@ export async function verifyBootstrap({
   }
   if (
     isReleaseCandidate &&
-    JSON.stringify(gates) !== JSON.stringify(RELEASE_CANDIDATE_GATE_IDS)
+    JSON.stringify(gates) !== JSON.stringify(STABLE_PROMOTION_REQUIRED_GATES)
   ) {
     fail(
-      "Release Candidate cadence must execute the complete release gate list.",
+      "Release Candidate cadence must execute the complete Release Candidate and Stable promotion gate list.",
     );
   }
 
@@ -4856,6 +4961,9 @@ export async function verifyBootstrap({
         ? RELEASE_CANDIDATE_SOLUTION_NAME
         : null,
     releaseCandidate,
+    stablePromotionSolution:
+      isReleaseCandidate ? STABLE_PROMOTION_SOLUTION_NAME : null,
+    stablePromotion,
   };
 }
 
@@ -4874,7 +4982,8 @@ if (invokedFile === import.meta.url) {
     if (
       error instanceof BootstrapVerificationError ||
       error instanceof BetaIntegrationError ||
-      error instanceof ReleaseCandidateError
+      error instanceof ReleaseCandidateError ||
+      error instanceof StablePromotionError
     ) {
       console.error(`Verification failed: ${error.message}`);
     } else {

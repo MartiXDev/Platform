@@ -1,0 +1,636 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/stable-promotion.schema.json",
+  "title": "MartiX Platform stable promotion evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "kind",
+    "solution",
+    "promotionId",
+    "stableVersion",
+    "platformContractVersion",
+    "maturity",
+    "source",
+    "acceptedReleaseCandidate",
+    "artifacts",
+    "artifactSetDigest",
+    "publications",
+    "publicationDigest",
+    "documentation",
+    "approval",
+    "compatibilityBaseline",
+    "releasePolicy",
+    "verification",
+    "promotionGate",
+    "evidence",
+    "supportClaims",
+    "evidenceDigest"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://github.com/MartiXDev/Platform/schemas/stable-promotion.schema.json"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "stable-promotion-evidence"
+    },
+    "solution": {
+      "const": "StablePromotionGeneratedSolution"
+    },
+    "promotionId": {
+      "type": "string",
+      "pattern": "^stable-1\\.0\\.0-[0-9a-f]{16}$"
+    },
+    "stableVersion": {
+      "const": "1.0.0"
+    },
+    "platformContractVersion": {
+      "const": "1.0.0"
+    },
+    "maturity": {
+      "const": "stable"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "acceptedReleaseCandidate": {
+      "$ref": "#/$defs/acceptedReleaseCandidate"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "artifactSetDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "publications": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/publication"
+      }
+    },
+    "publicationDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "documentation": {
+      "$ref": "#/$defs/documentation"
+    },
+    "approval": {
+      "$ref": "#/$defs/approval"
+    },
+    "compatibilityBaseline": {
+      "$ref": "#/$defs/compatibilityBaseline"
+    },
+    "releasePolicy": {
+      "$ref": "#/$defs/releasePolicy"
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    },
+    "promotionGate": {
+      "$ref": "#/$defs/promotionGate"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "evidenceDigest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "clean",
+        "reviewed",
+        "reviewEvidence"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "clean": {
+          "const": true
+        },
+        "reviewed": {
+          "const": true
+        },
+        "reviewEvidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        }
+      }
+    },
+    "acceptedReleaseCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateId",
+        "platformVersion",
+        "platformContractVersion",
+        "sourceCommit",
+        "artifactSetDigest",
+        "evidenceDigest",
+        "status"
+      ],
+      "properties": {
+        "candidateId": {
+          "type": "string",
+          "pattern": "^rc-1\\.0\\.0-rc\\.1-[0-9a-f]{16}$"
+        },
+        "platformVersion": {
+          "const": "1.0.0-rc.1"
+        },
+        "platformContractVersion": {
+          "const": "1.0.0-rc.1"
+        },
+        "sourceCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "artifactSetDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidenceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "status": {
+          "const": "accepted"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceArtifactId",
+        "kind",
+        "version",
+        "acceptedDigest",
+        "promotedDigest",
+        "identity",
+        "path",
+        "destination"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceArtifactId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "package",
+            "template",
+            "tool",
+            "process-archive",
+            "oci-image",
+            "schema",
+            "skill",
+            "generated-client",
+            "sbom",
+            "provenance",
+            "evidence-bundle",
+            "documentation",
+            "migration"
+          ]
+        },
+        "version": {
+          "const": "1.0.0"
+        },
+        "acceptedDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "promotedDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "destination": {
+          "enum": [
+            "nuget.org",
+            "github-release",
+            "MartiXDev/Platform",
+            "martix/skills",
+            "github-pages"
+          ]
+        }
+      }
+    },
+    "identity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "signatureDigest"
+          ],
+          "properties": {
+            "mode": {
+              "const": "signed"
+            },
+            "signatureDigest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "digest-identified"
+            }
+          }
+        }
+      ]
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "destination",
+        "artifactIds",
+        "status",
+        "receiptDigest"
+      ],
+      "properties": {
+        "destination": {
+          "enum": [
+            "nuget.org",
+            "github-release",
+            "MartiXDev/Platform",
+            "martix/skills",
+            "github-pages"
+          ]
+        },
+        "artifactIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "status": {
+          "const": "verified"
+        },
+        "receiptDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "documentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "versionedPath",
+        "releaseEvidencePath",
+        "immutable",
+        "contentDigest",
+        "indexDigest"
+      ],
+      "properties": {
+        "version": {
+          "const": "1.0.0"
+        },
+        "versionedPath": {
+          "$ref": "#/$defs/path"
+        },
+        "releaseEvidencePath": {
+          "$ref": "#/$defs/path"
+        },
+        "immutable": {
+          "const": true
+        },
+        "contentDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "indexDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "method",
+        "evidencePath",
+        "digest"
+      ],
+      "properties": {
+        "status": {
+          "const": "recorded"
+        },
+        "method": {
+          "const": "authenticated-review"
+        },
+        "evidencePath": {
+          "$ref": "#/$defs/path"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "compatibilityBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "major",
+        "version",
+        "status",
+        "immediate",
+        "minorCohorts",
+        "predecessor",
+        "providerClaims",
+        "deploymentClaims",
+        "migrationClaims",
+        "digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "major-floor"
+        },
+        "major": {
+          "const": 1
+        },
+        "version": {
+          "const": "1.0.0"
+        },
+        "status": {
+          "const": "established"
+        },
+        "immediate": {
+          "$ref": "#/$defs/notApplicableBaseline"
+        },
+        "minorCohorts": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "predecessor": {
+          "$ref": "#/$defs/notApplicableBaseline"
+        },
+        "providerClaims": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "deploymentClaims": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "migrationClaims": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "notApplicableBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "const": "not-applicable"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "releasePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "states",
+        "terminalState",
+        "builtOnce",
+        "exactBytes",
+        "promotionWithoutRebuild",
+        "patchInPlace",
+        "approvalRequired",
+        "atomicCompleteSet",
+        "failedPublicationBurnsVersion",
+        "publicationOrder"
+      ],
+      "properties": {
+        "states": {
+          "type": "array",
+          "minItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "terminalState": {
+          "const": "promote"
+        },
+        "builtOnce": {
+          "const": true
+        },
+        "exactBytes": {
+          "const": true
+        },
+        "promotionWithoutRebuild": {
+          "const": true
+        },
+        "patchInPlace": {
+          "const": false
+        },
+        "approvalRequired": {
+          "const": true
+        },
+        "atomicCompleteSet": {
+          "const": true
+        },
+        "failedPublicationBurnsVersion": {
+          "const": true
+        },
+        "publicationOrder": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cadence",
+        "policyVersion",
+        "entrypoint",
+        "command",
+        "failClosed",
+        "requiredGates",
+        "notApplicable",
+        "notSelected"
+      ],
+      "properties": {
+        "cadence": {
+          "const": "release-candidate"
+        },
+        "policyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entrypoint": {
+          "const": "eng/verify.mjs"
+        },
+        "command": {
+          "const": "npm run verify:stable-promotion"
+        },
+        "failClosed": {
+          "const": true
+        },
+        "requiredGates": {
+          "type": "array",
+          "minItems": 26,
+          "maxItems": 26,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notApplicable": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "notSelected": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "gateAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "outcome"
+      ],
+      "properties": {
+        "number": {
+          "const": 1
+        },
+        "outcome": {
+          "const": "passed"
+        }
+      }
+    },
+    "promotionGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "outcome",
+        "inputDigest",
+        "evidenceDigest",
+        "attempts"
+      ],
+      "properties": {
+        "id": {
+          "const": "stable.promotion"
+        },
+        "outcome": {
+          "const": "passed"
+        },
+        "inputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidenceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "attempts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/gateAttempt"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paths",
+        "digest"
+      ],
+      "properties": {
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}
