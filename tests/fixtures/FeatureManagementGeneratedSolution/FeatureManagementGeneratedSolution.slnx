@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/MartiX.FeatureManagementTestApp/MartiX.FeatureManagementTestApp.csproj" />
+  <Project Path="tests/MartiX.FeatureManagementTestApp.Tests/MartiX.FeatureManagementTestApp.Tests.csproj" />
+</Solution>

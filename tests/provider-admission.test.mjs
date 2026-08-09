@@ -100,6 +100,21 @@ test("every catalog entry declares complete effects and claim-free admission met
   }
 });
 
+test("Microsoft Feature Management declares the current schema and direct package seam", () => {
+  const catalog = validateProviderAdmissionCatalog();
+  const definition = catalog.find(
+    ({ capability, id }) =>
+      capability === "feature-management" &&
+      id === "microsoft-feature-management",
+  );
+  assert.ok(definition);
+
+  assert.deepEqual(definition.requiredConfiguration, ["feature_management"]);
+  assert.deepEqual(definition.effects.configuration, ["feature_management"]);
+  assert.deepEqual(definition.effects.registrations, ["IVariantFeatureManager"]);
+  assert.deepEqual(definition.effects.telemetry, ["feature-management"]);
+});
+
 test("selection and absence verify all provider effect categories", async () => {
   const catalog = validateProviderAdmissionCatalog();
   const postgresql = catalog.find(

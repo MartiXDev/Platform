@@ -160,6 +160,19 @@
       "purpose": "The named OTLP Export Generated Solution proves selected traces, metrics, and logs, privacy/redaction, bounded collector failure, business/readiness isolation, and unselected absence."
     },
     {
+      "id": "bootstrap.feature-management",
+      "family": "provider-integration",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Feature Management Generated Solution proves direct Microsoft.FeatureManagement composition, deterministic fail-closed evaluation, bounded telemetry, and separation from authorization and durable state."
+    },
+    {
       "id": "bootstrap.host-baseline",
       "family": "security-observability",
       "owner": "platform-maintainers",

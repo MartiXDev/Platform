@@ -109,6 +109,8 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.equal(result.otlpExportSolution, "OtlpExportGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.otlp-export"));
   assert.equal(result.otlpExport.signalCount, 3);
+  assert.equal(result.featureManagementSolution, "FeatureManagementGeneratedSolution");
+  assert.ok(result.gates.includes("bootstrap.feature-management"));
 });
 
 test("the named Full Stack fixture exercises the Blazor provider", async () => {

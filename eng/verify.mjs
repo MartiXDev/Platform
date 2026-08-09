@@ -52,6 +52,12 @@ import {
   verifyDeploymentManifest,
 } from "./deployment-manifest.mjs";
 import { generateApiPreset } from "./api-preset.mjs";
+import {
+  FEATURE_MANAGEMENT_FIXTURE_FILES,
+  FEATURE_MANAGEMENT_SOLUTION_NAME,
+  FEATURE_MANAGEMENT_SOLUTION_ROOT,
+  validateFeatureManagementFixture,
+} from "./feature-management.mjs";
 
 const CADENCES = [
   "fast",
@@ -96,6 +102,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.provider-admission",
   "bootstrap.deployment-manifest",
   "bootstrap.otlp-export",
+  "bootstrap.feature-management",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -266,6 +273,10 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
   "eng/deployment-manifest.mjs",
   "schemas/deployment-manifest.schema.json",
+  ...FEATURE_MANAGEMENT_FIXTURE_FILES.map(
+    (relativePath) => `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/${relativePath}`,
+  ),
+  "eng/feature-management.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -3165,6 +3176,9 @@ export async function verifyBootstrap({
   const otlpExportFixture = parseJson(
     `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`,
   );
+  const featureManagementManifest = parseJson(
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
 
   validateManifestSchema(manifestSchema);
   requireRecord(agentContextSchema, "schemas/agent-context.schema.json");
@@ -3251,6 +3265,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    featureManagementManifest,
+    "generated-solution",
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    featureManagementManifest,
+    manifestSchema,
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -3273,6 +3297,10 @@ export async function verifyBootstrap({
     otlpExportFixture,
     otlpExportManifest,
   );
+  const featureManagement = await validateFeatureManagementFixture({
+    rootDir: root,
+    manifest: featureManagementManifest,
+  });
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -3298,11 +3326,13 @@ export async function verifyBootstrap({
     modularMonolithSolution: MODULAR_MONOLITH_SOLUTION_NAME,
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
+    featureManagementSolution: FEATURE_MANAGEMENT_SOLUTION_NAME,
     providerAdmission,
     deploymentManifestSolution: DEPLOYMENT_MANIFEST_SOLUTION_NAME,
     deploymentManifest: deploymentManifestResult,
     otlpExportSolution: OTLP_EXPORT_SOLUTION_NAME,
     otlpExport,
+    featureManagement,
     agentReadiness,
   };
 }
