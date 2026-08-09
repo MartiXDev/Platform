@@ -2673,6 +2673,63 @@ async function validateFullStackSolution(rootDir, manifest) {
   }
 }
 
+function requireQualityProfile(
+  profiles,
+  {
+    id,
+    maturity,
+    preset,
+    providers,
+    cadences,
+    gates,
+    command,
+    description,
+  },
+) {
+  const matchingProfiles = profiles.filter((profile) => profile?.id === id);
+  if (matchingProfiles.length !== 1) {
+    fail(`Quality policy must declare exactly one ${id} profile.`);
+  }
+
+  const profile = matchingProfiles[0];
+  if (
+    profile.maturity !== maturity ||
+    profile.preset !== preset ||
+    JSON.stringify(profile.providers) !== JSON.stringify(providers) ||
+    JSON.stringify(profile.cadences) !== JSON.stringify(cadences) ||
+    JSON.stringify(profile.gates) !== JSON.stringify(gates) ||
+    profile.command !== command
+  ) {
+    fail(`${id} quality profile is not the declared ${description}.`);
+  }
+
+  return profile;
+}
+
+function validateProfileGateSelection({
+  profile,
+  profileId,
+  requiredGateIds,
+  gateIds,
+  gateLabel,
+}) {
+  for (const gateId of profile.gates) {
+    if (!gateIds.has(gateId)) {
+      fail(
+        `Quality profile ${profileId} references an unknown gate: ${gateId}.`,
+      );
+    }
+  }
+
+  for (const gateId of requiredGateIds) {
+    if (!profile.gates.includes(gateId)) {
+      fail(
+        `${gateLabel} gate ${gateId} is not selected by its quality profile.`,
+      );
+    }
+  }
+}
+
 export function validateQualityGatePolicy(policy) {
   requireRecord(policy, "eng/quality-gates.json");
   requireString(policy.policyVersion, "eng/quality-gates.json.policyVersion");
@@ -2687,102 +2744,46 @@ export function validateQualityGatePolicy(policy) {
   }
 
   requireArray(policy.profiles, "eng/quality-gates.json.profiles");
-  const alphaProfiles = policy.profiles.filter(
-    (profile) => profile?.id === MODULAR_MONOLITH_ALPHA_PROFILE_ID,
-  );
-  if (alphaProfiles.length !== 1) {
-    fail(
-      `Quality policy must declare exactly one ${MODULAR_MONOLITH_ALPHA_PROFILE_ID} profile.`,
-    );
-  }
-  const alphaProfile = alphaProfiles[0];
-  if (
-    alphaProfile.maturity !== "experimental" ||
-    alphaProfile.preset !== "modular-monolith" ||
-    JSON.stringify(alphaProfile.providers) !==
-      JSON.stringify(MODULAR_MONOLITH_ALPHA_PROVIDERS) ||
-    JSON.stringify(alphaProfile.cadences) !==
-      JSON.stringify(RELEASE_CANDIDATE_CADENCES) ||
-    JSON.stringify(alphaProfile.gates) !==
-      JSON.stringify(MODULAR_MONOLITH_ALPHA_GATE_IDS) ||
-    alphaProfile.command !== "npm run verify:modular-monolith-alpha"
-  ) {
-    fail(
-      `${MODULAR_MONOLITH_ALPHA_PROFILE_ID} quality profile is not the declared Experimental provider matrix.`,
-    );
-  }
-  const betaProfiles = policy.profiles.filter(
-    (profile) => profile?.id === BETA_INTEGRATION_PROFILE_ID,
-  );
-  if (betaProfiles.length !== 1) {
-    fail(
-      `Quality policy must declare exactly one ${BETA_INTEGRATION_PROFILE_ID} profile.`,
-    );
-  }
-  const betaProfile = betaProfiles[0];
-  if (
-    betaProfile.maturity !== "beta" ||
-    betaProfile.preset !== "platform" ||
-    !Array.isArray(betaProfile.providers) ||
-    betaProfile.providers.length !== 0 ||
-    JSON.stringify(betaProfile.cadences) !==
-      JSON.stringify(RELEASE_CANDIDATE_CADENCES) ||
-    JSON.stringify(betaProfile.gates) !==
-      JSON.stringify(BETA_INTEGRATION_GATE_IDS) ||
-    betaProfile.command !== "npm run verify:beta-integration"
-  ) {
-    fail(
-      `${BETA_INTEGRATION_PROFILE_ID} quality profile is not the declared Beta integration matrix.`,
-    );
-  }
-  const releaseCandidateProfiles = policy.profiles.filter(
-    (profile) => profile?.id === RELEASE_CANDIDATE_PROFILE_ID,
-  );
-  if (releaseCandidateProfiles.length !== 1) {
-    fail(
-      `Quality policy must declare exactly one ${RELEASE_CANDIDATE_PROFILE_ID} profile.`,
-    );
-  }
-  const releaseCandidateProfile = releaseCandidateProfiles[0];
-  if (
-    releaseCandidateProfile.maturity !== "release-candidate" ||
-    releaseCandidateProfile.preset !== "platform" ||
-    !Array.isArray(releaseCandidateProfile.providers) ||
-    releaseCandidateProfile.providers.length !== 0 ||
-    JSON.stringify(releaseCandidateProfile.cadences) !==
-      JSON.stringify(RELEASE_CANDIDATE_CADENCES) ||
-    JSON.stringify(releaseCandidateProfile.gates) !==
-      JSON.stringify([RELEASE_CANDIDATE_GATE_ID]) ||
-    releaseCandidateProfile.command !== RELEASE_CANDIDATE_VERIFICATION_COMMAND
-  ) {
-    fail(
-      `${RELEASE_CANDIDATE_PROFILE_ID} quality profile is not the declared Release Candidate evidence matrix.`,
-    );
-  }
-  const stablePromotionProfiles = policy.profiles.filter(
-    (profile) => profile?.id === STABLE_PROMOTION_PROFILE_ID,
-  );
-  if (stablePromotionProfiles.length !== 1) {
-    fail(
-      `Quality policy must declare exactly one ${STABLE_PROMOTION_PROFILE_ID} profile.`,
-    );
-  }
-  const stablePromotionProfile = stablePromotionProfiles[0];
-  if (
-    stablePromotionProfile.maturity !== "stable" ||
-    stablePromotionProfile.preset !== "platform" ||
-    !Array.isArray(stablePromotionProfile.providers) ||
-    stablePromotionProfile.providers.length !== 0 ||
-    JSON.stringify(stablePromotionProfile.cadences) !==
-      JSON.stringify(STABLE_PROMOTION_CADENCES) ||
-    JSON.stringify(stablePromotionProfile.gates) !==
-      JSON.stringify([STABLE_PROMOTION_GATE_ID]) ||
-    stablePromotionProfile.command !== STABLE_PROMOTION_VERIFICATION_COMMAND
-  ) {
-    fail(
-      `${STABLE_PROMOTION_PROFILE_ID} quality profile is not the declared Stable promotion evidence matrix.`,
-    );
-  }
+  const alphaProfile = requireQualityProfile(policy.profiles, {
+    id: MODULAR_MONOLITH_ALPHA_PROFILE_ID,
+    maturity: "experimental",
+    preset: "modular-monolith",
+    providers: MODULAR_MONOLITH_ALPHA_PROVIDERS,
+    cadences: RELEASE_CANDIDATE_CADENCES,
+    gates: MODULAR_MONOLITH_ALPHA_GATE_IDS,
+    command: "npm run verify:modular-monolith-alpha",
+    description: "Experimental provider matrix",
+  });
+  const betaProfile = requireQualityProfile(policy.profiles, {
+    id: BETA_INTEGRATION_PROFILE_ID,
+    maturity: "beta",
+    preset: "platform",
+    providers: [],
+    cadences: RELEASE_CANDIDATE_CADENCES,
+    gates: BETA_INTEGRATION_GATE_IDS,
+    command: "npm run verify:beta-integration",
+    description: "Beta integration matrix",
+  });
+  const releaseCandidateProfile = requireQualityProfile(policy.profiles, {
+    id: RELEASE_CANDIDATE_PROFILE_ID,
+    maturity: "release-candidate",
+    preset: "platform",
+    providers: [],
+    cadences: RELEASE_CANDIDATE_CADENCES,
+    gates: [RELEASE_CANDIDATE_GATE_ID],
+    command: RELEASE_CANDIDATE_VERIFICATION_COMMAND,
+    description: "Release Candidate evidence matrix",
+  });
+  const stablePromotionProfile = requireQualityProfile(policy.profiles, {
+    id: STABLE_PROMOTION_PROFILE_ID,
+    maturity: "stable",
+    preset: "platform",
+    providers: [],
+    cadences: STABLE_PROMOTION_CADENCES,
+    gates: [STABLE_PROMOTION_GATE_ID],
+    command: STABLE_PROMOTION_VERIFICATION_COMMAND,
+    description: "Stable promotion evidence matrix",
+  });
 
   requireArray(policy.cadences, "eng/quality-gates.json.cadences");
   const declaredCadences = policy.cadences.map((cadence) => cadence?.id);
@@ -2892,74 +2893,34 @@ export function validateQualityGatePolicy(policy) {
     }
   }
 
-  for (const gateId of alphaProfile.gates) {
-    if (!gateIds.has(gateId)) {
-      fail(
-        `Quality profile ${MODULAR_MONOLITH_ALPHA_PROFILE_ID} references an unknown gate: ${gateId}.`,
-      );
-    }
-  }
-  for (const gate of policy.gates) {
-    if (
-      MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) &&
-      !alphaProfile.gates.includes(gate.id)
-    ) {
-      fail(
-        `Modular Monolith alpha gate ${gate.id} is not selected by its quality profile.`,
-      );
-    }
-  }
-  for (const gateId of betaProfile.gates) {
-    if (!gateIds.has(gateId)) {
-      fail(
-        `Quality profile ${BETA_INTEGRATION_PROFILE_ID} references an unknown gate: ${gateId}.`,
-      );
-    }
-  }
-  for (const gate of policy.gates) {
-    if (
-      BETA_INTEGRATION_GATE_IDS.includes(gate.id) &&
-      !betaProfile.gates.includes(gate.id)
-    ) {
-      fail(
-        `Beta integration gate ${gate.id} is not selected by its quality profile.`,
-      );
-    }
-  }
-  for (const gateId of releaseCandidateProfile.gates) {
-    if (!gateIds.has(gateId)) {
-      fail(
-        `Quality profile ${RELEASE_CANDIDATE_PROFILE_ID} references an unknown gate: ${gateId}.`,
-      );
-    }
-  }
-  for (const gate of policy.gates) {
-    if (
-      gate.id === RELEASE_CANDIDATE_GATE_ID &&
-      !releaseCandidateProfile.gates.includes(gate.id)
-    ) {
-      fail(
-        `Release Candidate gate ${gate.id} is not selected by its quality profile.`,
-      );
-    }
-  }
-  for (const gateId of stablePromotionProfile.gates) {
-    if (!gateIds.has(gateId)) {
-      fail(
-        `Quality profile ${STABLE_PROMOTION_PROFILE_ID} references an unknown gate: ${gateId}.`,
-      );
-    }
-  }
-  for (const gate of policy.gates) {
-    if (
-      gate.id === STABLE_PROMOTION_GATE_ID &&
-      !stablePromotionProfile.gates.includes(gate.id)
-    ) {
-      fail(
-        `Stable promotion gate ${gate.id} is not selected by its quality profile.`,
-      );
-    }
-  }
+  validateProfileGateSelection({
+    profile: alphaProfile,
+    profileId: MODULAR_MONOLITH_ALPHA_PROFILE_ID,
+    requiredGateIds: MODULAR_MONOLITH_ALPHA_GATE_IDS,
+    gateIds,
+    gateLabel: "Modular Monolith alpha",
+  });
+  validateProfileGateSelection({
+    profile: betaProfile,
+    profileId: BETA_INTEGRATION_PROFILE_ID,
+    requiredGateIds: BETA_INTEGRATION_GATE_IDS,
+    gateIds,
+    gateLabel: "Beta integration",
+  });
+  validateProfileGateSelection({
+    profile: releaseCandidateProfile,
+    profileId: RELEASE_CANDIDATE_PROFILE_ID,
+    requiredGateIds: [RELEASE_CANDIDATE_GATE_ID],
+    gateIds,
+    gateLabel: "Release Candidate",
+  });
+  validateProfileGateSelection({
+    profile: stablePromotionProfile,
+    profileId: STABLE_PROMOTION_PROFILE_ID,
+    requiredGateIds: [STABLE_PROMOTION_GATE_ID],
+    gateIds,
+    gateLabel: "Stable promotion",
+  });
 }
 
 function validateGovernanceDocuments(documents) {
@@ -4901,8 +4862,8 @@ export async function verifyBootstrap({
           (isReleaseCandidate &&
             (MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) ||
               BETA_INTEGRATION_GATE_IDS.includes(gate.id) ||
-            gate.id === RELEASE_CANDIDATE_GATE_ID ||
-            gate.id === STABLE_PROMOTION_GATE_ID))) &&
+              gate.id === RELEASE_CANDIDATE_GATE_ID ||
+              gate.id === STABLE_PROMOTION_GATE_ID))) &&
         gate.cadences.includes(cadence),
     )
     .map((gate) => gate.id);

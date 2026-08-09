@@ -667,9 +667,8 @@ function normalizeEvidence(value, artifacts, acceptedReleaseCandidate) {
     paths,
     digest: requireDigest(evidence.digest, "evidence.digest"),
   };
-  const { digest, ...evidenceBody } = normalized;
   if (
-    digest !==
+    normalized.digest !==
     sha256({
       acceptedReleaseCandidate,
       artifactIds: artifacts.map(({ id }) => id),
