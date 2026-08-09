@@ -10,8 +10,8 @@ public sealed record FeatureEvaluationObservation(
 public sealed class FeatureEvaluationObserver : IDisposable
 {
     private const int MaxEvents = 32;
-    private readonly object gate = new();
-    private readonly List<FeatureEvaluationObservation> events = [];
+    private readonly object syncRoot = new();
+    private readonly List<FeatureEvaluationObservation> observations = [];
     private readonly ActivityListener listener;
 
     public FeatureEvaluationObserver()
@@ -31,9 +31,9 @@ public sealed class FeatureEvaluationObserver : IDisposable
     {
         get
         {
-            lock (gate)
+            lock (syncRoot)
             {
-                return events.ToArray();
+                return observations.ToArray();
             }
         }
     }
@@ -61,9 +61,9 @@ public sealed class FeatureEvaluationObserver : IDisposable
                 continue;
             }
 
-            lock (gate)
+            lock (syncRoot)
             {
-                if (Events.Count >= MaxEvents)
+                if (observations.Count >= MaxEvents)
                 {
                     return;
                 }
@@ -71,7 +71,7 @@ public sealed class FeatureEvaluationObserver : IDisposable
                 _ = bool.TryParse(
                     ReadTag(featureEvent, "Enabled"),
                     out var enabled);
-                events.Add(new FeatureEvaluationObservation(
+                observations.Add(new FeatureEvaluationObservation(
                     featureName,
                     enabled,
                     ReadTag(featureEvent, "Variant")));

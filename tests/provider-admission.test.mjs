@@ -107,6 +107,7 @@ test("Microsoft Feature Management declares the current schema and direct packag
       capability === "feature-management" &&
       id === "microsoft-feature-management",
   );
+  assert.ok(definition);
 
   assert.deepEqual(definition.requiredConfiguration, ["feature_management"]);
   assert.deepEqual(definition.effects.configuration, ["feature_management"]);

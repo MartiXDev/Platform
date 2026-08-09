@@ -7,22 +7,57 @@ export const FEATURE_MANAGEMENT_SOLUTION_NAME =
 export const FEATURE_MANAGEMENT_SOLUTION_ROOT =
   `tests/fixtures/${FEATURE_MANAGEMENT_SOLUTION_NAME}`;
 
-const EXPECTED_FILES = [
+const FEATURE_MANAGEMENT_CAPABILITY_ID = "feature-management";
+const FEATURE_MANAGEMENT_PROVIDER_ID = "microsoft-feature-management";
+const FEATURE_MANAGEMENT_CONFIGURATION_SECTION = "feature_management";
+const FEATURE_MANAGEMENT_INTERFACE = "IVariantFeatureManager";
+const FEATURE_MANAGEMENT_SNAPSHOT_INTERFACE = "IVariantFeatureManagerSnapshot";
+const REQUIRED_FEATURE_IDS = Object.freeze([
+  "CheckoutV2",
+  "DisabledCheckout",
+  "TargetedCheckout",
+  "CheckoutVariant",
+  "RefreshProbe",
+  "MissingFilter",
+  "MalformedFlag",
+  "TelemetryProbe",
+]);
+const FEATURE_MANAGEMENT_FILE_PATHS = Object.freeze({
+  configuration: "appsettings.json",
+  manifest: "martix.platform.json",
+  applicationProject:
+    "src/MartiX.FeatureManagementTestApp/MartiX.FeatureManagementTestApp.csproj",
+  composition:
+    "src/MartiX.FeatureManagementTestApp/FeatureManagementComposition.cs",
+  program: "src/MartiX.FeatureManagementTestApp/Program.cs",
+  observer:
+    "src/MartiX.FeatureManagementTestApp/FeatureEvaluationObserver.cs",
+  authorizationPolicy:
+    "src/MartiX.FeatureManagementTestApp/AuthorizationPolicy.cs",
+  durableState:
+    "src/MartiX.FeatureManagementTestApp/DurableCheckoutState.cs",
+  testProject:
+    "tests/MartiX.FeatureManagementTestApp.Tests/MartiX.FeatureManagementTestApp.Tests.csproj",
+  contractTests:
+    "tests/MartiX.FeatureManagementTestApp.Tests/FeatureManagementContractTests.cs",
+});
+
+export const FEATURE_MANAGEMENT_FIXTURE_FILES = Object.freeze([
   "AGENTS.md",
   "CONTEXT.md",
   "FeatureManagementGeneratedSolution.slnx",
   "README.md",
-  "appsettings.json",
-  "martix.platform.json",
-  "src/MartiX.FeatureManagementTestApp/AuthorizationPolicy.cs",
-  "src/MartiX.FeatureManagementTestApp/DurableCheckoutState.cs",
-  "src/MartiX.FeatureManagementTestApp/FeatureEvaluationObserver.cs",
-  "src/MartiX.FeatureManagementTestApp/FeatureManagementComposition.cs",
-  "src/MartiX.FeatureManagementTestApp/MartiX.FeatureManagementTestApp.csproj",
-  "src/MartiX.FeatureManagementTestApp/Program.cs",
-  "tests/MartiX.FeatureManagementTestApp.Tests/FeatureManagementContractTests.cs",
-  "tests/MartiX.FeatureManagementTestApp.Tests/MartiX.FeatureManagementTestApp.Tests.csproj",
-];
+  FEATURE_MANAGEMENT_FILE_PATHS.configuration,
+  FEATURE_MANAGEMENT_FILE_PATHS.manifest,
+  FEATURE_MANAGEMENT_FILE_PATHS.authorizationPolicy,
+  FEATURE_MANAGEMENT_FILE_PATHS.durableState,
+  FEATURE_MANAGEMENT_FILE_PATHS.observer,
+  FEATURE_MANAGEMENT_FILE_PATHS.composition,
+  FEATURE_MANAGEMENT_FILE_PATHS.applicationProject,
+  FEATURE_MANAGEMENT_FILE_PATHS.program,
+  FEATURE_MANAGEMENT_FILE_PATHS.contractTests,
+  FEATURE_MANAGEMENT_FILE_PATHS.testProject,
+]);
 
 export class FeatureManagementVerificationError extends Error {}
 
@@ -73,11 +108,11 @@ function validateManifest(manifest, path) {
   }
 
   const providers = manifest.providers.filter(
-    ({ id }) => id === "microsoft-feature-management",
+    ({ id }) => id === FEATURE_MANAGEMENT_PROVIDER_ID,
   );
   if (
-    providers?.length !== 1 ||
-    providers[0].capability !== "feature-management" ||
+    providers.length !== 1 ||
+    providers[0].capability !== FEATURE_MANAGEMENT_CAPABILITY_ID ||
     providers[0].state !== "selected"
   ) {
     fail(
@@ -86,7 +121,7 @@ function validateManifest(manifest, path) {
   }
 
   const capability = manifest.capabilities.find(
-    ({ id }) => id === "feature-management",
+    ({ id }) => id === FEATURE_MANAGEMENT_CAPABILITY_ID,
   );
   if (capability?.state !== "selected") {
     fail("Feature Management fixture must select the feature-management capability.");
@@ -139,36 +174,31 @@ function validateProject(project, path, { testProject = false } = {}) {
 }
 
 function validateConfiguration(configuration, path) {
+  const featureManagement =
+    configuration[FEATURE_MANAGEMENT_CONFIGURATION_SECTION];
   if (
-    configuration.feature_management === undefined ||
+    featureManagement === null ||
+    typeof featureManagement !== "object" ||
+    Array.isArray(featureManagement) ||
     configuration.FeatureManagement !== undefined ||
-    !Array.isArray(configuration.feature_management.feature_flags)
+    !Array.isArray(featureManagement.feature_flags)
   ) {
     fail(
       `Feature Management configuration must use the current feature_management schema: ${path}.`,
     );
   }
 
-  const featureIds = configuration.feature_management.feature_flags.map(
-    ({ id }) => id,
+  const featureIds = featureManagement.feature_flags.map(
+    (feature) => feature?.id,
   );
-  for (const id of [
-    "CheckoutV2",
-    "DisabledCheckout",
-    "TargetedCheckout",
-    "CheckoutVariant",
-    "RefreshProbe",
-    "MissingFilter",
-    "MalformedFlag",
-    "TelemetryProbe",
-  ]) {
+  for (const id of REQUIRED_FEATURE_IDS) {
     if (!featureIds.includes(id)) {
       fail(`Feature Management configuration is missing feature ${id}: ${path}.`);
     }
   }
 
-  const targeting = configuration.feature_management.feature_flags.find(
-    ({ id }) => id === "TargetedCheckout",
+  const targeting = featureManagement.feature_flags.find(
+    (feature) => feature?.id === "TargetedCheckout",
   );
   if (
     targeting?.conditions?.client_filters?.[0]?.name !== "Microsoft.Targeting"
@@ -178,20 +208,16 @@ function validateConfiguration(configuration, path) {
 }
 
 async function validateSourceContracts(solutionRoot) {
-  const projectPath =
-    "src/MartiX.FeatureManagementTestApp/MartiX.FeatureManagementTestApp.csproj";
+  const projectPath = FEATURE_MANAGEMENT_FILE_PATHS.applicationProject;
   const project = await readFixtureFile(solutionRoot, projectPath);
   validateProject(project, projectPath);
 
-  const compositionPath =
-    "src/MartiX.FeatureManagementTestApp/FeatureManagementComposition.cs";
+  const compositionPath = FEATURE_MANAGEMENT_FILE_PATHS.composition;
   const composition = await readFixtureFile(solutionRoot, compositionPath);
   requireFragments(
     composition,
     [
       "AddFeatureManagement(configuration)",
-      "IVariantFeatureManager",
-      "IVariantFeatureManagerSnapshot",
       "IConfiguration",
       "IgnoreMissingFeatureFilters = false",
       "IgnoreMissingFeatures = false",
@@ -207,15 +233,18 @@ async function validateSourceContracts(solutionRoot) {
     );
   }
 
-  const programPath = "src/MartiX.FeatureManagementTestApp/Program.cs";
+  const programPath = FEATURE_MANAGEMENT_FILE_PATHS.program;
   requireFragments(
     await readFixtureFile(solutionRoot, programPath),
-    ["FeatureManagementComposition.AddServices", "IVariantFeatureManager"],
+    [
+      "FeatureManagementComposition.AddServices",
+      FEATURE_MANAGEMENT_INTERFACE,
+      FEATURE_MANAGEMENT_SNAPSHOT_INTERFACE,
+    ],
     programPath,
   );
 
-  const observerPath =
-    "src/MartiX.FeatureManagementTestApp/FeatureEvaluationObserver.cs";
+  const observerPath = FEATURE_MANAGEMENT_FILE_PATHS.observer;
   const observer = await readFixtureFile(solutionRoot, observerPath);
   requireFragments(
     observer,
@@ -230,51 +259,48 @@ async function validateSourceContracts(solutionRoot) {
   );
   if (
     /TargetingId|UserId|Email|GroupId|TargetingContext/i.test(observer) ||
-    !observer.includes("Events.Count >= MaxEvents")
+    !observer.includes("observations.Count >= MaxEvents")
   ) {
     fail(
       "Feature Management telemetry evidence must be bounded and omit targeting identifiers.",
     );
   }
 
-  const authorizationPath =
-    "src/MartiX.FeatureManagementTestApp/AuthorizationPolicy.cs";
+  const authorizationPath = FEATURE_MANAGEMENT_FILE_PATHS.authorizationPolicy;
   const authorization = await readFixtureFile(solutionRoot, authorizationPath);
   requireFragments(
     authorization,
     ["AuthorizationPolicy", "RequiredPermission", "permissions.Contains"],
     authorizationPath,
   );
-  if (authorization.includes("IVariantFeatureManager")) {
+  if (authorization.includes(FEATURE_MANAGEMENT_INTERFACE)) {
     fail("AuthorizationPolicy must not depend on feature evaluation.");
   }
 
-  const durableStatePath =
-    "src/MartiX.FeatureManagementTestApp/DurableCheckoutState.cs";
+  const durableStatePath = FEATURE_MANAGEMENT_FILE_PATHS.durableState;
   const durableState = await readFixtureFile(solutionRoot, durableStatePath);
   requireFragments(
     durableState,
-    ["CheckoutDecision", "Variant", "Capture"],
+    ["CheckoutDecision", "Variant", "CaptureDecision"],
     durableStatePath,
   );
   if (
-    durableState.includes("IVariantFeatureManager") ||
+    durableState.includes(FEATURE_MANAGEMENT_INTERFACE) ||
     durableState.includes("IsEnabledAsync") ||
     durableState.includes("GetVariantAsync")
   ) {
     fail("Durable checkout state must capture a decision, not re-evaluate a feature.");
   }
 
-  const testsPath =
-    "tests/MartiX.FeatureManagementTestApp.Tests/FeatureManagementContractTests.cs";
+  const testsPath = FEATURE_MANAGEMENT_FILE_PATHS.contractTests;
   const tests = await readFixtureFile(solutionRoot, testsPath);
   requireFragments(
     tests,
     [
       "[Test]",
       "await Assert.That",
-      "IVariantFeatureManager",
-      "IVariantFeatureManagerSnapshot",
+      FEATURE_MANAGEMENT_INTERFACE,
+      FEATURE_MANAGEMENT_SNAPSHOT_INTERFACE,
       "GetVariantAsync",
       "TargetingContext",
       "FeatureManagementError.MissingFeature",
@@ -285,6 +311,7 @@ async function validateSourceContracts(solutionRoot) {
       "repeatedVariant",
       "AuthorizationPolicy",
       "DurableCheckoutState",
+      "CaptureDecision",
       "Reload()",
     ],
     testsPath,
@@ -292,13 +319,23 @@ async function validateSourceContracts(solutionRoot) {
 }
 
 export async function validateFeatureManagementFixture({ rootDir, manifest } = {}) {
-  const solutionRoot = resolve(rootDir ?? process.cwd(), FEATURE_MANAGEMENT_SOLUTION_ROOT);
+  const solutionRoot = resolve(
+    rootDir ?? process.cwd(),
+    FEATURE_MANAGEMENT_SOLUTION_ROOT,
+  );
   const actualFiles = await listFiles(solutionRoot, {
     ignoredDirectories: ["bin", "obj"],
   });
-  if (JSON.stringify(actualFiles) !== JSON.stringify(EXPECTED_FILES)) {
-    const missing = EXPECTED_FILES.filter((file) => !actualFiles.includes(file));
-    const extra = actualFiles.filter((file) => !EXPECTED_FILES.includes(file));
+  if (
+    JSON.stringify(actualFiles) !==
+    JSON.stringify(FEATURE_MANAGEMENT_FIXTURE_FILES)
+  ) {
+    const missing = FEATURE_MANAGEMENT_FIXTURE_FILES.filter(
+      (file) => !actualFiles.includes(file),
+    );
+    const extra = actualFiles.filter(
+      (file) => !FEATURE_MANAGEMENT_FIXTURE_FILES.includes(file),
+    );
     fail(
       `Feature Management fixture inventory mismatch; missing: ${
         missing.join(", ") || "none"
@@ -309,21 +346,23 @@ export async function validateFeatureManagementFixture({ rootDir, manifest } = {
   const fixtureManifest =
     manifest ??
     JSON.parse(
-      await readFixtureFile(solutionRoot, "martix.platform.json"),
+      await readFixtureFile(
+        solutionRoot,
+        FEATURE_MANAGEMENT_FILE_PATHS.manifest,
+      ),
     );
   validateManifest(
     fixtureManifest,
-    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/${FEATURE_MANAGEMENT_FILE_PATHS.manifest}`,
   );
 
-  const configurationPath = "appsettings.json";
+  const configurationPath = FEATURE_MANAGEMENT_FILE_PATHS.configuration;
   const configuration = JSON.parse(
     await readFixtureFile(solutionRoot, configurationPath),
   );
   validateConfiguration(configuration, configurationPath);
 
-  const testProjectPath =
-    "tests/MartiX.FeatureManagementTestApp.Tests/MartiX.FeatureManagementTestApp.Tests.csproj";
+  const testProjectPath = FEATURE_MANAGEMENT_FILE_PATHS.testProject;
   validateProject(
     await readFixtureFile(solutionRoot, testProjectPath),
     testProjectPath,
@@ -334,8 +373,8 @@ export async function validateFeatureManagementFixture({ rootDir, manifest } = {
   return {
     status: "passed",
     solution: FEATURE_MANAGEMENT_SOLUTION_NAME,
-    provider: "microsoft-feature-management",
-    schema: "feature_management",
-    directInterface: "IVariantFeatureManager",
+    provider: FEATURE_MANAGEMENT_PROVIDER_ID,
+    schema: FEATURE_MANAGEMENT_CONFIGURATION_SECTION,
+    directInterface: FEATURE_MANAGEMENT_INTERFACE,
   };
 }

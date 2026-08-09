@@ -22,11 +22,7 @@ public sealed class FeatureManagementContractTests
     {
         using var provider = CreateProvider(out _);
         var manager = provider.GetRequiredService<IVariantFeatureManager>();
-        var context = new TargetingContext
-        {
-            UserId = "pilot-user",
-            Groups = Array.Empty<string>(),
-        };
+        var context = CreateTargetingContext();
 
         var targeted = await manager.IsEnabledAsync(
             "TargetedCheckout",
@@ -56,14 +52,14 @@ public sealed class FeatureManagementContractTests
         using var provider = CreateProvider(out _);
         var manager = provider.GetRequiredService<IVariantFeatureManager>();
 
-        var missingFeature = await CaptureFeatureManagementFailureAsync(
+        var missingFeature = await CaptureFeatureManagementExceptionAsync(
             () => manager.IsEnabledAsync("NotConfigured").AsTask());
         await Assert.That(missingFeature?.Error)
             .IsEqualTo(FeatureManagementError.MissingFeature);
 
         using var unavailableProvider = CreateProvider(
             new ConfigurationBuilder().Build());
-        var unavailableFeature = await CaptureFeatureManagementFailureAsync(
+        var unavailableFeature = await CaptureFeatureManagementExceptionAsync(
             () => unavailableProvider
                 .GetRequiredService<IVariantFeatureManager>()
                 .IsEnabledAsync("CheckoutV2")
@@ -71,12 +67,12 @@ public sealed class FeatureManagementContractTests
         await Assert.That(unavailableFeature?.Error)
             .IsEqualTo(FeatureManagementError.MissingFeature);
 
-        var missingFilter = await CaptureFeatureManagementFailureAsync(
+        var missingFilter = await CaptureFeatureManagementExceptionAsync(
             () => manager.IsEnabledAsync("MissingFilter").AsTask());
         await Assert.That(missingFilter?.Error)
             .IsEqualTo(FeatureManagementError.MissingFeatureFilter);
 
-        var malformedSetting = await CaptureFeatureManagementFailureAsync(
+        var malformedSetting = await CaptureFeatureManagementExceptionAsync(
             () => manager.IsEnabledAsync("MalformedFlag").AsTask());
         await Assert.That(malformedSetting?.Error)
             .IsEqualTo(FeatureManagementError.InvalidConfigurationSetting);
@@ -118,7 +114,7 @@ public sealed class FeatureManagementContractTests
                         CancellationToken.None))
                 .IsTrue();
 
-            configuration["feature_management:feature_flags:4:enabled"] = "false";
+            configuration[FeatureFlagKey(4, "enabled")] = "false";
             configuration.Reload();
 
             await Assert.That(
@@ -143,32 +139,29 @@ public sealed class FeatureManagementContractTests
         var manager = provider.GetRequiredService<IVariantFeatureManager>();
         var variant = await manager.GetVariantAsync(
             "CheckoutVariant",
-            new TargetingContext
-            {
-                UserId = "pilot-user",
-                Groups = Array.Empty<string>(),
-            },
+            CreateTargetingContext(),
             CancellationToken.None);
 
-        await Assert.That(AuthorizationPolicy.Allows(
-                new HashSet<string>(StringComparer.Ordinal)))
+        var anonymousPermissions = new HashSet<string>(StringComparer.Ordinal);
+        await Assert.That(AuthorizationPolicy.Allows(anonymousPermissions))
             .IsFalse();
-        await Assert.That(AuthorizationPolicy.Allows(
-                new HashSet<string>(
-                    [AuthorizationPolicy.RequiredPermission],
-                    StringComparer.Ordinal)))
+        var authorizedPermissions = new HashSet<string>(
+            [AuthorizationPolicy.RequiredPermission],
+            StringComparer.Ordinal);
+        var authorized = AuthorizationPolicy.Allows(authorizedPermissions);
+        await Assert.That(authorized)
             .IsTrue();
 
-        var decision = DurableCheckoutState.Capture(
+        var decision = DurableCheckoutState.CaptureDecision(
             "order-17",
             variant?.Name ?? "Control",
-            authorized: true);
-        configuration["feature_management:feature_flags:3:allocation:user:0:variant"]
-            = "Control";
+            authorized);
+        configuration[
+            FeatureFlagKey(3, "allocation:user:0:variant")] = "Control";
         configuration.Reload();
 
         await Assert.That(decision.Variant).IsEqualTo("Experiment");
-        await Assert.That(decision.Authorized).IsTrue();
+        await Assert.That(decision.Authorized).IsEqualTo(authorized);
     }
 
     private static ServiceProvider CreateProvider(
@@ -186,54 +179,68 @@ public sealed class FeatureManagementContractTests
         return services.BuildServiceProvider();
     }
 
+    private static TargetingContext CreateTargetingContext() =>
+        new()
+        {
+            UserId = "pilot-user",
+            Groups = Array.Empty<string>(),
+        };
+
+    private static string FeatureFlagKey(int index, string propertyPath) =>
+        $"{FeatureManagementComposition.ConfigurationSectionName}:feature_flags:{index}:{propertyPath}";
+
     private static IConfigurationRoot CreateConfiguration()
     {
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["feature_management:feature_flags:0:id"] = "CheckoutV2",
-                ["feature_management:feature_flags:0:enabled"] = "true",
-                ["feature_management:feature_flags:1:id"] = "DisabledCheckout",
-                ["feature_management:feature_flags:1:enabled"] = "false",
-                ["feature_management:feature_flags:2:id"] = "TargetedCheckout",
-                ["feature_management:feature_flags:2:enabled"] = "true",
-                ["feature_management:feature_flags:2:conditions:client_filters:0:name"]
+                [FeatureFlagKey(0, "id")] = "CheckoutV2",
+                [FeatureFlagKey(0, "enabled")] = "true",
+                [FeatureFlagKey(1, "id")] = "DisabledCheckout",
+                [FeatureFlagKey(1, "enabled")] = "false",
+                [FeatureFlagKey(2, "id")] = "TargetedCheckout",
+                [FeatureFlagKey(2, "enabled")] = "true",
+                [FeatureFlagKey(2, "conditions:client_filters:0:name")]
                     = "Microsoft.Targeting",
-                ["feature_management:feature_flags:2:conditions:client_filters:0:parameters:Audience:Users:0"]
+                [FeatureFlagKey(
+                    2,
+                    "conditions:client_filters:0:parameters:Audience:Users:0")]
                     = "pilot-user",
-                ["feature_management:feature_flags:2:conditions:client_filters:0:parameters:Audience:DefaultRolloutPercentage"]
+                [FeatureFlagKey(
+                    2,
+                    "conditions:client_filters:0:parameters:Audience:DefaultRolloutPercentage")]
                     = "0",
-                ["feature_management:feature_flags:3:id"] = "CheckoutVariant",
-                ["feature_management:feature_flags:3:enabled"] = "true",
-                ["feature_management:feature_flags:3:allocation:default_when_enabled"]
+                [FeatureFlagKey(3, "id")] = "CheckoutVariant",
+                [FeatureFlagKey(3, "enabled")] = "true",
+                [FeatureFlagKey(3, "allocation:default_when_enabled")]
                     = "Control",
-                ["feature_management:feature_flags:3:allocation:user:0:variant"]
+                [FeatureFlagKey(3, "allocation:user:0:variant")]
                     = "Experiment",
-                ["feature_management:feature_flags:3:allocation:user:0:users:0"]
+                [FeatureFlagKey(3, "allocation:user:0:users:0")]
                     = "pilot-user",
-                ["feature_management:feature_flags:3:variants:0:name"] = "Control",
-                ["feature_management:feature_flags:3:variants:0:status_override"] = "Enabled",
-                ["feature_management:feature_flags:3:variants:1:name"] = "Experiment",
-                ["feature_management:feature_flags:3:variants:1:status_override"] = "Enabled",
-                ["feature_management:feature_flags:4:id"] = "RefreshProbe",
-                ["feature_management:feature_flags:4:enabled"] = "true",
-                ["feature_management:feature_flags:5:id"] = "MissingFilter",
-                ["feature_management:feature_flags:5:enabled"] = "true",
-                ["feature_management:feature_flags:5:conditions:client_filters:0:name"]
+                [FeatureFlagKey(3, "variants:0:name")] = "Control",
+                [FeatureFlagKey(3, "variants:0:status_override")] = "Enabled",
+                [FeatureFlagKey(3, "variants:1:name")] = "Experiment",
+                [FeatureFlagKey(3, "variants:1:status_override")] = "Enabled",
+                [FeatureFlagKey(4, "id")] = "RefreshProbe",
+                [FeatureFlagKey(4, "enabled")] = "true",
+                [FeatureFlagKey(5, "id")] = "MissingFilter",
+                [FeatureFlagKey(5, "enabled")] = "true",
+                [FeatureFlagKey(5, "conditions:client_filters:0:name")]
                     = "UnavailableFilter",
-                ["feature_management:feature_flags:6:id"] = "MalformedFlag",
-                ["feature_management:feature_flags:6:enabled"] = "not-a-boolean",
-                ["feature_management:feature_flags:7:id"] = "TelemetryProbe",
-                ["feature_management:feature_flags:7:enabled"] = "true",
-                ["feature_management:feature_flags:7:telemetry:enabled"] = "true",
-                ["feature_management:feature_flags:7:telemetry:metadata:surface"]
+                [FeatureFlagKey(6, "id")] = "MalformedFlag",
+                [FeatureFlagKey(6, "enabled")] = "not-a-boolean",
+                [FeatureFlagKey(7, "id")] = "TelemetryProbe",
+                [FeatureFlagKey(7, "enabled")] = "true",
+                [FeatureFlagKey(7, "telemetry:enabled")] = "true",
+                [FeatureFlagKey(7, "telemetry:metadata:surface")]
                     = "feature-management",
             })
             .Build();
     }
 
     private static async Task<FeatureManagementException?>
-        CaptureFeatureManagementFailureAsync(Func<Task> action)
+        CaptureFeatureManagementExceptionAsync(Func<Task> action)
     {
         try
         {

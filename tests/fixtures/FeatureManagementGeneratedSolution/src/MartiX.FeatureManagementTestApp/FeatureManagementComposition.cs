@@ -24,10 +24,4 @@ public static class FeatureManagementComposition
 
         return services;
     }
-
-    public static void AssertDirectInterfaces(IServiceProvider services)
-    {
-        _ = services.GetRequiredService<IVariantFeatureManager>();
-        _ = services.GetRequiredService<IVariantFeatureManagerSnapshot>();
-    }
 }

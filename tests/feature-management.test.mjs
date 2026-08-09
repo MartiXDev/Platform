@@ -11,6 +11,7 @@ import {
   verifyBootstrap,
 } from "../eng/verify.mjs";
 import {
+  PROVIDER_ADMISSION_EFFECT_KINDS,
   resolveProviderAdmission,
   validateProviderAdmissionCatalog,
   verifyProviderAbsence,
@@ -19,13 +20,19 @@ import {
 const repositoryRoot = join(import.meta.dirname, "..");
 const fixtureRoot = join(repositoryRoot, FEATURE_MANAGEMENT_SOLUTION_ROOT);
 
-test("the feature-management provider uses the current schema and direct interface", async () => {
-  const catalog = validateProviderAdmissionCatalog();
-  const definition = catalog.find(
+function requireFeatureManagementProvider(catalog) {
+  const provider = catalog.find(
     ({ capability, id }) =>
       capability === "feature-management" &&
       id === "microsoft-feature-management",
   );
+  assert.ok(provider, "Microsoft Feature Management must be in the catalog.");
+  return provider;
+}
+
+test("the feature-management provider uses the current schema and direct interface", async () => {
+  const catalog = validateProviderAdmissionCatalog();
+  const definition = requireFeatureManagementProvider(catalog);
 
   assert.deepEqual(definition.requiredConfiguration, ["feature_management"]);
   assert.deepEqual(definition.effects.packages, [
@@ -42,12 +49,22 @@ test("the feature-management provider uses the current schema and direct interfa
     ),
     "utf8",
   );
+  const program = await readFile(
+    join(
+      fixtureRoot,
+      "src",
+      "MartiX.FeatureManagementTestApp",
+      "Program.cs",
+    ),
+    "utf8",
+  );
   assert.match(
     composition,
     /AddFeatureManagement\(configuration\)/,
   );
-  assert.match(composition, /IVariantFeatureManager/);
   assert.doesNotMatch(composition, /FeatureManagement\.AspNetCore/);
+  assert.match(program, /IVariantFeatureManager/);
+  assert.match(program, /IVariantFeatureManagerSnapshot/);
 });
 
 test("the named Feature Management Generated Solution passes its acceptance seam", async () => {
@@ -75,11 +92,7 @@ test("unselected Feature Management leaves no provider-admission residue", async
     ),
   );
   const plan = resolveProviderAdmission(admissionFixture.selection);
-  const featureManagement = catalog.find(
-    ({ capability, id }) =>
-      capability === "feature-management" &&
-      id === "microsoft-feature-management",
-  );
+  const featureManagement = requireFeatureManagementProvider(catalog);
 
   assert.equal(
     verifyProviderAbsence({
@@ -90,14 +103,14 @@ test("unselected Feature Management leaves no provider-admission residue", async
     "passed",
   );
 
-  for (const effectKind of [
-    "packages",
-    "configuration",
-    "registrations",
-    "telemetry",
-  ]) {
+  for (const effectKind of PROVIDER_ADMISSION_EFFECT_KINDS) {
+    const effect = featureManagement.effects[effectKind][0];
+    if (effect === undefined) {
+      continue;
+    }
+
     const residue = structuredClone(admissionFixture.observed);
-    residue[effectKind].push(featureManagement.effects[effectKind][0]);
+    residue[effectKind].push(effect);
     assert.throws(
       () => verifyProviderAbsence({ plan, catalog, observed: residue }),
       /microsoft-feature-management/,

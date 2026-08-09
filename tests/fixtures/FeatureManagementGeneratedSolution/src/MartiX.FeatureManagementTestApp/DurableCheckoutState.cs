@@ -7,7 +7,7 @@ public sealed record CheckoutDecision(
 
 public static class DurableCheckoutState
 {
-    public static CheckoutDecision Capture(
+    public static CheckoutDecision CaptureDecision(
         string orderId,
         string variant,
         bool authorized)
