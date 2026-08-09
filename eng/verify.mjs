@@ -45,6 +45,11 @@ import {
   verifyProviderAdmission,
   verifyProviderAdmissionEvidence,
 } from "./provider-admission.mjs";
+import {
+  FEATURE_MANAGEMENT_SOLUTION_NAME,
+  FEATURE_MANAGEMENT_SOLUTION_ROOT,
+  validateFeatureManagementFixture,
+} from "./feature-management.mjs";
 
 const CADENCES = [
   "fast",
@@ -80,6 +85,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
+  "bootstrap.feature-management",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -237,6 +243,21 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
   "eng/provider-admission.mjs",
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/README.md`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/AGENTS.md`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/CONTEXT.md`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/FeatureManagementGeneratedSolution.slnx`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/appsettings.json`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/src/MartiX.FeatureManagementTestApp/AuthorizationPolicy.cs`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/src/MartiX.FeatureManagementTestApp/DurableCheckoutState.cs`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/src/MartiX.FeatureManagementTestApp/FeatureEvaluationObserver.cs`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/src/MartiX.FeatureManagementTestApp/FeatureManagementComposition.cs`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/src/MartiX.FeatureManagementTestApp/MartiX.FeatureManagementTestApp.csproj`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/src/MartiX.FeatureManagementTestApp/Program.cs`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/tests/MartiX.FeatureManagementTestApp.Tests/FeatureManagementContractTests.cs`,
+  `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/tests/MartiX.FeatureManagementTestApp.Tests/MartiX.FeatureManagementTestApp.Tests.csproj`,
+  "eng/feature-management.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -2644,6 +2665,9 @@ export async function verifyBootstrap({
   const providerAdmissionFixture = parseJson(
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
   );
+  const featureManagementManifest = parseJson(
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
 
   validateManifestSchema(manifestSchema);
   requireRecord(agentContextSchema, "schemas/agent-context.schema.json");
@@ -2720,6 +2744,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    featureManagementManifest,
+    "generated-solution",
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    featureManagementManifest,
+    manifestSchema,
+    `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -2733,6 +2767,10 @@ export async function verifyBootstrap({
     providerAdmissionFixture,
     providerAdmissionManifest,
   );
+  const featureManagement = await validateFeatureManagementFixture({
+    rootDir: root,
+    manifest: featureManagementManifest,
+  });
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -2758,7 +2796,9 @@ export async function verifyBootstrap({
     modularMonolithSolution: MODULAR_MONOLITH_SOLUTION_NAME,
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
+    featureManagementSolution: FEATURE_MANAGEMENT_SOLUTION_NAME,
     providerAdmission,
+    featureManagement,
     agentReadiness,
   };
 }

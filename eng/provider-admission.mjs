@@ -403,10 +403,10 @@ const OPTIONAL_PROVIDER_DEFINITIONS = [
     capability: "feature-management",
     id: "microsoft-feature-management",
     presets: ["api", "modular-monolith", "full-stack"],
-    requiredConfiguration: ["FeatureManagement"],
+    requiredConfiguration: ["feature_management"],
     effects: emptyEffects({
       packages: [packageEffect("Microsoft.FeatureManagement", "4.6.0")],
-      configuration: ["FeatureManagement"],
+      configuration: ["feature_management"],
       registrations: ["IVariantFeatureManager"],
       healthChecks: [],
       telemetry: ["feature-management"],

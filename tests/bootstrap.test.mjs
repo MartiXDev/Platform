@@ -94,6 +94,8 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.equal(result.modularMonolithSolution, "ModularMonolithGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
   assert.ok(result.gates.includes("bootstrap.provider-admission"));
+  assert.equal(result.featureManagementSolution, "FeatureManagementGeneratedSolution");
+  assert.ok(result.gates.includes("bootstrap.feature-management"));
 });
 
 test("the named Full Stack fixture exercises the Blazor provider", async () => {

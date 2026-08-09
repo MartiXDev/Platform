@@ -134,6 +134,19 @@
       "purpose": "The named Provider Admission Generated Solution proves exact selection, prerequisite/configuration/effect resolution, complete quality evidence, and absence of unselected provider residue before any Supported claim."
     },
     {
+      "id": "bootstrap.feature-management",
+      "family": "provider-integration",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Feature Management Generated Solution proves direct Microsoft.FeatureManagement composition, deterministic fail-closed evaluation, bounded telemetry, and separation from authorization and durable state."
+    },
+    {
       "id": "bootstrap.host-baseline",
       "family": "security-observability",
       "owner": "platform-maintainers",
