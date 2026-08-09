@@ -4,7 +4,15 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   RELEASE_CANDIDATE_ARTIFACT_KINDS,
+  RELEASE_CANDIDATE_CADENCE,
+  RELEASE_CANDIDATE_CADENCES,
+  RELEASE_CANDIDATE_EVIDENCE_IDS,
   RELEASE_CANDIDATE_GATE_IDS,
+  RELEASE_CANDIDATE_GATE_ID,
+  RELEASE_CANDIDATE_PLATFORM_VERSION,
+  RELEASE_CANDIDATE_SOLUTION_NAME,
+  RELEASE_CANDIDATE_SOLUTION_ROOT,
+  RELEASE_CANDIDATE_VERIFICATION_COMMAND,
   createReleaseCandidateEvidence,
   verifyReleaseCandidateEvidence,
   verifyReleaseCandidateFixture,
@@ -13,12 +21,7 @@ import { validateQualityGatePolicy } from "../eng/verify.mjs";
 
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const repositoryRoot = resolve(import.meta.dirname, "..");
-const fixtureRoot = join(
-  repositoryRoot,
-  "tests",
-  "fixtures",
-  "ReleaseCandidateGeneratedSolution",
-);
+const fixtureRoot = join(repositoryRoot, RELEASE_CANDIDATE_SOLUTION_ROOT);
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(join(repositoryRoot, relativePath), "utf8"));
@@ -30,11 +33,11 @@ const candidateInput = {
     clean: true,
     reviewed: true,
   },
-  platformVersion: "1.0.0-rc.1",
+  platformVersion: RELEASE_CANDIDATE_PLATFORM_VERSION,
   artifacts: RELEASE_CANDIDATE_ARTIFACT_KINDS.map((kind, index) => ({
     id: `artifact-${kind}`,
     kind,
-    version: "1.0.0-rc.1",
+    version: RELEASE_CANDIDATE_PLATFORM_VERSION,
     digest: digest(String((index % 9) + 1)),
     identity: {
       mode: index % 2 === 0 ? "signed" : "digest-identified",
@@ -51,18 +54,7 @@ const candidateInput = {
     attempts: [{ number: 1, outcome: "passed" }],
   })),
   evidence: Object.fromEntries(
-    [
-      "compatibility",
-      "reproducibility",
-      "licensingProvenance",
-      "realProvider",
-      "failureInjection",
-      "security",
-      "performance",
-      "deployment",
-      "documentation",
-      "agentReadiness",
-    ].map((id, index) => [
+    RELEASE_CANDIDATE_EVIDENCE_IDS.map((id, index) => [
       id,
       {
         status: "passed",
@@ -83,10 +75,10 @@ const candidateInput = {
     },
   },
   verification: {
-    cadence: "release-candidate",
+    cadence: RELEASE_CANDIDATE_CADENCE,
     policyVersion: "0.0.0-bootstrap",
     entrypoint: "eng/verify.mjs",
-    command: "npm run verify:release-candidate",
+    command: RELEASE_CANDIDATE_VERIFICATION_COMMAND,
     failClosed: true,
     notApplicable: [],
     notSelected: [],
@@ -106,7 +98,7 @@ test("Release Candidate evidence is deterministic and digest-bound", () => {
   assert.match(first.candidateId, /^rc-1\.0\.0-rc\.1-[0-9a-f]{16}$/);
   assert.match(first.evidenceDigest, /^sha256:[0-9a-f]{64}$/);
   assert.deepEqual(first.supportClaims, []);
-  assert.equal(first.maturity, "release-candidate");
+  assert.equal(first.maturity, RELEASE_CANDIDATE_CADENCE);
   assert.equal(verifyReleaseCandidateEvidence(first), true);
 });
 
@@ -116,8 +108,8 @@ test("Release Candidate fixture verifies its complete evidence path", async () =
   });
 
   assert.equal(result.status, "passed");
-  assert.equal(result.maturity, "release-candidate");
-  assert.equal(result.solution, "ReleaseCandidateGeneratedSolution");
+  assert.equal(result.maturity, RELEASE_CANDIDATE_CADENCE);
+  assert.equal(result.solution, RELEASE_CANDIDATE_SOLUTION_NAME);
   assert.ok(result.artifactCount >= RELEASE_CANDIDATE_ARTIFACT_KINDS.length);
   assert.equal(result.gateCount, RELEASE_CANDIDATE_GATE_IDS.length);
   assert.ok(result.evidencePaths.includes("PROVENANCE.md"));
@@ -126,7 +118,7 @@ test("Release Candidate fixture verifies its complete evidence path", async () =
 
 test("Release Candidate evidence rejects a changed artifact digest", async () => {
   const fixture = await readJson(
-    "tests/fixtures/ReleaseCandidateGeneratedSolution/release-candidate.json",
+    `${RELEASE_CANDIDATE_SOLUTION_ROOT}/release-candidate.json`,
   );
   const schema = await readJson("schemas/release-candidate.schema.json");
   const mutated = structuredClone(fixture);
@@ -154,7 +146,7 @@ test("quality policy selects the Release Candidate evidence profile", async () =
 
   validateQualityGatePolicy(policy);
 
-  assert.deepEqual(profile.gates, ["release-candidate.evidence"]);
-  assert.deepEqual(profile.cadences, ["release-candidate"]);
-  assert.equal(profile.command, "npm run verify:release-candidate");
+  assert.deepEqual(profile.gates, [RELEASE_CANDIDATE_GATE_ID]);
+  assert.deepEqual(profile.cadences, RELEASE_CANDIDATE_CADENCES);
+  assert.equal(profile.command, RELEASE_CANDIDATE_VERIFICATION_COMMAND);
 });

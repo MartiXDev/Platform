@@ -85,9 +85,13 @@ import {
   verifyBetaIntegrationFixture,
 } from "./beta-integration.mjs";
 import {
+  RELEASE_CANDIDATE_CADENCE,
+  RELEASE_CANDIDATE_CADENCES,
   RELEASE_CANDIDATE_GATE_IDS,
+  RELEASE_CANDIDATE_GATE_ID,
   RELEASE_CANDIDATE_SOLUTION_NAME,
   RELEASE_CANDIDATE_SOLUTION_ROOT,
+  RELEASE_CANDIDATE_VERIFICATION_COMMAND,
   ReleaseCandidateError,
   verifyReleaseCandidateFixture,
 } from "./release-candidate.mjs";
@@ -96,7 +100,7 @@ const CADENCES = [
   "fast",
   "pull-request",
   "main-nightly",
-  "release-candidate",
+  RELEASE_CANDIDATE_CADENCE,
 ];
 
 const GENERATED_SOLUTION_NAME = "RepositoryBootstrapGeneratedSolution";
@@ -211,10 +215,8 @@ const BOOTSTRAP_GATE_IDS = [
 ];
 const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
 const BETA_INTEGRATION_PROFILE_ID = "beta-integration";
-const RELEASE_CANDIDATE_PROFILE_ID = "release-candidate";
+const RELEASE_CANDIDATE_PROFILE_ID = RELEASE_CANDIDATE_CADENCE;
 const BETA_INTEGRATION_GATE_IDS = Object.freeze(["beta.integration"]);
-const RELEASE_CANDIDATE_GATE_ID = "release-candidate.evidence";
-const RELEASE_CANDIDATE_CADENCES = Object.freeze(["release-candidate"]);
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
   "kind",
@@ -2736,7 +2738,7 @@ export function validateQualityGatePolicy(policy) {
       JSON.stringify(RELEASE_CANDIDATE_CADENCES) ||
     JSON.stringify(releaseCandidateProfile.gates) !==
       JSON.stringify([RELEASE_CANDIDATE_GATE_ID]) ||
-    releaseCandidateProfile.command !== "npm run verify:release-candidate"
+    releaseCandidateProfile.command !== RELEASE_CANDIDATE_VERIFICATION_COMMAND
   ) {
     fail(
       `${RELEASE_CANDIDATE_PROFILE_ID} quality profile is not the declared Release Candidate evidence matrix.`,
@@ -4426,6 +4428,7 @@ export async function verifyBootstrap({
   }
 
   const root = resolve(rootDir);
+  const isReleaseCandidate = cadence === RELEASE_CANDIDATE_CADENCE;
   const documents = new Map();
   for (const relativePath of REQUIRED_BOOTSTRAP_INPUTS) {
     documents.set(relativePath, await readRequiredFile(root, relativePath));
@@ -4769,7 +4772,7 @@ export async function verifyBootstrap({
     platformRoot: root,
   });
   const betaIntegration =
-    cadence === "release-candidate"
+    isReleaseCandidate
       ? await verifyBetaIntegrationFixture({
           rootDir: root,
           fixture: betaIntegrationFixture,
@@ -4778,7 +4781,7 @@ export async function verifyBootstrap({
         })
       : null;
   const releaseCandidate =
-    cadence === "release-candidate"
+    isReleaseCandidate
       ? await verifyReleaseCandidateFixture({
           rootDir: root,
           fixture: releaseCandidateFixture,
@@ -4791,14 +4794,14 @@ export async function verifyBootstrap({
     .filter(
       (gate) =>
         (BOOTSTRAP_GATE_IDS.includes(gate.id) ||
-          (cadence === "release-candidate" &&
+          (isReleaseCandidate &&
             (MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) ||
               BETA_INTEGRATION_GATE_IDS.includes(gate.id) ||
               gate.id === RELEASE_CANDIDATE_GATE_ID))) &&
         gate.cadences.includes(cadence),
     )
     .map((gate) => gate.id);
-  if (cadence === "release-candidate") {
+  if (isReleaseCandidate) {
     gates.sort(
       (left, right) =>
         RELEASE_CANDIDATE_GATE_IDS.indexOf(left) -
@@ -4810,7 +4813,7 @@ export async function verifyBootstrap({
     fail(`Quality policy does not run bootstrap.manifest for cadence ${cadence}.`);
   }
   if (
-    cadence === "release-candidate" &&
+    isReleaseCandidate &&
     JSON.stringify(gates) !== JSON.stringify(RELEASE_CANDIDATE_GATE_IDS)
   ) {
     fail(
@@ -4844,12 +4847,12 @@ export async function verifyBootstrap({
     valkeyDistributedCache,
     agentReadiness,
     betaIntegrationSolution:
-      cadence === "release-candidate"
+      isReleaseCandidate
         ? BETA_INTEGRATION_SOLUTION_NAME
         : null,
     betaIntegration,
     releaseCandidateSolution:
-      cadence === "release-candidate"
+      isReleaseCandidate
         ? RELEASE_CANDIDATE_SOLUTION_NAME
         : null,
     releaseCandidate,

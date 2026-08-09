@@ -11,6 +11,13 @@ export const RELEASE_CANDIDATE_SOLUTION_NAME =
 export const RELEASE_CANDIDATE_SOLUTION_ROOT =
   `tests/fixtures/${RELEASE_CANDIDATE_SOLUTION_NAME}`;
 export const RELEASE_CANDIDATE_PLATFORM_VERSION = "1.0.0-rc.1";
+export const RELEASE_CANDIDATE_CADENCE = "release-candidate";
+export const RELEASE_CANDIDATE_CADENCES = Object.freeze([
+  RELEASE_CANDIDATE_CADENCE,
+]);
+export const RELEASE_CANDIDATE_GATE_ID = "release-candidate.evidence";
+export const RELEASE_CANDIDATE_VERIFICATION_COMMAND =
+  "npm run verify:release-candidate";
 
 export const RELEASE_CANDIDATE_ARTIFACT_KINDS = Object.freeze([
   "package",
@@ -70,7 +77,7 @@ export const RELEASE_CANDIDATE_GATE_IDS = Object.freeze([
   "modular-monolith.reliability",
   "modular-monolith.release-evidence",
   "beta.integration",
-  "release-candidate.evidence",
+  RELEASE_CANDIDATE_GATE_ID,
 ]);
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -461,11 +468,11 @@ function normalizeReleasePolicy(value) {
 
 function normalizeVerification(value) {
   const verification = requireRecord(value, "verification");
-  if (verification.cadence !== "release-candidate") {
-    fail("verification.cadence must be release-candidate.");
+  if (verification.cadence !== RELEASE_CANDIDATE_CADENCE) {
+    fail(`verification.cadence must be ${RELEASE_CANDIDATE_CADENCE}.`);
   }
   const normalized = {
-    cadence: "release-candidate",
+    cadence: RELEASE_CANDIDATE_CADENCE,
     policyVersion: requireString(
       verification.policyVersion,
       "verification.policyVersion",
@@ -492,8 +499,10 @@ function normalizeVerification(value) {
   if (normalized.entrypoint !== "eng/verify.mjs") {
     fail("verification.entrypoint must be eng/verify.mjs.");
   }
-  if (normalized.command !== "npm run verify:release-candidate") {
-    fail("verification.command must be npm run verify:release-candidate.");
+  if (normalized.command !== RELEASE_CANDIDATE_VERIFICATION_COMMAND) {
+    fail(
+      `verification.command must be ${RELEASE_CANDIDATE_VERIFICATION_COMMAND}.`,
+    );
   }
   if (!normalized.failClosed) {
     fail("Release candidate verification must fail closed.");
@@ -514,7 +523,7 @@ function normalizeSupportClaims(value) {
   return [];
 }
 
-function createBody(input) {
+function createReleaseCandidateEvidenceBody(input) {
   requireRecord(input, "Release candidate evidence input");
   const source = normalizeSource(input.source);
   const platformVersion = requireString(
@@ -546,7 +555,7 @@ function createBody(input) {
     candidateId: `rc-${platformVersion}-${candidateSeed.slice(0, 16)}`,
     platformVersion,
     platformContractVersion: platformVersion,
-    maturity: "release-candidate",
+    maturity: RELEASE_CANDIDATE_CADENCE,
     source,
     artifacts,
     artifactSetDigest,
@@ -559,11 +568,11 @@ function createBody(input) {
 }
 
 export function createReleaseCandidateEvidence(input) {
-  const body = createBody(input);
-  assertSecretFree(body);
+  const evidenceBody = createReleaseCandidateEvidenceBody(input);
+  assertSecretFree(evidenceBody);
   return {
-    ...body,
-    evidenceDigest: sha256(body),
+    ...evidenceBody,
+    evidenceDigest: sha256(evidenceBody),
   };
 }
 
@@ -573,39 +582,39 @@ export function verifyReleaseCandidateEvidence(evidence, schema) {
   if (schema !== undefined) {
     validateSchema(evidence, schema);
   }
-  const { evidenceDigest, ...body } = evidence;
+  const { evidenceDigest, ...evidenceBody } = evidence;
   requireDigest(evidenceDigest, "evidenceDigest");
-  if (sha256(body) !== evidenceDigest) {
+  if (sha256(evidenceBody) !== evidenceDigest) {
     fail("Release candidate evidence digest does not match its content.");
   }
   if (
-    body.$schema !== RELEASE_CANDIDATE_SCHEMA_URI ||
-    body.schemaVersion !== RELEASE_CANDIDATE_SCHEMA_VERSION ||
-    body.kind !== "release-candidate-evidence" ||
-    body.solution !== RELEASE_CANDIDATE_SOLUTION_NAME ||
-    body.maturity !== "release-candidate"
+    evidenceBody.$schema !== RELEASE_CANDIDATE_SCHEMA_URI ||
+    evidenceBody.schemaVersion !== RELEASE_CANDIDATE_SCHEMA_VERSION ||
+    evidenceBody.kind !== "release-candidate-evidence" ||
+    evidenceBody.solution !== RELEASE_CANDIDATE_SOLUTION_NAME ||
+    evidenceBody.maturity !== RELEASE_CANDIDATE_CADENCE
   ) {
     fail("Release candidate evidence identity is invalid.");
   }
-  if (body.platformVersion !== RELEASE_CANDIDATE_PLATFORM_VERSION) {
+  if (evidenceBody.platformVersion !== RELEASE_CANDIDATE_PLATFORM_VERSION) {
     fail(
       `Release candidate evidence must target ${RELEASE_CANDIDATE_PLATFORM_VERSION}.`,
     );
   }
   const recreated = createReleaseCandidateEvidence({
-    source: body.source,
-    platformVersion: body.platformVersion,
-    artifacts: body.artifacts,
-    gates: body.gates,
-    evidence: body.evidence,
-    releasePolicy: body.releasePolicy,
-    verification: body.verification,
-    supportClaims: body.supportClaims,
+    source: evidenceBody.source,
+    platformVersion: evidenceBody.platformVersion,
+    artifacts: evidenceBody.artifacts,
+    gates: evidenceBody.gates,
+    evidence: evidenceBody.evidence,
+    releasePolicy: evidenceBody.releasePolicy,
+    verification: evidenceBody.verification,
+    supportClaims: evidenceBody.supportClaims,
   });
   if (canonicalJson(recreated) !== canonicalJson(evidence)) {
     fail("Release candidate evidence identity is not reproducible.");
   }
-  if (body.artifactSetDigest !== sha256(body.artifacts)) {
+  if (evidenceBody.artifactSetDigest !== sha256(evidenceBody.artifacts)) {
     fail("artifactSetDigest does not match the exact candidate artifact set.");
   }
   return true;

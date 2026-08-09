@@ -17,6 +17,13 @@
   profile in `eng/quality-gates.json` are wired through `eng/verify.mjs`.
 - **Rejected alternatives:** No mutable release manifest, hidden failed
   attempts, rebuild during promotion, or new Supported Capability claim.
+- **Migration path:** Existing bootstrap, Modular Monolith alpha, and Beta
+  evidence remain valid inputs to the Release Candidate cadence. Future
+  promotion receipts and external attestations extend this contract without
+  changing the claim-free fixture.
+- **Risks:** The evidence contract depends on synchronized artifact, gate, and
+  schema identities; drift in any input must fail verification rather than
+  silently producing a different candidate.
 - **Verification:** The focused Release Candidate evidence test and the
   repository typecheck/test/PR gates are the applicable verification surfaces;
   existing unrelated baseline failures remain recorded by the repository's
