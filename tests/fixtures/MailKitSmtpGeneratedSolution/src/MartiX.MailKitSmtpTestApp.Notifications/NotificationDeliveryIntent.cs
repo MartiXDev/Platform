@@ -15,8 +15,12 @@ public enum NotificationDeliveryIntentStatus
 public sealed class NotificationDeliveryIntent
 {
     private const int MaxAttachmentReferences = 8;
+    private const int MaxAttachmentReferenceLength = 200;
     private const int MaxBodyBytes = 1_000_000;
+    private const int MaxCultureLength = 20;
     private const int MaxIdentifierLength = 200;
+    private const int MaxRecipientLength = 320;
+    private const int MaxSubjectLength = 998;
 
     private NotificationDeliveryIntent()
     {
@@ -96,14 +100,14 @@ public sealed class NotificationDeliveryIntent
         DateTimeOffset? createdAtUtc = null)
     {
         ValidateRecipient(recipient);
-        ValidateRequiredText(subject, nameof(subject), 998);
+        ValidateRequiredText(subject, nameof(subject), MaxSubjectLength);
         ValidateRequiredText(body, nameof(body), MaxBodyBytes);
         ValidateRequiredText(idempotencyKey, nameof(idempotencyKey), MaxIdentifierLength);
         ValidateOptionalText(correlationId, nameof(correlationId), MaxIdentifierLength);
 
         var normalizedCulture = ValidateCulture(culture);
-        var references = attachmentReferences?.ToArray()
-            ?? throw new ArgumentNullException(nameof(attachmentReferences));
+        ArgumentNullException.ThrowIfNull(attachmentReferences);
+        var references = attachmentReferences.ToArray();
         if (references.Length > MaxAttachmentReferences)
         {
             throw new ArgumentOutOfRangeException(
@@ -113,7 +117,10 @@ public sealed class NotificationDeliveryIntent
 
         foreach (var reference in references)
         {
-            ValidateRequiredText(reference, nameof(attachmentReferences), 200);
+            ValidateRequiredText(
+                reference,
+                nameof(attachmentReferences),
+                MaxAttachmentReferenceLength);
         }
 
         var intent = new NotificationDeliveryIntent(
@@ -204,7 +211,7 @@ public sealed class NotificationDeliveryIntent
 
     private static void ValidateRecipient(string value)
     {
-        ValidateRequiredText(value, nameof(Recipient), 320);
+        ValidateRequiredText(value, nameof(Recipient), MaxRecipientLength);
         var trimmed = value.Trim();
         var at = trimmed.IndexOf('@');
         if (
@@ -220,7 +227,7 @@ public sealed class NotificationDeliveryIntent
 
     private static string ValidateCulture(string value)
     {
-        ValidateRequiredText(value, nameof(Culture), 20);
+        ValidateRequiredText(value, nameof(Culture), MaxCultureLength);
         try
         {
             return CultureInfo.GetCultureInfo(value.Trim()).Name;

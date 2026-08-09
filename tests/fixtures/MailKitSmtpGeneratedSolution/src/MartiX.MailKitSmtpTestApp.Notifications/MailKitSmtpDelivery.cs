@@ -79,16 +79,10 @@ public sealed class MailKitSmtpDelivery : INotificationDeliveryAdapter
         var connected = false;
         try
         {
-            var socketOptions = _options.RequireTls
-                ? _options.Port == 465
-                    ? SecureSocketOptions.SslOnConnect
-                    : SecureSocketOptions.StartTls
-                : SecureSocketOptions.Auto;
-
             await client.ConnectAsync(
                 _options.Host,
                 _options.Port,
-                socketOptions,
+                GetSocketOptions(),
                 cancellationToken);
             connected = true;
 
@@ -145,6 +139,21 @@ public sealed class MailKitSmtpDelivery : INotificationDeliveryAdapter
                 }
             }
         }
+    }
+
+    private SecureSocketOptions GetSocketOptions()
+    {
+        if (!_options.RequireTls)
+        {
+            return SecureSocketOptions.Auto;
+        }
+
+        if (_options.Port == 465)
+        {
+            return SecureSocketOptions.SslOnConnect;
+        }
+
+        return SecureSocketOptions.StartTls;
     }
 
     public static SmtpDeliveryResult ClassifyStatusCode(int statusCode)

@@ -65,6 +65,52 @@ const PROVIDER_ADMISSION_SOLUTION_ROOT =
   `tests/fixtures/${PROVIDER_ADMISSION_SOLUTION_NAME}`;
 const MAILKIT_SMTP_SOLUTION_NAME = "MailKitSmtpGeneratedSolution";
 const MAILKIT_SMTP_SOLUTION_ROOT = `tests/fixtures/${MAILKIT_SMTP_SOLUTION_NAME}`;
+const MAILKIT_SMTP_FIXTURE_PATH = `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`;
+const MAILKIT_SMTP_INTENT_STATES = Object.freeze([
+  "Pending",
+  "Accepted",
+  "TransientFailure",
+  "PermanentFailure",
+  "Cancelled",
+]);
+const MAILKIT_SMTP_TRANSPORT_OPERATIONS = Object.freeze([
+  "ConnectAsync",
+  "AuthenticateAsync",
+  "SendAsync",
+  "DisconnectAsync",
+]);
+const MAILKIT_SMTP_OUTCOMES = Object.freeze([
+  "accepted",
+  "transient",
+  "permanent",
+  "cancelled",
+]);
+const MAILKIT_SMTP_REDACTED_FIELDS = Object.freeze([
+  "recipient",
+  "subject",
+  "body",
+  "attachment",
+  "provider-response",
+]);
+const MAILKIT_SMTP_OBSERVABILITY_SIGNALS = Object.freeze([
+  "backlog-age",
+  "attempts",
+  "provider-acceptance",
+  "failure-class",
+  "latency",
+  "terminal-failure",
+]);
+const MAILKIT_SMTP_MAILPIT_VERSION = "1.30.0";
+const MAILKIT_SMTP_MAILPIT_COMMIT = "af8756a";
+const MAILKIT_SMTP_SOURCE_PATHS = Object.freeze({
+  intent: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryIntent.cs`,
+  options: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/SmtpDeliveryOptions.cs`,
+  adapter: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MailKitSmtpDelivery.cs`,
+  dispatcher: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryDispatcher.cs`,
+  tests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
+  integrationTests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
+  evidence: `${MAILKIT_SMTP_SOLUTION_ROOT}/evidence/mailpit.md`,
+});
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -2650,18 +2696,17 @@ export async function validateMailKitSmtpFixture(
   manifest,
   { rootDir = process.cwd() } = {},
 ) {
-  const fixturePath = `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`;
-  assertSecretFree(fixture, fixturePath, "MailKit SMTP fixture");
-  requireRecord(fixture, fixturePath);
-  requireRecord(fixture.admission, `${fixturePath}.admission`);
-  requireRecord(fixture.behavior, `${fixturePath}.behavior`);
+  assertSecretFree(fixture, MAILKIT_SMTP_FIXTURE_PATH, "MailKit SMTP fixture");
+  requireRecord(fixture, MAILKIT_SMTP_FIXTURE_PATH);
+  requireRecord(fixture.admission, `${MAILKIT_SMTP_FIXTURE_PATH}.admission`);
+  requireRecord(fixture.behavior, `${MAILKIT_SMTP_FIXTURE_PATH}.behavior`);
 
   const admission = await validateProviderAdmissionFixture(
     fixture.admission,
     manifest,
     { solutionRoot: MAILKIT_SMTP_SOLUTION_ROOT },
   );
-  const behaviorPath = `${fixturePath}.behavior`;
+  const behaviorPath = `${MAILKIT_SMTP_FIXTURE_PATH}.behavior`;
   const behavior = fixture.behavior;
   const durableIntent = behavior.durableIntent;
   requireRecord(durableIntent, `${behaviorPath}.durableIntent`);
@@ -2675,13 +2720,7 @@ export async function validateMailKitSmtpFixture(
   }
   if (
     JSON.stringify(durableIntent.stateMachine) !==
-    JSON.stringify([
-      "Pending",
-      "Accepted",
-      "TransientFailure",
-      "PermanentFailure",
-      "Cancelled",
-    ])
+    JSON.stringify(MAILKIT_SMTP_INTENT_STATES)
   ) {
     fail(
       `MailKit SMTP durable intent state machine is incomplete at ${behaviorPath}.durableIntent.stateMachine.`,
@@ -2695,12 +2734,12 @@ export async function validateMailKitSmtpFixture(
   requireBoolean(smtp.cancellation, `${behaviorPath}.smtp.cancellation`);
   requireIncludes(
     smtp.transportOperations,
-    ["ConnectAsync", "AuthenticateAsync", "SendAsync", "DisconnectAsync"],
+    MAILKIT_SMTP_TRANSPORT_OPERATIONS,
     `${behaviorPath}.smtp.transportOperations`,
   );
   requireIncludes(
     smtp.outcomes,
-    ["accepted", "transient", "permanent", "cancelled"],
+    MAILKIT_SMTP_OUTCOMES,
     `${behaviorPath}.smtp.outcomes`,
   );
 
@@ -2732,7 +2771,7 @@ export async function validateMailKitSmtpFixture(
   );
   requireIncludes(
     security.redactedFields,
-    ["recipient", "subject", "body", "attachment", "provider-response"],
+    MAILKIT_SMTP_REDACTED_FIELDS,
     `${behaviorPath}.security.redactedFields`,
   );
 
@@ -2740,27 +2779,23 @@ export async function validateMailKitSmtpFixture(
   requireRecord(observability, `${behaviorPath}.observability`);
   requireIncludes(
     observability.signals,
-    [
-      "backlog-age",
-      "attempts",
-      "provider-acceptance",
-      "failure-class",
-      "latency",
-      "terminal-failure",
-    ],
+    MAILKIT_SMTP_OBSERVABILITY_SIGNALS,
     `${behaviorPath}.observability.signals`,
   );
   requireIncludes(
     observability.dataDimensionsExcluded,
-    ["recipient", "subject", "body", "attachment", "provider-response"],
+    MAILKIT_SMTP_REDACTED_FIELDS,
     `${behaviorPath}.observability.dataDimensionsExcluded`,
   );
 
   const mailpit = behavior.mailpit;
   requireRecord(mailpit, `${behaviorPath}.mailpit`);
-  if (mailpit.version !== "1.30.0" || mailpit.commit !== "af8756a") {
+  if (
+    mailpit.version !== MAILKIT_SMTP_MAILPIT_VERSION ||
+    mailpit.commit !== MAILKIT_SMTP_MAILPIT_COMMIT
+  ) {
     fail(
-      `MailKit SMTP fixture must pin Mailpit 1.30.0 at ${behaviorPath}.mailpit.`,
+      `MailKit SMTP fixture must pin Mailpit ${MAILKIT_SMTP_MAILPIT_VERSION} at ${behaviorPath}.mailpit.`,
     );
   }
   requireBoolean(
@@ -2780,27 +2815,18 @@ export async function validateMailKitSmtpFixture(
     );
   }
 
-  const sourcePaths = {
-    intent: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryIntent.cs`,
-    options: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/SmtpDeliveryOptions.cs`,
-    adapter: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MailKitSmtpDelivery.cs`,
-    dispatcher: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryDispatcher.cs`,
-    tests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
-    integrationTests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
-    evidence: `${MAILKIT_SMTP_SOLUTION_ROOT}/evidence/mailpit.md`,
-  };
-  const sources = new Map();
-  for (const [name, relativePath] of Object.entries(sourcePaths)) {
-    sources.set(name, await readRequiredFile(rootDir, relativePath));
+  const sources = {};
+  for (const [name, relativePath] of Object.entries(MAILKIT_SMTP_SOURCE_PATHS)) {
+    sources[name] = await readRequiredFile(rootDir, relativePath);
   }
 
-  if (sources.get("intent").includes("MimeMessage")) {
+  if (sources.intent.includes("MimeMessage")) {
     fail(
-      `MailKit SMTP intent must not expose MimeMessage: ${sourcePaths.intent}.`,
+      `MailKit SMTP intent must not expose MimeMessage: ${MAILKIT_SMTP_SOURCE_PATHS.intent}.`,
     );
   }
   requireSourceIncludes(
-    sources.get("intent"),
+    sources.intent,
     [
       "NotificationDeliveryIntent",
       "IdempotencyKey",
@@ -2808,10 +2834,10 @@ export async function validateMailKitSmtpFixture(
       "AttachmentReferences",
       "Pending",
     ],
-    sourcePaths.intent,
+    MAILKIT_SMTP_SOURCE_PATHS.intent,
   );
   requireSourceIncludes(
-    sources.get("options"),
+    sources.options,
     [
       "RequireTls",
       "UseAuthentication",
@@ -2819,10 +2845,10 @@ export async function validateMailKitSmtpFixture(
       "Validate",
       "external-only",
     ],
-    sourcePaths.options,
+    MAILKIT_SMTP_SOURCE_PATHS.options,
   );
   requireSourceIncludes(
-    sources.get("adapter"),
+    sources.adapter,
     [
       "MailKit.Net.Smtp",
       "MimeKit",
@@ -2839,10 +2865,10 @@ export async function validateMailKitSmtpFixture(
       "SmtpDeliveryOutcome.PermanentFailure",
       "SmtpDeliveryOutcome.Cancelled",
     ],
-    sourcePaths.adapter,
+    MAILKIT_SMTP_SOURCE_PATHS.adapter,
   );
   requireSourceIncludes(
-    sources.get("dispatcher"),
+    sources.dispatcher,
     [
       "SaveChangesAsync",
       "AutomaticAttemptLimit",
@@ -2853,10 +2879,10 @@ export async function validateMailKitSmtpFixture(
       "Meter",
       "Redact",
     ],
-    sourcePaths.dispatcher,
+    MAILKIT_SMTP_SOURCE_PATHS.dispatcher,
   );
   requireSourceIncludes(
-    sources.get("tests"),
+    sources.tests,
     [
       "Mailpit 1.30.0",
       "451",
@@ -2866,10 +2892,10 @@ export async function validateMailKitSmtpFixture(
       "Authentication",
       "Redact",
     ],
-    sourcePaths.tests,
+    MAILKIT_SMTP_SOURCE_PATHS.tests,
   );
   requireSourceIncludes(
-    sources.get("integrationTests"),
+    sources.integrationTests,
     [
       "Testcontainers",
       "axllent/mailpit:1.30.0",
@@ -2877,10 +2903,10 @@ export async function validateMailKitSmtpFixture(
       "UntilPortIsAvailable",
       "Explicit",
     ],
-    sourcePaths.integrationTests,
+    MAILKIT_SMTP_SOURCE_PATHS.integrationTests,
   );
   requireSourceIncludes(
-    sources.get("evidence"),
+    sources.evidence,
     [
       "Mailpit",
       "1.30.0",
@@ -2892,7 +2918,7 @@ export async function validateMailKitSmtpFixture(
       "requeue",
       "redaction",
     ],
-    sourcePaths.evidence,
+    MAILKIT_SMTP_SOURCE_PATHS.evidence,
   );
 
   return {

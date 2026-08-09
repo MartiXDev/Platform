@@ -73,9 +73,7 @@ public sealed class NotificationDeliveryDispatcher
         Guid intentId,
         CancellationToken cancellationToken)
     {
-        var intent = await _db.NotificationDeliveryIntents
-            .SingleOrDefaultAsync(candidate => candidate.Id == intentId, cancellationToken)
-            ?? throw new InvalidOperationException($"Notification intent {intentId} was not found.");
+        var intent = await LoadIntentAsync(intentId, cancellationToken);
         var now = _clock.GetUtcNow();
         if (!intent.TryBeginAttempt(now))
         {
@@ -134,11 +132,19 @@ public sealed class NotificationDeliveryDispatcher
 
     public async Task RequeueAsync(Guid intentId, CancellationToken cancellationToken)
     {
-        var intent = await _db.NotificationDeliveryIntents
-            .SingleOrDefaultAsync(candidate => candidate.Id == intentId, cancellationToken)
-            ?? throw new InvalidOperationException($"Notification intent {intentId} was not found.");
+        var intent = await LoadIntentAsync(intentId, cancellationToken);
         intent.Requeue(_clock.GetUtcNow());
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<NotificationDeliveryIntent> LoadIntentAsync(
+        Guid intentId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.NotificationDeliveryIntents
+            .SingleOrDefaultAsync(intent => intent.Id == intentId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Notification intent {intentId} was not found.");
     }
 
     public static string Redact(string? value) =>

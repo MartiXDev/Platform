@@ -157,12 +157,12 @@ public sealed class MailKitSmtpDeliveryTests
 
     private sealed class CapturingAdapter : INotificationDeliveryAdapter
     {
-        private readonly Queue<SmtpDeliveryResult>? _results;
-        private readonly Func<CancellationToken, Task<SmtpDeliveryResult>>? _send;
+        private readonly Func<CancellationToken, Task<SmtpDeliveryResult>> _send;
 
         public CapturingAdapter(params SmtpDeliveryResult[] results)
         {
-            _results = new Queue<SmtpDeliveryResult>(results);
+            var queuedResults = new Queue<SmtpDeliveryResult>(results);
+            _send = _ => Task.FromResult(queuedResults.Dequeue());
         }
 
         public CapturingAdapter(
@@ -181,12 +181,7 @@ public sealed class MailKitSmtpDeliveryTests
         {
             SendCount++;
             StatusAtSend = intent.Status;
-            if (_send is not null)
-            {
-                return await _send(cancellationToken);
-            }
-
-            return _results!.Dequeue();
+            return await _send(cancellationToken);
         }
     }
 }
