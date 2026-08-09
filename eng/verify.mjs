@@ -6,7 +6,10 @@ import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { listFiles } from "./list-files.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
-import { listOpenApiOperations } from "./openapi-client.mjs";
+import {
+  listOpenApiOperations,
+  renderOpenApiContract,
+} from "./openapi-client.mjs";
 import { verifyAgentReadiness } from "./agent-readiness.mjs";
 import {
   FORBIDDEN_RELIABLE_EVENT_PROVIDER_IMPLEMENTATIONS,
@@ -93,12 +96,10 @@ const MANIFEST_ALLOWED_PROPERTIES = [
 ];
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const FULL_STACK_UI_INPUTS = [
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/browser.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/build.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/client.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/deployment.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/observability.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/security.md`,
+  ...FULL_STACK_UI_EVIDENCE.map(
+    (evidenceName) =>
+      `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/${evidenceName}.md`,
+  ),
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.vue`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/generated.ts`,
@@ -747,12 +748,9 @@ function fullStackExpectedFiles(manifest) {
   const files = [
     ...modularMonolithExpectedFiles(manifest),
     "contracts/ui-capability-v1.json",
-    "evidence/ui/browser.md",
-    "evidence/ui/build.md",
-    "evidence/ui/client.md",
-    "evidence/ui/deployment.md",
-    "evidence/ui/observability.md",
-    "evidence/ui/security.md",
+    ...FULL_STACK_UI_EVIDENCE.map(
+      (evidenceName) => `evidence/ui/${evidenceName}.md`,
+    ),
     `${root}/Platform/Api/README.md`,
     `${root}/Platform/Api/generated.ts`,
     `${root}/Platform/Api/openapi.ts`,
@@ -825,7 +823,7 @@ function generatedClientMatchesHttpContract(source, contract) {
   }
 
   const expectedDigest = createHash("sha256")
-    .update(`${JSON.stringify(contract, null, 2)}\n`)
+    .update(renderOpenApiContract(contract))
     .digest("hex");
   return digest === expectedDigest;
 }
@@ -1999,13 +1997,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     );
   }
 
-  for (const evidenceName of [
-    "browser",
-    "build",
-    "security",
-    "deployment",
-    "observability",
-  ]) {
+  for (const evidenceName of FULL_STACK_UI_EVIDENCE) {
     const evidence = await readSolutionFile(`evidence/ui/${evidenceName}.md`);
     if (
       !evidence.includes("# UI") ||

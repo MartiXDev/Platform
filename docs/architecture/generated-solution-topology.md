@@ -230,11 +230,11 @@ business-module DTOs. Every provider exposes the same seams:
 - invariant localization keys and semantic Fluent-style design tokens for
   light, dark, and system themes.
 
-`evidence/ui/` records browser, build, security, deployment, and observability
-checks for the selected provider. React and Vue use the isolated TypeScript
-client profile; Blazor uses the isolated C# client profile. The UI project has
-no backend project reference or in-process Business Module access. API and
-Modular Monolith Presets remain UI-free.
+`evidence/ui/` records browser, build, client, security, deployment, and
+observability checks for the selected provider. React and Vue use the isolated
+TypeScript client profile; Blazor uses the isolated C# client profile. The UI
+project has no backend project reference or in-process Business Module access.
+API and Modular Monolith Presets remain UI-free.
 
 ## Deployment boundary
 

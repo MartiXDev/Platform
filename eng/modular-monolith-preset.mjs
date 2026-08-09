@@ -4761,8 +4761,8 @@ Provider: \`${provider}\`
 
 The client surface is generated from the checked-in OpenAPI contract, records the
 contract digest, and is composed with the cookie-aware transport adapter. The
-client check rejects missing operations, stale generated output, and unreviewed
-transport substitutions.
+generated-client check rejects stale output; the Full Stack gate verifies required
+operations and transport composition.
 `,
     "evidence/ui/security.md": `# UI security evidence
 
@@ -4833,16 +4833,11 @@ function createUiFiles(plan, contract) {
 Generated from \`contracts/openapi-v1.json\`. Provider: \`${plan.ui.provider}\`.
 This directory contains wire contracts and transport adapters only.
 `],
-    ["evidence/ui/browser.md", evidenceFiles["evidence/ui/browser.md"]],
-    ["evidence/ui/build.md", evidenceFiles["evidence/ui/build.md"]],
-    ["evidence/ui/client.md", evidenceFiles["evidence/ui/client.md"]],
-    ["evidence/ui/security.md", evidenceFiles["evidence/ui/security.md"]],
-    ["evidence/ui/deployment.md", evidenceFiles["evidence/ui/deployment.md"]],
-    [
-      "evidence/ui/observability.md",
-      evidenceFiles["evidence/ui/observability.md"],
-    ],
   ]);
+  for (const evidenceName of FULL_STACK_UI_EVIDENCE) {
+    const path = `evidence/ui/${evidenceName}.md`;
+    files.set(path, evidenceFiles[path]);
+  }
 
   if (plan.ui.provider === "blazor-webapp") {
     files.set(`${root}/${plan.applicationName}.Web.csproj`, uiBlazorProjectFile(plan));
