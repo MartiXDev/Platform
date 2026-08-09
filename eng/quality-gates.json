@@ -134,6 +134,19 @@
       "purpose": "The named Provider Admission Generated Solution proves exact selection, prerequisite/configuration/effect resolution, complete quality evidence, and absence of unselected provider residue before any Supported claim."
     },
     {
+      "id": "bootstrap.deployment-manifest",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Deployment Manifest Generated Solution proves equal process and OCI identities, secret-free topology, lifecycle ordering, immutable promotion/rollback, and drift evidence."
+    },
+    {
       "id": "bootstrap.host-baseline",
       "family": "security-observability",
       "owner": "platform-maintainers",

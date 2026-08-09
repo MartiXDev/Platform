@@ -245,6 +245,14 @@ and external secret delivery. Process execution, optional local orchestration,
 bounded single-host Compose, and future cloud promotion are projections of
 that manifest rather than separate architecture sources.
 
+The named `DeploymentManifestGeneratedSolution` acceptance fixture records this
+topology in `deployment-manifest.json` and immutable lifecycle evidence in
+`deployment-evidence.json`. Its process/archive and container/OCI artifacts
+share source revision, Platform Contract Version, runtime, operating system,
+topology, and configuration-schema identity. Promotion and rollback consume
+those digests without rebuilding; unsupported topology, embedded build steps,
+secret values, and projection drift fail closed.
+
 Direct local execution remains universal. Aspire, containers, Compose, and
 cloud-specific infrastructure are explicit capabilities. Secrets enter through
 deployment-specific adapters and never appear in source, manifests, logs, or

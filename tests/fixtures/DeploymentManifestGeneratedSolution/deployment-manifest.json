@@ -1,0 +1,209 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/deployment-manifest.schema.json",
+  "schemaVersion": "1.0.0",
+  "application": {
+    "name": "MartiX.Inventory",
+    "platformVersion": "0.1.0-preview.1",
+    "platformContractVersion": "0.1.0-preview.1"
+  },
+  "source": {
+    "revision": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "configuration": {
+    "schemaVersion": "1.0.0",
+    "entries": [
+      {
+        "key": "ASPNETCORE_URLS",
+        "type": "uri",
+        "required": true,
+        "sensitivity": "public",
+        "source": "external",
+        "restart": "startup",
+        "owner": "host"
+      },
+      {
+        "key": "ConnectionStrings:Database",
+        "type": "string",
+        "required": true,
+        "sensitivity": "sensitive",
+        "source": "external",
+        "restart": "required",
+        "owner": "relational-persistence"
+      }
+    ]
+  },
+  "resources": [
+    {
+      "id": "api",
+      "role": "serving",
+      "type": "http-service",
+      "artifact": "api",
+      "command": "MartiX.Inventory.Api",
+      "arguments": [],
+      "configuration": [
+        "ASPNETCORE_URLS",
+        "ConnectionStrings:Database"
+      ],
+      "dependsOn": [
+        {
+          "resource": "database",
+          "condition": "ready"
+        },
+        {
+          "resource": "migrator",
+          "condition": "completed"
+        }
+      ],
+      "ports": [
+        {
+          "name": "http",
+          "number": 8080,
+          "protocol": "http",
+          "exposure": "private"
+        }
+      ],
+      "checks": {
+        "startup": {
+          "kind": "http",
+          "port": "http",
+          "timeoutSeconds": 5,
+          "intervalSeconds": 10,
+          "path": "/health/startup"
+        },
+        "readiness": {
+          "kind": "http",
+          "port": "http",
+          "timeoutSeconds": 5,
+          "intervalSeconds": 10,
+          "path": "/health/readiness"
+        },
+        "liveness": {
+          "kind": "http",
+          "port": "http",
+          "timeoutSeconds": 5,
+          "intervalSeconds": 10,
+          "path": "/health/liveness"
+        }
+      },
+      "shutdown": {
+        "signal": "SIGTERM",
+        "gracePeriodSeconds": 30
+      },
+      "persistence": null
+    },
+    {
+      "id": "database",
+      "role": "stateful",
+      "type": "relational-database",
+      "artifact": null,
+      "command": null,
+      "arguments": [],
+      "configuration": [
+        "ConnectionStrings:Database"
+      ],
+      "dependsOn": [],
+      "ports": [],
+      "checks": null,
+      "shutdown": null,
+      "persistence": {
+        "durability": "durable",
+        "backup": "required",
+        "restore": "required",
+        "upgrade": "versioned",
+        "owner": "relational-persistence"
+      }
+    },
+    {
+      "id": "migrator",
+      "role": "migrator",
+      "type": "one-shot",
+      "artifact": "migrator",
+      "command": "MartiX.Inventory.Migrator",
+      "arguments": [
+        "apply"
+      ],
+      "configuration": [
+        "ConnectionStrings:Database"
+      ],
+      "dependsOn": [
+        {
+          "resource": "database",
+          "condition": "ready"
+        }
+      ],
+      "ports": [],
+      "checks": null,
+      "shutdown": {
+        "signal": "SIGTERM",
+        "gracePeriodSeconds": 30
+      },
+      "persistence": null
+    }
+  ],
+  "migration": {
+    "resource": "migrator",
+    "order": [
+      "migrator"
+    ],
+    "beforeServing": [
+      "api"
+    ],
+    "concurrency": "exclusive"
+  },
+  "profiles": [
+    {
+      "id": "process",
+      "kind": "archive",
+      "target": "process-host"
+    },
+    {
+      "id": "container",
+      "kind": "oci-image",
+      "target": "oci"
+    }
+  ],
+  "artifacts": [
+    {
+      "profile": "process",
+      "kind": "archive",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+      "platformContractVersion": "0.1.0-preview.1",
+      "runtime": "net10.0",
+      "operatingSystem": "linux",
+      "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+      "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d",
+      "reproducible": true,
+      "builtOnce": true
+    },
+    {
+      "profile": "container",
+      "kind": "oci-image",
+      "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+      "platformContractVersion": "0.1.0-preview.1",
+      "runtime": "net10.0",
+      "operatingSystem": "linux",
+      "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+      "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d",
+      "reproducible": true,
+      "builtOnce": true
+    }
+  ],
+  "identity": {
+    "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+    "platformContractVersion": "0.1.0-preview.1",
+    "runtime": "net10.0",
+    "operatingSystem": "linux",
+    "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+    "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d",
+    "reproducible": true,
+    "builtOnce": true,
+    "manifestDigest": "sha256:fdd6d03c80a3fbf11f2433d6e7fd78b56133a42f3c79c2bace9e39aa9ff46ec8"
+  },
+  "supportClaims": []
+}

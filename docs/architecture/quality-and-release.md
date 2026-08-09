@@ -9,8 +9,9 @@
 
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
 [`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
-and [`martix.platform.json`](../../martix.platform.json).
-They define four cadences and eight required bootstrap gates while keeping
+[`eng/deployment-manifest.mjs`](../../eng/deployment-manifest.mjs), and
+[`martix.platform.json`](../../martix.platform.json).
+They define four cadences and ten required bootstrap gates while keeping
 `supportClaims` empty:
 
 - `fast`
@@ -45,6 +46,15 @@ artifact once, restores the generated API from an isolated feed, runs the
 generated TUnit consumer and JIT/OpenAPI probes, publishes and probes the
 declared Native AOT artifact, and writes content-addressed candidate evidence.
 The profile remains persistence-free, provider-free, and claim-free.
+
+The `bootstrap.deployment-manifest` gate uses the named
+`DeploymentManifestGeneratedSolution` fixture and
+[`schemas/deployment-manifest.schema.json`](../../schemas/deployment-manifest.schema.json).
+Its normalized topology produces both process/archive and container/OCI
+projections from one identity. The gate verifies external-only configuration,
+startup/readiness/liveness checks, graceful shutdown, Migrator completion
+ordering, immutable promotion and rollback, and content-addressed drift
+evidence without embedding secrets or production build steps.
 
 The optional FastEndpoints adapter is verified separately from the canonical
 Minimal API release loop. Its named Generated Solution proves the declared

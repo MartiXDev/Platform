@@ -1,0 +1,55 @@
+{
+  "$schema": "../../../schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.1.0-preview.1",
+  "platformContractVersion": "0.1.0-preview.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "DeploymentManifestGeneratedSolution",
+    "product": "MartiX Deployment Manifest Generated Solution",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "api",
+  "capabilities": [
+    {
+      "id": "deployment.artifacts",
+      "state": "selected"
+    },
+    {
+      "id": "deployment.configuration",
+      "state": "selected"
+    },
+    {
+      "id": "deployment.lifecycle",
+      "state": "selected"
+    }
+  ],
+  "providers": [],
+  "authentication": {
+    "profile": "none",
+    "provider": "none",
+    "flow": "anonymous",
+    "state": "selected"
+  },
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  }
+}

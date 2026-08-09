@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   REQUIRED_BOOTSTRAP_INPUTS,
+  validateDeploymentManifestFixture,
   validateProviderAdmissionFixture,
   verifyBootstrap,
 } from "../eng/verify.mjs";
@@ -61,6 +62,16 @@ function fullStackFixturePath(rootDir, ...segments) {
   );
 }
 
+function deploymentManifestFixturePath(rootDir, ...segments) {
+  return join(
+    rootDir,
+    "tests",
+    "fixtures",
+    "DeploymentManifestGeneratedSolution",
+    ...segments,
+  );
+}
+
 test("fast cadence verifies the repository bootstrap contract", async () => {
   const result = await verifyBootstrap({
     cadence: "fast",
@@ -94,6 +105,7 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.equal(result.modularMonolithSolution, "ModularMonolithGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
   assert.ok(result.gates.includes("bootstrap.provider-admission"));
+  assert.ok(result.gates.includes("bootstrap.deployment-manifest"));
 });
 
 test("the named Full Stack fixture exercises the Blazor provider", async () => {
@@ -140,6 +152,51 @@ test("the named Provider Admission fixture proves selection, absence, and invali
     result.matrixCoordinate,
     "operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
   );
+});
+
+test("the named Deployment Manifest fixture proves both artifact projections", async () => {
+  const manifest = JSON.parse(
+    await readFile(
+      deploymentManifestFixturePath(repositoryRoot, "deployment-manifest.json"),
+      "utf8",
+    ),
+  );
+  const evidence = JSON.parse(
+    await readFile(
+      deploymentManifestFixturePath(repositoryRoot, "deployment-evidence.json"),
+      "utf8",
+    ),
+  );
+  const schema = JSON.parse(
+    await readFile(
+      join(repositoryRoot, "schemas", "deployment-manifest.schema.json"),
+      "utf8",
+    ),
+  );
+
+  const result = validateDeploymentManifestFixture(manifest, evidence, schema);
+
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.artifactProfiles, ["process", "container"]);
+  assert.equal(result.solution, "DeploymentManifestGeneratedSolution");
+});
+
+test("Deployment Manifest bootstrap verification rejects projection drift", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const evidencePath = deploymentManifestFixturePath(
+      temporaryRoot,
+      "deployment-evidence.json",
+    );
+    const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+    evidence.projections[0].identity.artifactDigest =
+      evidence.artifacts[1].digest;
+    await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Deployment Manifest fixture failed: Deployment projection drift detected/,
+    );
+  });
 });
 
 test("Full Stack verification rejects UI contract version drift", async () => {

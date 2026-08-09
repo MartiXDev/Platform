@@ -1,0 +1,649 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/deployment-manifest.schema.json",
+  "title": "MartiX Deployment Manifest",
+  "description": "The normalized, secret-free topology and artifact identity shared by process and OCI deployment profiles.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "application",
+    "source",
+    "security",
+    "configuration",
+    "resources",
+    "migration",
+    "profiles",
+    "artifacts",
+    "identity",
+    "supportClaims"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "application": {
+      "$ref": "#/$defs/application"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "security": {
+      "$ref": "#/$defs/security"
+    },
+    "configuration": {
+      "$ref": "#/$defs/configuration"
+    },
+    "resources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/resource"
+      }
+    },
+    "migration": {
+      "$ref": "#/$defs/migration"
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "identity": {
+      "$ref": "#/$defs/identity"
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "platformVersion",
+        "platformContractVersion"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9.-]*$"
+        },
+        "platformVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platformContractVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision"
+      ],
+      "properties": {
+        "revision": {
+          "$ref": "#/$defs/revision"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secretPolicy",
+        "containsSecrets"
+      ],
+      "properties": {
+        "secretPolicy": {
+          "const": "external-only"
+        },
+        "containsSecrets": {
+          "const": false
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "entries"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/configurationEntry"
+          }
+        }
+      }
+    },
+    "configurationEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "type",
+        "required",
+        "sensitivity",
+        "source",
+        "restart",
+        "owner"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "boolean",
+            "integer",
+            "number",
+            "string",
+            "uri"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "sensitivity": {
+          "enum": [
+            "public",
+            "sensitive"
+          ]
+        },
+        "source": {
+          "enum": [
+            "external",
+            "mounted-file"
+          ]
+        },
+        "restart": {
+          "enum": [
+            "optional",
+            "required",
+            "startup"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "condition"
+      ],
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/identifier"
+        },
+        "condition": {
+          "enum": [
+            "ready",
+            "healthy",
+            "completed"
+          ]
+        }
+      }
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "number",
+        "protocol",
+        "exposure"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "protocol": {
+          "enum": [
+            "http",
+            "https",
+            "tcp"
+          ]
+        },
+        "exposure": {
+          "enum": [
+            "private",
+            "public"
+          ]
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "port",
+        "timeoutSeconds",
+        "intervalSeconds"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "http",
+            "tcp"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "port": {
+          "$ref": "#/$defs/identifier"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "shutdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signal",
+        "gracePeriodSeconds"
+      ],
+      "properties": {
+        "signal": {
+          "enum": [
+            "SIGTERM",
+            "SIGINT"
+          ]
+        },
+        "gracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durability",
+        "backup",
+        "restore",
+        "upgrade",
+        "owner"
+      ],
+      "properties": {
+        "durability": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "restore": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "type",
+        "artifact",
+        "command",
+        "arguments",
+        "configuration",
+        "dependsOn",
+        "ports",
+        "checks",
+        "shutdown",
+        "persistence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "role": {
+          "enum": [
+            "stateful",
+            "migrator",
+            "serving",
+            "worker"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "configuration": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency"
+          }
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "checks": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startup",
+                "readiness",
+                "liveness"
+              ],
+              "properties": {
+                "startup": {
+                  "$ref": "#/$defs/check"
+                },
+                "readiness": {
+                  "$ref": "#/$defs/check"
+                },
+                "liveness": {
+                  "$ref": "#/$defs/check"
+                }
+              }
+            }
+          ]
+        },
+        "shutdown": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/shutdown"
+            }
+          ]
+        },
+        "persistence": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/persistence"
+            }
+          ]
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "order",
+        "beforeServing",
+        "concurrency"
+      ],
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/identifier"
+        },
+        "order": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "beforeServing": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "concurrency": {
+          "const": "exclusive"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "target"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "process",
+            "container"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "archive",
+            "oci-image"
+          ]
+        },
+        "target": {
+          "enum": [
+            "process-host",
+            "oci"
+          ]
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "kind",
+        "digest",
+        "sourceRevision",
+        "platformContractVersion",
+        "runtime",
+        "operatingSystem",
+        "topologyDigest",
+        "configurationSchemaDigest",
+        "reproducible",
+        "builtOnce"
+      ],
+      "properties": {
+        "profile": {
+          "enum": [
+            "process",
+            "container"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "archive",
+            "oci-image"
+          ]
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceRevision": {
+          "$ref": "#/$defs/revision"
+        },
+        "platformContractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operatingSystem": {
+          "$ref": "#/$defs/identifier"
+        },
+        "topologyDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "configurationSchemaDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "reproducible": {
+          "const": true
+        },
+        "builtOnce": {
+          "const": true
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceRevision",
+        "platformContractVersion",
+        "runtime",
+        "operatingSystem",
+        "topologyDigest",
+        "configurationSchemaDigest",
+        "reproducible",
+        "builtOnce",
+        "manifestDigest"
+      ],
+      "properties": {
+        "sourceRevision": {
+          "$ref": "#/$defs/revision"
+        },
+        "platformContractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operatingSystem": {
+          "$ref": "#/$defs/identifier"
+        },
+        "topologyDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "configurationSchemaDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "reproducible": {
+          "const": true
+        },
+        "builtOnce": {
+          "const": true
+        },
+        "manifestDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

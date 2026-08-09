@@ -45,6 +45,11 @@ import {
   verifyProviderAdmission,
   verifyProviderAdmissionEvidence,
 } from "./provider-admission.mjs";
+import {
+  DeploymentManifestError,
+  verifyDeploymentEvidence,
+  verifyDeploymentManifest,
+} from "./deployment-manifest.mjs";
 
 const CADENCES = [
   "fast",
@@ -63,6 +68,10 @@ const FULL_STACK_SOLUTION_ROOT = `tests/fixtures/${FULL_STACK_SOLUTION_NAME}`;
 const PROVIDER_ADMISSION_SOLUTION_NAME = "ProviderAdmissionGeneratedSolution";
 const PROVIDER_ADMISSION_SOLUTION_ROOT =
   `tests/fixtures/${PROVIDER_ADMISSION_SOLUTION_NAME}`;
+const DEPLOYMENT_MANIFEST_SOLUTION_NAME =
+  "DeploymentManifestGeneratedSolution";
+const DEPLOYMENT_MANIFEST_SOLUTION_ROOT =
+  `tests/fixtures/${DEPLOYMENT_MANIFEST_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -80,6 +89,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
+  "bootstrap.deployment-manifest",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -237,6 +247,14 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
   "eng/provider-admission.mjs",
+  `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/README.md`,
+  `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/AGENTS.md`,
+  `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/CONTEXT.md`,
+  `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/martix.platform.json`,
+  `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-manifest.json`,
+  `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
+  "eng/deployment-manifest.mjs",
+  "schemas/deployment-manifest.schema.json",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -2596,6 +2614,53 @@ export async function validateProviderAdmissionFixture(
   };
 }
 
+export function validateDeploymentManifestFixture(
+  deploymentManifest,
+  deploymentEvidence,
+  deploymentSchema,
+) {
+  const manifestPath =
+    `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-manifest.json`;
+  const evidencePath =
+    `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`;
+  const schemaPath = "schemas/deployment-manifest.schema.json";
+
+  requireRecord(deploymentManifest, manifestPath);
+  requireRecord(deploymentEvidence, evidencePath);
+  requireRecord(deploymentSchema, schemaPath);
+  assertSecretFree(deploymentManifest, manifestPath, "Deployment Manifest fixture");
+  assertSecretFree(deploymentEvidence, evidencePath, "Deployment evidence fixture");
+  assertSecretFree(deploymentSchema, schemaPath, "Deployment Manifest schema");
+  validateClosedObjectSchemas(deploymentSchema, schemaPath);
+  validateAgainstSchema(deploymentManifest, deploymentSchema, manifestPath);
+
+  let manifestResult;
+  try {
+    manifestResult = verifyDeploymentManifest(deploymentManifest);
+    verifyDeploymentEvidence(deploymentManifest, deploymentEvidence);
+  } catch (error) {
+    if (error instanceof DeploymentManifestError) {
+      fail(`Deployment Manifest fixture failed: ${error.message}`);
+    }
+    throw error;
+  }
+
+  if (deploymentEvidence.supportClaims.length !== 0) {
+    fail("Deployment evidence fixture must not make a Supported deployment claim.");
+  }
+
+  return {
+    status: "passed",
+    solution: DEPLOYMENT_MANIFEST_SOLUTION_NAME,
+    manifestDigest: manifestResult.manifestDigest,
+    topologyDigest: manifestResult.topologyDigest,
+    artifactProfiles: deploymentEvidence.artifacts.map(
+      (artifact) => artifact.profile,
+    ),
+    evidenceDigest: deploymentEvidence.verification.evidenceDigest,
+  };
+}
+
 export async function verifyBootstrap({
   cadence = "fast",
   rootDir = process.cwd(),
@@ -2643,6 +2708,13 @@ export async function verifyBootstrap({
   );
   const providerAdmissionFixture = parseJson(
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  );
+  const deploymentSchema = parseJson("schemas/deployment-manifest.schema.json");
+  const deploymentManifest = parseJson(
+    `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-manifest.json`,
+  );
+  const deploymentEvidence = parseJson(
+    `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
   );
 
   validateManifestSchema(manifestSchema);
@@ -2733,6 +2805,11 @@ export async function verifyBootstrap({
     providerAdmissionFixture,
     providerAdmissionManifest,
   );
+  const deploymentManifestResult = validateDeploymentManifestFixture(
+    deploymentManifest,
+    deploymentEvidence,
+    deploymentSchema,
+  );
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -2759,6 +2836,8 @@ export async function verifyBootstrap({
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
     providerAdmission,
+    deploymentManifestSolution: DEPLOYMENT_MANIFEST_SOLUTION_NAME,
+    deploymentManifest: deploymentManifestResult,
     agentReadiness,
   };
 }
