@@ -187,6 +187,48 @@ test("Microsoft Feature Management declares the current schema and direct packag
   assert.deepEqual(definition.effects.telemetry, ["feature-management"]);
 });
 
+test("MailKit SMTP admission declares durable delivery, secret, and recovery effects", () => {
+  const catalog = validateProviderAdmissionCatalog();
+  const mailkit = catalog.find(
+    ({ capability, id }) =>
+      capability === "notification-delivery" && id === "mailkit-smtp",
+  );
+
+  assert.deepEqual(mailkit.requiredConfiguration, [
+    "Mail:Smtp:Host",
+    "Mail:Smtp:Username",
+    "Mail:Smtp:Password",
+    "Mail:Smtp:RequireTls",
+    "Mail:Smtp:FromAddress",
+  ]);
+  assert.deepEqual(mailkit.effects.packages, [
+    { id: "MailKit", version: "4.17.0" },
+  ]);
+  assert.deepEqual(mailkit.effects.workers, ["NotificationDeliveryDispatcher"]);
+  assert.deepEqual(mailkit.effects.containers, ["mailpit:1.30.0"]);
+  assert.ok(mailkit.effects.configuration.includes("Mail:Smtp:Timeout"));
+  assert.ok(mailkit.effects.registrations.includes("NotificationDelivery:Smtp"));
+  assert.ok(mailkit.effects.telemetry.includes("notification-delivery"));
+  assert.equal(mailkit.runtimeSupport, "jit");
+  assert.equal(mailkit.nativeAot, "undeclared");
+  for (const evidence of [
+    "durable-intent",
+    "tls",
+    "authentication",
+    "cancellation",
+    "delivery-outcomes",
+    "retry-classification",
+    "redaction",
+    "observability",
+    "operator-recovery",
+  ]) {
+    assert.ok(
+      mailkit.qualityProfile.evidence.includes(evidence),
+      `missing MailKit SMTP evidence: ${evidence}`,
+    );
+  }
+});
+
 test("selection and absence verify all provider effect categories", async () => {
   const catalog = validateProviderAdmissionCatalog();
   const postgresql = catalog.find(

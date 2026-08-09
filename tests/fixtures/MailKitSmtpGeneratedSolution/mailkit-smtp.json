@@ -1,0 +1,394 @@
+{
+  "admission": {
+    "selection": {
+      "preset": "modular-monolith",
+      "capabilities": [
+        "relational-persistence",
+        "notification-delivery"
+      ],
+      "providers": [
+        {
+          "capability": "relational-persistence",
+          "id": "postgresql"
+        },
+        {
+          "capability": "notification-delivery",
+          "id": "mailkit-smtp"
+        }
+      ],
+      "runtime": "net10.0",
+      "operatingSystem": "linux",
+      "configuration": [
+        "ConnectionStrings:Database",
+        "Mail:Smtp:Host",
+        "Mail:Smtp:Username",
+        "Mail:Smtp:Password",
+        "Mail:Smtp:RequireTls",
+        "Mail:Smtp:FromAddress"
+      ]
+    },
+    "observed": {
+      "packages": [
+        {
+          "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
+          "version": "10.0.0"
+        },
+        {
+          "id": "MailKit",
+          "version": "4.17.0"
+        }
+      ],
+      "configuration": [
+        "ConnectionStrings:Database",
+        "Mail:Smtp:Host",
+        "Mail:Smtp:Port",
+        "Mail:Smtp:Username",
+        "Mail:Smtp:Password",
+        "Mail:Smtp:RequireTls",
+        "Mail:Smtp:Timeout",
+        "Mail:Smtp:FromAddress"
+      ],
+      "registrations": [
+        "EntityFrameworkCore:PostgreSQL",
+        "NotificationDelivery:Smtp"
+      ],
+      "workers": [
+        "NotificationDeliveryDispatcher"
+      ],
+      "healthChecks": [
+        "relational-database",
+        "notification-delivery"
+      ],
+      "telemetry": [
+        "relational-database",
+        "notification-delivery"
+      ],
+      "containers": [
+        "postgresql:17",
+        "mailpit:1.30.0"
+      ],
+      "deployment": [
+        "relational-database",
+        "notification-delivery"
+      ]
+    },
+    "evidence": {
+      "schemaVersion": "1.0.0",
+      "catalogVersion": "0.1.0-bootstrap",
+      "outcome": "passed",
+      "failClosed": true,
+      "provider": null,
+      "providers": [
+        {
+          "capability": "notification-delivery",
+          "id": "mailkit-smtp",
+          "state": "selected"
+        },
+        {
+          "capability": "relational-persistence",
+          "id": "postgresql",
+          "state": "selected"
+        }
+      ],
+      "runtime": "net10.0",
+      "operatingSystem": "linux",
+      "matrix": {
+        "preset": "modular-monolith",
+        "runtime": "net10.0",
+        "operatingSystem": "linux",
+        "coordinate": "operatingSystem=linux|preset=modular-monolith|runtime=net10.0"
+      },
+      "prerequisites": [],
+      "conflicts": [],
+      "configuration": {
+        "requiredKeys": [
+          "ConnectionStrings:Database",
+          "Mail:Smtp:FromAddress",
+          "Mail:Smtp:Host",
+          "Mail:Smtp:Password",
+          "Mail:Smtp:RequireTls",
+          "Mail:Smtp:Username"
+        ],
+        "selectedKeys": [
+          "ConnectionStrings:Database",
+          "Mail:Smtp:FromAddress",
+          "Mail:Smtp:Host",
+          "Mail:Smtp:Password",
+          "Mail:Smtp:RequireTls",
+          "Mail:Smtp:Username"
+        ]
+      },
+      "effects": {
+        "packages": [
+          {
+            "id": "MailKit",
+            "version": "4.17.0"
+          },
+          {
+            "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
+            "version": "10.0.0"
+          }
+        ],
+        "configuration": [
+          "ConnectionStrings:Database",
+          "Mail:Smtp:FromAddress",
+          "Mail:Smtp:Host",
+          "Mail:Smtp:Password",
+          "Mail:Smtp:Port",
+          "Mail:Smtp:RequireTls",
+          "Mail:Smtp:Timeout",
+          "Mail:Smtp:Username"
+        ],
+        "registrations": [
+          "EntityFrameworkCore:PostgreSQL",
+          "NotificationDelivery:Smtp"
+        ],
+        "workers": [
+          "NotificationDeliveryDispatcher"
+        ],
+        "healthChecks": [
+          "notification-delivery",
+          "relational-database"
+        ],
+        "telemetry": [
+          "notification-delivery",
+          "relational-database"
+        ],
+        "containers": [
+          "mailpit:1.30.0",
+          "postgresql:17"
+        ],
+        "deployment": [
+          "notification-delivery",
+          "relational-database"
+        ]
+      },
+      "qualityProfile": {
+        "id": "composed-provider-admission.operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
+        "complete": true,
+        "commonGates": [
+          "template-generation",
+          "architecture",
+          "security-supply-chain",
+          "provider-integration",
+          "reliability-operations",
+          "release-evidence"
+        ],
+        "providerGates": [
+          "authentication",
+          "cancellation",
+          "delivery-outcomes",
+          "durable-intent",
+          "migration",
+          "observability",
+          "operator-recovery",
+          "provider-translation",
+          "redaction",
+          "reliability",
+          "retry-classification",
+          "tls"
+        ],
+        "gates": [
+          "architecture",
+          "authentication",
+          "cancellation",
+          "delivery-outcomes",
+          "durable-intent",
+          "migration",
+          "observability",
+          "operator-recovery",
+          "provider-integration",
+          "provider-translation",
+          "redaction",
+          "release-evidence",
+          "reliability",
+          "reliability-operations",
+          "retry-classification",
+          "security-supply-chain",
+          "template-generation",
+          "tls"
+        ],
+        "evidence": [
+          "absence",
+          "authentication",
+          "cancellation",
+          "configuration",
+          "conflicts",
+          "delivery-outcomes",
+          "durable-intent",
+          "effects",
+          "observability",
+          "operating-system",
+          "operator-recovery",
+          "prerequisites",
+          "redaction",
+          "retry-classification",
+          "runtime",
+          "selection",
+          "tls"
+        ],
+        "providers": [
+          "notification-delivery:mailkit-smtp",
+          "relational-persistence:postgresql"
+        ],
+        "matrix": {
+          "preset": "modular-monolith",
+          "runtime": "net10.0",
+          "operatingSystem": "linux"
+        }
+      },
+      "selection": {
+        "preset": "modular-monolith",
+        "capabilities": [
+          "relational-persistence",
+          "notification-delivery"
+        ],
+        "providers": [
+          {
+            "capability": "relational-persistence",
+            "provider": "postgresql"
+          },
+          {
+            "capability": "notification-delivery",
+            "provider": "mailkit-smtp"
+          }
+        ]
+      },
+      "verification": {
+        "selection": "passed",
+        "absence": "passed",
+        "evidenceDigest": "sha256:0363b9afc5a06efe57408a97905533f64085535cd2033bd6ecd32b784c161756"
+      },
+      "supportClaims": []
+    },
+    "invalidSelections": [
+      {
+        "id": "missing-smtp-authentication",
+        "expectedCode": "missing-configuration",
+        "selection": {
+          "preset": "modular-monolith",
+          "capabilities": [
+            "relational-persistence",
+            "notification-delivery"
+          ],
+          "providers": [
+            {
+              "capability": "relational-persistence",
+              "id": "postgresql"
+            },
+            {
+              "capability": "notification-delivery",
+              "id": "mailkit-smtp"
+            }
+          ],
+          "runtime": "net10.0",
+          "operatingSystem": "linux",
+          "configuration": [
+            "ConnectionStrings:Database",
+            "Mail:Smtp:Host"
+          ]
+        }
+      },
+      {
+        "id": "unsupported-smtp-runtime",
+        "expectedCode": "unsupported-coordinate",
+        "selection": {
+          "preset": "modular-monolith",
+          "capabilities": [
+            "notification-delivery"
+          ],
+          "providers": [
+            {
+              "capability": "notification-delivery",
+              "id": "mailkit-smtp"
+            }
+          ],
+          "runtime": "net9.0",
+          "operatingSystem": "linux",
+          "configuration": [
+            "Mail:Smtp:Host",
+            "Mail:Smtp:Username",
+            "Mail:Smtp:Password",
+            "Mail:Smtp:RequireTls",
+            "Mail:Smtp:FromAddress"
+          ]
+        }
+      }
+    ]
+  },
+  "behavior": {
+    "durableIntent": {
+      "recordedBeforeExternalSend": true,
+      "doesNotClaimTransactionalEmail": true,
+      "idempotencyAndCorrelation": true,
+      "boundedAttachmentReferences": true,
+      "stateMachine": [
+        "Pending",
+        "Accepted",
+        "TransientFailure",
+        "PermanentFailure",
+        "Cancelled"
+      ]
+    },
+    "smtp": {
+      "tlsRequired": true,
+      "authentication": true,
+      "cancellation": true,
+      "transportOperations": [
+        "ConnectAsync",
+        "AuthenticateAsync",
+        "SendAsync",
+        "DisconnectAsync"
+      ],
+      "outcomes": [
+        "accepted",
+        "transient",
+        "permanent",
+        "cancelled"
+      ]
+    },
+    "recovery": {
+      "automaticAttemptLimit": 5,
+      "boundedRetry": true,
+      "operatorRequeue": true
+    },
+    "security": {
+      "externalOnlyConfiguration": true,
+      "redactedFields": [
+        "recipient",
+        "subject",
+        "body",
+        "attachment",
+        "provider-response"
+      ]
+    },
+    "observability": {
+      "signals": [
+        "backlog-age",
+        "attempts",
+        "provider-acceptance",
+        "failure-class",
+        "latency",
+        "terminal-failure"
+      ],
+      "dataDimensionsExcluded": [
+        "recipient",
+        "subject",
+        "body",
+        "attachment",
+        "provider-response"
+      ]
+    },
+    "mailpit": {
+      "version": "1.30.0",
+      "commit": "af8756a",
+      "tlsAndAuthentication": true,
+      "controlledFailures": [
+        "451",
+        "550"
+      ],
+      "containerized": true
+    },
+    "aotPosture": "jit-only-no-native-aot-claim"
+  }
+}

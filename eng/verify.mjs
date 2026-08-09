@@ -89,6 +89,54 @@ const DEPLOYMENT_MANIFEST_SOLUTION_ROOT =
 const OTLP_EXPORT_SOLUTION_NAME = "OtlpExportGeneratedSolution";
 const OTLP_EXPORT_SOLUTION_ROOT =
   `tests/fixtures/${OTLP_EXPORT_SOLUTION_NAME}`;
+const MAILKIT_SMTP_SOLUTION_NAME = "MailKitSmtpGeneratedSolution";
+const MAILKIT_SMTP_SOLUTION_ROOT = `tests/fixtures/${MAILKIT_SMTP_SOLUTION_NAME}`;
+const MAILKIT_SMTP_FIXTURE_PATH = `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`;
+const MAILKIT_SMTP_INTENT_STATES = Object.freeze([
+  "Pending",
+  "Accepted",
+  "TransientFailure",
+  "PermanentFailure",
+  "Cancelled",
+]);
+const MAILKIT_SMTP_TRANSPORT_OPERATIONS = Object.freeze([
+  "ConnectAsync",
+  "AuthenticateAsync",
+  "SendAsync",
+  "DisconnectAsync",
+]);
+const MAILKIT_SMTP_OUTCOMES = Object.freeze([
+  "accepted",
+  "transient",
+  "permanent",
+  "cancelled",
+]);
+const MAILKIT_SMTP_REDACTED_FIELDS = Object.freeze([
+  "recipient",
+  "subject",
+  "body",
+  "attachment",
+  "provider-response",
+]);
+const MAILKIT_SMTP_OBSERVABILITY_SIGNALS = Object.freeze([
+  "backlog-age",
+  "attempts",
+  "provider-acceptance",
+  "failure-class",
+  "latency",
+  "terminal-failure",
+]);
+const MAILKIT_SMTP_MAILPIT_VERSION = "1.30.0";
+const MAILKIT_SMTP_MAILPIT_COMMIT = "af8756a";
+const MAILKIT_SMTP_SOURCE_PATHS = Object.freeze({
+  intent: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryIntent.cs`,
+  options: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/SmtpDeliveryOptions.cs`,
+  adapter: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MailKitSmtpDelivery.cs`,
+  dispatcher: `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryDispatcher.cs`,
+  tests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
+  integrationTests: `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
+  evidence: `${MAILKIT_SMTP_SOLUTION_ROOT}/evidence/mailpit.md`,
+});
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -109,6 +157,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.deployment-manifest",
   "bootstrap.otlp-export",
   "bootstrap.feature-management",
+  "bootstrap.mailkit-smtp",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -271,6 +320,21 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
   `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`,
   "eng/azure-key-vault.mjs",
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/README.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/AGENTS.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/CONTEXT.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/MailKitSmtpGeneratedSolution.slnx`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/evidence/mailpit.md`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MartiX.MailKitSmtpTestApp.Notifications.csproj`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryIntent.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/SmtpDeliveryOptions.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/MailKitSmtpDelivery.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/src/MartiX.MailKitSmtpTestApp.Notifications/NotificationDeliveryDispatcher.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MartiX.MailKitSmtpTestApp.Tests.csproj`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
+  `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
   "eng/provider-admission.mjs",
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/README.md`,
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/AGENTS.md`,
@@ -2525,33 +2589,39 @@ function validateGovernanceDocuments(documents) {
 export async function validateProviderAdmissionFixture(
   fixture,
   manifest,
+  { solutionRoot = PROVIDER_ADMISSION_SOLUTION_ROOT } = {},
 ) {
-  const manifestPath = `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`;
+  const fixturePath = `${solutionRoot}/provider-admission.json`;
+  const manifestPath = `${solutionRoot}/martix.platform.json`;
+  const requiresAzureKeyVaultEvidence =
+    solutionRoot === PROVIDER_ADMISSION_SOLUTION_ROOT;
   assertSecretFree(
     fixture,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+    fixturePath,
     "Provider admission fixture",
   );
-  requireRecord(fixture, `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`);
+  requireRecord(fixture, fixturePath);
   requireRecord(
     fixture.selection,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.selection`,
+    `${fixturePath}.selection`,
   );
   requireRecord(
     fixture.observed,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.observed`,
+    `${fixturePath}.observed`,
   );
   requireRecord(
     fixture.evidence,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.evidence`,
+    `${fixturePath}.evidence`,
   );
-  requireRecord(
-    fixture.providerEvidence,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.providerEvidence`,
-  );
+  if (requiresAzureKeyVaultEvidence) {
+    requireRecord(
+      fixture.providerEvidence,
+      `${fixturePath}.providerEvidence`,
+    );
+  }
   requireArray(
     fixture.invalidSelections,
-    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections`,
+    `${fixturePath}.invalidSelections`,
   );
   requireRecord(manifest, manifestPath);
   requireArray(manifest.providers, `${manifestPath}.providers`);
@@ -2571,52 +2641,54 @@ export async function validateProviderAdmissionFixture(
     throw error;
   }
 
-  try {
-    verifyAzureKeyVaultEvidence(fixture.providerEvidence);
-  } catch (error) {
-    if (error instanceof AzureKeyVaultEvidenceError) {
-      fail(`Azure Key Vault provider evidence failed: ${error.message}`);
+  if (requiresAzureKeyVaultEvidence) {
+    try {
+      verifyAzureKeyVaultEvidence(fixture.providerEvidence);
+    } catch (error) {
+      if (error instanceof AzureKeyVaultEvidenceError) {
+        fail(`Azure Key Vault provider evidence failed: ${error.message}`);
+      }
+      throw error;
     }
-    throw error;
-  }
 
-  const selectedKeyVault = result.plan.providers.find(
-    ({ capability, id }) =>
-      capability === AZURE_KEY_VAULT_PROVIDER.capability &&
-      id === AZURE_KEY_VAULT_PROVIDER.id,
-  );
-  if (selectedKeyVault === undefined) {
-    fail("Provider admission fixture must select Azure Key Vault.");
-  }
-  const providerEvidence = fixture.providerEvidence;
-  if (
-    providerEvidence.provider.capability !== selectedKeyVault.capability ||
-    providerEvidence.provider.id !== selectedKeyVault.id
-  ) {
-    fail("Azure Key Vault provider evidence does not match the selected provider.");
-  }
-  if (
-    JSON.stringify(providerEvidence.configuration.requiredKeys) !==
-    JSON.stringify([...AZURE_KEY_VAULT_REQUIRED_CONFIGURATION])
-  ) {
-    fail(
-      "Azure Key Vault provider evidence does not declare its required configuration.",
+    const selectedKeyVault = result.plan.providers.find(
+      ({ capability, id }) =>
+        capability === AZURE_KEY_VAULT_PROVIDER.capability &&
+        id === AZURE_KEY_VAULT_PROVIDER.id,
     );
-  }
-  const selectedConfiguration = new Set(result.plan.configuration.selectedKeys);
-  if (
-    providerEvidence.configuration.selectedKeys.some(
-      (key) => !selectedConfiguration.has(key),
-    )
-  ) {
-    fail(
-      "Azure Key Vault provider evidence declares configuration that was not selected.",
-    );
+    if (selectedKeyVault === undefined) {
+      fail("Provider admission fixture must select Azure Key Vault.");
+    }
+    const providerEvidence = fixture.providerEvidence;
+    if (
+      providerEvidence.provider.capability !== selectedKeyVault.capability ||
+      providerEvidence.provider.id !== selectedKeyVault.id
+    ) {
+      fail("Azure Key Vault provider evidence does not match the selected provider.");
+    }
+    if (
+      JSON.stringify(providerEvidence.configuration.requiredKeys) !==
+      JSON.stringify([...AZURE_KEY_VAULT_REQUIRED_CONFIGURATION])
+    ) {
+      fail(
+        "Azure Key Vault provider evidence does not declare its required configuration.",
+      );
+    }
+    const selectedConfiguration = new Set(result.plan.configuration.selectedKeys);
+    if (
+      providerEvidence.configuration.selectedKeys.some(
+        (key) => !selectedConfiguration.has(key),
+      )
+    ) {
+      fail(
+        "Azure Key Vault provider evidence declares configuration that was not selected.",
+      );
+    }
   }
 
   if (JSON.stringify(result.evidence) !== JSON.stringify(fixture.evidence)) {
     fail(
-      `Provider admission fixture evidence does not match the resolved composition: ${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.`,
+      `Provider admission fixture evidence does not match the resolved composition: ${fixturePath}.`,
     );
   }
   if (manifest.preset !== fixture.selection.preset) {
@@ -2647,7 +2719,7 @@ export async function validateProviderAdmissionFixture(
 
   for (const [index, invalid] of fixture.invalidSelections.entries()) {
     const path =
-      `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections[${index}]`;
+      `${fixturePath}.invalidSelections[${index}]`;
     requireRecord(invalid, path);
     requireString(invalid.id, `${path}.id`);
     requireString(invalid.expectedCode, `${path}.expectedCode`);
@@ -2686,7 +2758,9 @@ export async function validateProviderAdmissionFixture(
     providerCount: result.plan.providers.length,
     matrixCoordinate: result.evidence.matrix.coordinate,
     evidenceDigest: result.evidence.verification.evidenceDigest,
-    providerEvidenceDigest: providerEvidence.evidenceDigest,
+    ...(requiresAzureKeyVaultEvidence
+      ? { providerEvidenceDigest: fixture.providerEvidence.evidenceDigest }
+      : {}),
     invalidSelectionCount: fixture.invalidSelections.length,
   };
 }
@@ -3170,6 +3244,262 @@ export async function validateOtlpExportFixture(fixture, manifest) {
   };
 }
 
+function requireIncludes(values, expected, path) {
+  requireArray(values, path);
+  for (const value of expected) {
+    if (!values.includes(value)) {
+      fail(`Invalid bootstrap value at ${path}: missing ${value}.`);
+    }
+  }
+}
+
+function requireSourceIncludes(source, expected, path) {
+  for (const fragment of expected) {
+    if (!source.includes(fragment)) {
+      fail(`MailKit SMTP source ${path} is missing ${fragment}.`);
+    }
+  }
+}
+
+export async function validateMailKitSmtpFixture(
+  fixture,
+  manifest,
+  { rootDir = process.cwd() } = {},
+) {
+  assertSecretFree(fixture, MAILKIT_SMTP_FIXTURE_PATH, "MailKit SMTP fixture");
+  requireRecord(fixture, MAILKIT_SMTP_FIXTURE_PATH);
+  requireRecord(fixture.admission, `${MAILKIT_SMTP_FIXTURE_PATH}.admission`);
+  requireRecord(fixture.behavior, `${MAILKIT_SMTP_FIXTURE_PATH}.behavior`);
+
+  const admission = await validateProviderAdmissionFixture(
+    fixture.admission,
+    manifest,
+    { solutionRoot: MAILKIT_SMTP_SOLUTION_ROOT },
+  );
+  const behaviorPath = `${MAILKIT_SMTP_FIXTURE_PATH}.behavior`;
+  const behavior = fixture.behavior;
+  const durableIntent = behavior.durableIntent;
+  requireRecord(durableIntent, `${behaviorPath}.durableIntent`);
+  for (const property of [
+    "recordedBeforeExternalSend",
+    "doesNotClaimTransactionalEmail",
+    "idempotencyAndCorrelation",
+    "boundedAttachmentReferences",
+  ]) {
+    requireBoolean(durableIntent[property], `${behaviorPath}.durableIntent.${property}`);
+  }
+  if (
+    JSON.stringify(durableIntent.stateMachine) !==
+    JSON.stringify(MAILKIT_SMTP_INTENT_STATES)
+  ) {
+    fail(
+      `MailKit SMTP durable intent state machine is incomplete at ${behaviorPath}.durableIntent.stateMachine.`,
+    );
+  }
+
+  const smtp = behavior.smtp;
+  requireRecord(smtp, `${behaviorPath}.smtp`);
+  requireBoolean(smtp.tlsRequired, `${behaviorPath}.smtp.tlsRequired`);
+  requireBoolean(smtp.authentication, `${behaviorPath}.smtp.authentication`);
+  requireBoolean(smtp.cancellation, `${behaviorPath}.smtp.cancellation`);
+  requireIncludes(
+    smtp.transportOperations,
+    MAILKIT_SMTP_TRANSPORT_OPERATIONS,
+    `${behaviorPath}.smtp.transportOperations`,
+  );
+  requireIncludes(
+    smtp.outcomes,
+    MAILKIT_SMTP_OUTCOMES,
+    `${behaviorPath}.smtp.outcomes`,
+  );
+
+  const recovery = behavior.recovery;
+  requireRecord(recovery, `${behaviorPath}.recovery`);
+  requireNumber(
+    recovery.automaticAttemptLimit,
+    `${behaviorPath}.recovery.automaticAttemptLimit`,
+  );
+  if (
+    recovery.automaticAttemptLimit <= 0 ||
+    recovery.automaticAttemptLimit > 10
+  ) {
+    fail(
+      `MailKit SMTP automatic retry limit must be bounded at ${behaviorPath}.recovery.automaticAttemptLimit.`,
+    );
+  }
+  requireBoolean(recovery.boundedRetry, `${behaviorPath}.recovery.boundedRetry`);
+  requireBoolean(
+    recovery.operatorRequeue,
+    `${behaviorPath}.recovery.operatorRequeue`,
+  );
+
+  const security = behavior.security;
+  requireRecord(security, `${behaviorPath}.security`);
+  requireBoolean(
+    security.externalOnlyConfiguration,
+    `${behaviorPath}.security.externalOnlyConfiguration`,
+  );
+  requireIncludes(
+    security.redactedFields,
+    MAILKIT_SMTP_REDACTED_FIELDS,
+    `${behaviorPath}.security.redactedFields`,
+  );
+
+  const observability = behavior.observability;
+  requireRecord(observability, `${behaviorPath}.observability`);
+  requireIncludes(
+    observability.signals,
+    MAILKIT_SMTP_OBSERVABILITY_SIGNALS,
+    `${behaviorPath}.observability.signals`,
+  );
+  requireIncludes(
+    observability.dataDimensionsExcluded,
+    MAILKIT_SMTP_REDACTED_FIELDS,
+    `${behaviorPath}.observability.dataDimensionsExcluded`,
+  );
+
+  const mailpit = behavior.mailpit;
+  requireRecord(mailpit, `${behaviorPath}.mailpit`);
+  if (
+    mailpit.version !== MAILKIT_SMTP_MAILPIT_VERSION ||
+    mailpit.commit !== MAILKIT_SMTP_MAILPIT_COMMIT
+  ) {
+    fail(
+      `MailKit SMTP fixture must pin Mailpit ${MAILKIT_SMTP_MAILPIT_VERSION} at ${behaviorPath}.mailpit.`,
+    );
+  }
+  requireBoolean(
+    mailpit.tlsAndAuthentication,
+    `${behaviorPath}.mailpit.tlsAndAuthentication`,
+  );
+  requireIncludes(
+    mailpit.controlledFailures,
+    ["451", "550"],
+    `${behaviorPath}.mailpit.controlledFailures`,
+  );
+  requireBoolean(mailpit.containerized, `${behaviorPath}.mailpit.containerized`);
+
+  if (behavior.aotPosture !== "jit-only-no-native-aot-claim") {
+    fail(
+      `MailKit SMTP fixture must keep Native AOT undeclared at ${behaviorPath}.aotPosture.`,
+    );
+  }
+
+  const sources = {};
+  for (const [name, relativePath] of Object.entries(MAILKIT_SMTP_SOURCE_PATHS)) {
+    sources[name] = await readRequiredFile(rootDir, relativePath);
+  }
+
+  if (sources.intent.includes("MimeMessage")) {
+    fail(
+      `MailKit SMTP intent must not expose MimeMessage: ${MAILKIT_SMTP_SOURCE_PATHS.intent}.`,
+    );
+  }
+  requireSourceIncludes(
+    sources.intent,
+    [
+      "NotificationDeliveryIntent",
+      "IdempotencyKey",
+      "CorrelationId",
+      "AttachmentReferences",
+      "Pending",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.intent,
+  );
+  requireSourceIncludes(
+    sources.options,
+    [
+      "RequireTls",
+      "UseAuthentication",
+      "AutomaticAttemptLimit",
+      "Validate",
+      "external-only",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.options,
+  );
+  requireSourceIncludes(
+    sources.adapter,
+    [
+      "MailKit.Net.Smtp",
+      "MimeKit",
+      "ConnectAsync",
+      "AuthenticateAsync",
+      "SendAsync",
+      "DisconnectAsync",
+      "SecureSocketOptions.StartTls",
+      "OperationCanceledException",
+      "SmtpCommandException",
+      "SmtpProtocolException",
+      "SmtpDeliveryOutcome.Accepted",
+      "SmtpDeliveryOutcome.TransientFailure",
+      "SmtpDeliveryOutcome.PermanentFailure",
+      "SmtpDeliveryOutcome.Cancelled",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.adapter,
+  );
+  requireSourceIncludes(
+    sources.dispatcher,
+    [
+      "SaveChangesAsync",
+      "AutomaticAttemptLimit",
+      "RequeueAsync",
+      "TransientFailure",
+      "PermanentFailure",
+      "Cancelled",
+      "Meter",
+      "Redact",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.dispatcher,
+  );
+  requireSourceIncludes(
+    sources.tests,
+    [
+      "Mailpit 1.30.0",
+      "451",
+      "550",
+      "CancellationToken",
+      "RequireTls",
+      "Authentication",
+      "Redact",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.tests,
+  );
+  requireSourceIncludes(
+    sources.integrationTests,
+    [
+      "Testcontainers",
+      "axllent/mailpit:1.30.0",
+      "PortBinding",
+      "UntilPortIsAvailable",
+      "Explicit",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.integrationTests,
+  );
+  requireSourceIncludes(
+    sources.evidence,
+    [
+      "Mailpit",
+      "1.30.0",
+      "af8756a",
+      "STARTTLS",
+      "authentication",
+      "451",
+      "550",
+      "requeue",
+      "redaction",
+    ],
+    MAILKIT_SMTP_SOURCE_PATHS.evidence,
+  );
+
+  return {
+    ...admission,
+    behavior: {
+      outcomeCount: smtp.outcomes.length,
+      mailpitVersion: mailpit.version,
+    },
+  };
+}
+
 export async function verifyBootstrap({
   cadence = "fast",
   rootDir = process.cwd(),
@@ -3233,6 +3563,12 @@ export async function verifyBootstrap({
   );
   const featureManagementManifest = parseJson(
     `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const mailkitSmtpManifest = parseJson(
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const mailkitSmtpFixture = parseJson(
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`,
   );
 
   validateManifestSchema(manifestSchema);
@@ -3330,6 +3666,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    mailkitSmtpManifest,
+    "generated-solution",
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    mailkitSmtpManifest,
+    manifestSchema,
+    `${MAILKIT_SMTP_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -3356,6 +3702,11 @@ export async function verifyBootstrap({
     rootDir: root,
     manifest: featureManagementManifest,
   });
+  const mailkitSmtp = await validateMailKitSmtpFixture(
+    mailkitSmtpFixture,
+    mailkitSmtpManifest,
+    { rootDir: root },
+  );
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -3388,6 +3739,8 @@ export async function verifyBootstrap({
     otlpExportSolution: OTLP_EXPORT_SOLUTION_NAME,
     otlpExport,
     featureManagement,
+    mailkitSmtpSolution: MAILKIT_SMTP_SOLUTION_NAME,
+    mailkitSmtp,
     agentReadiness,
   };
 }

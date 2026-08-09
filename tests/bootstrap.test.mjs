@@ -13,6 +13,7 @@ import test from "node:test";
 import {
   REQUIRED_BOOTSTRAP_INPUTS,
   validateDeploymentManifestFixture,
+  validateMailKitSmtpFixture,
   validateProviderAdmissionFixture,
   verifyBootstrap,
 } from "../eng/verify.mjs";
@@ -202,7 +203,7 @@ test("Deployment Manifest bootstrap verification rejects projection drift", asyn
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
       /Deployment Manifest fixture failed: Deployment projection drift detected/,
     );
-  });
+ });
 });
 
 test("Provider Admission rejects weakened Azure Key Vault startup evidence", async () => {
@@ -223,6 +224,28 @@ test("Provider Admission rejects weakened Azure Key Vault startup evidence", asy
       /Azure Key Vault provider evidence failed: configuration\.failFast must be true/,
     );
   });
+});
+
+test("the named MailKit SMTP fixture proves durable notification delivery", async () => {
+  const fixtureRoot = join(
+    repositoryRoot,
+    "tests",
+    "fixtures",
+    "MailKitSmtpGeneratedSolution",
+  );
+  const fixture = JSON.parse(
+    await readFile(join(fixtureRoot, "mailkit-smtp.json"), "utf8"),
+  );
+  const manifest = JSON.parse(
+    await readFile(join(fixtureRoot, "martix.platform.json"), "utf8"),
+  );
+  const result = await validateMailKitSmtpFixture(fixture, manifest, {
+    rootDir: repositoryRoot,
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.providerCount, 2);
+  assert.equal(result.behavior.outcomeCount, 4);
 });
 
 test("Full Stack verification rejects UI contract version drift", async () => {

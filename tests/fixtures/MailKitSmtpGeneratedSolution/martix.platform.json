@@ -1,0 +1,74 @@
+{
+  "$schema": "../../../schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.1.0-preview.1",
+  "platformContractVersion": "0.1.0-preview.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "MailKitSmtpGeneratedSolution",
+    "product": "MartiX MailKit SMTP Generated Solution",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "modular-monolith",
+  "capabilities": [
+    {
+      "id": "modular-monolith.relational-persistence",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.notification-delivery",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.reliable-integration-events",
+      "state": "selected"
+    }
+  ],
+  "providers": [
+    {
+      "id": "postgresql",
+      "capability": "relational-persistence",
+      "state": "selected"
+    },
+    {
+      "id": "mailkit-smtp",
+      "capability": "notification-delivery",
+      "state": "selected"
+    }
+  ],
+  "authentication": {
+    "profile": "none",
+    "provider": "none",
+    "flow": "anonymous",
+    "state": "selected"
+  },
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  },
+  "modules": [
+    {
+      "name": "Notifications",
+      "project": "src/MartiX.MailKitSmtpTestApp.Notifications",
+      "contractsNamespace": "MartiX.MailKitSmtpTestApp.Notifications.Contracts",
+      "dependencies": []
+    }
+  ]
+}

@@ -116,6 +116,11 @@ the standalone client, and the gate rejects missing operations or drifted UI
 contract metadata; shared styling remains a provider-neutral semantic-token
 seam.
 
+The `bootstrap.mailkit-smtp` gate uses the named
+`MailKitSmtpGeneratedSolution` fixture to prove durable notification intent,
+MailKit TLS/authentication, cancellation, classified outcomes, bounded
+recovery, redaction, observability, and selected-provider absence evidence.
+
 Generated solution tests use TUnit on Microsoft.Testing.Platform with isolated
 real resources and parallel execution by default. The current Kernel consumer
 fixture provides the first repository evidence for that executable test
