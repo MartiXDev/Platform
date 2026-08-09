@@ -21,9 +21,11 @@ import {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_LOCKFILE_SECTIONS,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_NODE_ENGINE,
   FULL_STACK_UI_PACKAGE_MANAGER,
+  FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -1733,6 +1735,44 @@ async function validateModularMonolithSolution(rootDir, manifest) {
   await validateModularMonolithComposition(solutionRoot, actualFiles, manifest);
 }
 
+function hasReviewedPnpmWorkspaceSettings(workspaceSource) {
+  return (
+    FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS.every((setting) =>
+      workspaceSource.includes(setting),
+    ) &&
+    FULL_STACK_UI_BUILD_ALLOWLIST.every((entry) =>
+      workspaceSource.includes(`"${entry}": true`),
+    ) &&
+    !workspaceSource.includes("dangerouslyAllowAllBuilds")
+  );
+}
+
+function hasExpectedPnpmLockfileSections(lockfileSource) {
+  return FULL_STACK_UI_LOCKFILE_SECTIONS.every((section) =>
+    lockfileSource.includes(section),
+  );
+}
+
+function hasReviewedTypeScriptUiToolchain({
+  packageJson,
+  rootPackageJson,
+  workspaceSource,
+  lockfileSource,
+  provider,
+}) {
+  return (
+    packageJson.dependencies?.["openapi-fetch"] === "0.17.0" &&
+    packageJson.devDependencies?.["openapi-typescript"] === "7.13.0" &&
+    packageJson.devDependencies?.["@testing-library/dom"] !== undefined &&
+    packageJson.engines?.node === FULL_STACK_UI_NODE_ENGINE &&
+    packageJson.scripts?.build === FULL_STACK_UI_BUILD_SCRIPT[provider] &&
+    rootPackageJson.packageManager === FULL_STACK_UI_PACKAGE_MANAGER &&
+    rootPackageJson.engines?.node === FULL_STACK_UI_NODE_ENGINE &&
+    hasReviewedPnpmWorkspaceSettings(workspaceSource) &&
+    hasExpectedPnpmLockfileSections(lockfileSource)
+  );
+}
+
 async function validateFullStackSolution(rootDir, manifest) {
   const solutionRoot = resolve(rootDir, FULL_STACK_SOLUTION_ROOT);
   const actualFiles = await listFiles(solutionRoot, {
@@ -1938,30 +1978,13 @@ async function validateFullStackSolution(rootDir, manifest) {
     const workspaceSource = await readSolutionFile("pnpm-workspace.yaml");
     const lockfileSource = await readSolutionFile("pnpm-lock.yaml");
     if (
-      packageJson.dependencies?.["openapi-fetch"] !== "0.17.0" ||
-      packageJson.devDependencies?.["openapi-typescript"] !== "7.13.0" ||
-      packageJson.devDependencies?.["@testing-library/dom"] === undefined ||
-      packageJson.engines?.node !== FULL_STACK_UI_NODE_ENGINE ||
-      packageJson.scripts?.build !== FULL_STACK_UI_BUILD_SCRIPT[manifest.ui.provider] ||
-      rootPackageJson.packageManager !== FULL_STACK_UI_PACKAGE_MANAGER ||
-      rootPackageJson.engines?.node !== FULL_STACK_UI_NODE_ENGINE ||
-      !workspaceSource.includes("minimumReleaseAge: 4320") ||
-      !workspaceSource.includes("minimumReleaseAgeStrict: true") ||
-      !workspaceSource.includes("minimumReleaseAgeIgnoreMissingTime: false") ||
-      !workspaceSource.includes("trustPolicy: no-downgrade") ||
-      !workspaceSource.includes("trustLockfile: false") ||
-      !workspaceSource.includes("blockExoticSubdeps: true") ||
-      !workspaceSource.includes("strictPeerDependencies: true") ||
-      !workspaceSource.includes("engineStrict: true") ||
-      !workspaceSource.includes("verifyDepsBeforeRun: error") ||
-      !workspaceSource.includes("strictDepBuilds: true") ||
-      !workspaceSource.includes('savePrefix: ""') ||
-      !FULL_STACK_UI_BUILD_ALLOWLIST.every((entry) =>
-        workspaceSource.includes(`"${entry}": true`),
-      ) ||
-      workspaceSource.includes("dangerouslyAllowAllBuilds") ||
-      !lockfileSource.includes("packages:") ||
-      !lockfileSource.includes("snapshots:")
+      !hasReviewedTypeScriptUiToolchain({
+        packageJson,
+        rootPackageJson,
+        workspaceSource,
+        lockfileSource,
+        provider: manifest.ui.provider,
+      })
     ) {
       fail(
         "Full Stack TypeScript UI must pin its reviewed toolchain, OpenAPI, accessibility, and pnpm supply-chain profiles.",

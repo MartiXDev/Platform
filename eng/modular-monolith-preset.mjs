@@ -1,9 +1,9 @@
+import { readFileSync } from "node:fs";
 import {
   mkdir,
   readdir,
   writeFile,
 } from "node:fs/promises";
-import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
@@ -40,9 +40,11 @@ import {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_LOCKFILE_SECTIONS,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_NODE_ENGINE,
   FULL_STACK_UI_PACKAGE_MANAGER,
+  FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -59,9 +61,11 @@ export {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
+  FULL_STACK_UI_LOCKFILE_SECTIONS,
   FULL_STACK_UI_MESSAGE_KEYS,
   FULL_STACK_UI_NODE_ENGINE,
   FULL_STACK_UI_PACKAGE_MANAGER,
+  FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -3423,7 +3427,7 @@ function uiPackageJsonFile(plan) {
 
   return `${JSON.stringify(
     {
-      name: `${plan.applicationName.toLowerCase().replaceAll(".", "-")}-web`,
+      name: uiPackageName(plan.applicationName),
       private: true,
       type: "module",
       engines: {
@@ -3448,8 +3452,8 @@ function uiPackageJsonFile(plan) {
 }
 
 function uiRootPackageJsonFile(plan) {
-  const packageName = plan.applicationName.toLowerCase().replaceAll(".", "-");
-  const uiPackageName = `${packageName}-web`;
+  const packageName = applicationPackageName(plan.applicationName);
+  const webPackageName = uiPackageName(plan.applicationName);
   return `${JSON.stringify(
     {
       name: packageName,
@@ -3459,9 +3463,9 @@ function uiRootPackageJsonFile(plan) {
         node: FULL_STACK_UI_NODE_ENGINE,
       },
       scripts: {
-        build: `pnpm --filter ${uiPackageName} build`,
-        test: `pnpm --filter ${uiPackageName} test`,
-        "client:check": `pnpm --filter ${uiPackageName} client:check`,
+        build: `pnpm --filter ${webPackageName} build`,
+        test: `pnpm --filter ${webPackageName} test`,
+        "client:check": `pnpm --filter ${webPackageName} client:check`,
       },
     },
     null,
@@ -3469,23 +3473,24 @@ function uiRootPackageJsonFile(plan) {
   )}\n`;
 }
 
+function applicationPackageName(applicationName) {
+  return applicationName.toLowerCase().replaceAll(".", "-");
+}
+
+function uiPackageName(applicationName) {
+  return `${applicationPackageName(applicationName)}-web`;
+}
+
 function uiPnpmWorkspaceFile() {
+  const buildAllowlist = FULL_STACK_UI_BUILD_ALLOWLIST
+    .map((entry) => `  "${entry}": true`)
+    .join("\n");
   return `packages:
   - "src/*"
 
-minimumReleaseAge: 4320
-minimumReleaseAgeStrict: true
-minimumReleaseAgeIgnoreMissingTime: false
-trustPolicy: no-downgrade
-trustLockfile: false
-blockExoticSubdeps: true
-strictPeerDependencies: true
-engineStrict: true
-verifyDepsBeforeRun: error
-strictDepBuilds: true
-savePrefix: ""
+${FULL_STACK_UI_PNPM_WORKSPACE_SETTINGS.join("\n")}
 allowBuilds:
-  "esbuild@0.25.12": true
+${buildAllowlist}
 `;
 }
 
