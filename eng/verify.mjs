@@ -64,6 +64,10 @@ import {
   AzureKeyVaultEvidenceError,
   verifyAzureKeyVaultEvidence,
 } from "./azure-key-vault.mjs";
+import {
+  ObjectStorageEvidenceError,
+  verifyAzureBlobObjectStorageEvidence,
+} from "./object-storage.mjs";
 
 const CADENCES = [
   "fast",
@@ -348,6 +352,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
     (relativePath) => `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/${relativePath}`,
   ),
   "eng/feature-management.mjs",
+  "eng/object-storage.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -2595,6 +2600,8 @@ export async function validateProviderAdmissionFixture(
   const manifestPath = `${solutionRoot}/martix.platform.json`;
   const requiresAzureKeyVaultEvidence =
     solutionRoot === PROVIDER_ADMISSION_SOLUTION_ROOT;
+  const requiresObjectStorageEvidence =
+    solutionRoot === PROVIDER_ADMISSION_SOLUTION_ROOT;
   assertSecretFree(
     fixture,
     fixturePath,
@@ -2619,6 +2626,12 @@ export async function validateProviderAdmissionFixture(
       `${fixturePath}.providerEvidence`,
     );
   }
+  if (requiresObjectStorageEvidence) {
+    requireRecord(
+      fixture.objectStorage,
+      `${fixturePath}.objectStorage`,
+    );
+  }
   requireArray(
     fixture.invalidSelections,
     `${fixturePath}.invalidSelections`,
@@ -2626,6 +2639,18 @@ export async function validateProviderAdmissionFixture(
   requireRecord(manifest, manifestPath);
   requireArray(manifest.providers, `${manifestPath}.providers`);
   requireArray(manifest.supportClaims, `${manifestPath}.supportClaims`);
+
+  let objectStorage;
+  if (requiresObjectStorageEvidence) {
+    try {
+      objectStorage = verifyAzureBlobObjectStorageEvidence(fixture.objectStorage);
+    } catch (error) {
+      if (error instanceof ObjectStorageEvidenceError) {
+        fail(`Azure Blob object-storage evidence failed: ${error.message}`);
+      }
+      throw error;
+    }
+  }
 
   let result;
   try {
@@ -2716,6 +2741,18 @@ export async function validateProviderAdmissionFixture(
   if (manifest.supportClaims.length !== 0) {
     fail("Provider admission manifest must not make a Supported claim.");
   }
+  if (requiresObjectStorageEvidence) {
+    if (
+      !result.plan.providers.some(
+        ({ capability, id }) =>
+          capability === "object-storage" && id === "azure-blob",
+      )
+    ) {
+      fail(
+        "Provider admission fixture must select azure-blob for object-storage evidence.",
+      );
+    }
+  }
 
   for (const [index, invalid] of fixture.invalidSelections.entries()) {
     const path =
@@ -2762,6 +2799,12 @@ export async function validateProviderAdmissionFixture(
       ? { providerEvidenceDigest: fixture.providerEvidence.evidenceDigest }
       : {}),
     invalidSelectionCount: fixture.invalidSelections.length,
+    ...(requiresObjectStorageEvidence
+      ? {
+          objectStorageStatus: objectStorage.supportStatus,
+          objectStorageLiveParity: objectStorage.liveParity,
+        }
+      : {}),
   };
 }
 

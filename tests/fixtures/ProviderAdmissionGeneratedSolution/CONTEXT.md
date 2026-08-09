@@ -11,3 +11,5 @@ Azure Key Vault profile records managed identity, explicit fail-fast
 configuration, bounded refresh and stale-value handling, restart-based
 rotation, outage/startup/readiness behavior, and value-free observability. The
 fixture records a passed fail-closed outcome without making a Supported claim.
+Azure Blob remains Experimental until the exact Azurite and live-Azure profiles
+agree on the provider-independent object-storage contract.

@@ -31,6 +31,10 @@
     {
       "id": "modular-monolith.secrets",
       "state": "selected"
+    },
+    {
+      "id": "modular-monolith.object-storage",
+      "state": "selected"
     }
   ],
   "providers": [
@@ -47,6 +51,11 @@
     {
       "id": "azure-key-vault",
       "capability": "secrets",
+      "state": "selected"
+    },
+    {
+      "id": "azure-blob",
+      "capability": "object-storage",
       "state": "selected"
     }
   ],

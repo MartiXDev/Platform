@@ -147,6 +147,42 @@ test("Azure Key Vault composes explicit configuration and managed-identity effec
   );
 });
 
+test("Azure Blob selection resolves explicit endpoint and container effects", async () => {
+  const selection = {
+    preset: "modular-monolith",
+    capabilities: ["object-storage"],
+    providers: [{ capability: "object-storage", id: "azure-blob" }],
+    runtime: "net10.0",
+    operatingSystem: "linux",
+    configuration: ["Azure:BlobServiceUri", "ObjectStorage:Container"],
+  };
+  const catalog = validateProviderAdmissionCatalog();
+  const azureBlob = catalog.find(
+    ({ capability, id }) =>
+      capability === "object-storage" && id === "azure-blob",
+  );
+  const plan = resolveProviderAdmission(selection, catalog);
+
+  assert.deepEqual(plan.configuration.requiredKeys, [
+    "Azure:BlobServiceUri",
+    "ObjectStorage:Container",
+  ]);
+  assert.deepEqual(plan.effects.packages, [
+    { id: "Azure.Storage.Blobs", version: "12.29.1" },
+  ]);
+  assert.deepEqual(plan.effects.containers, ["azurite:3.35.0"]);
+  assert.ok(plan.qualityProfile.providerGates.includes("streaming"));
+  assert.ok(plan.qualityProfile.providerGates.includes("live-parity"));
+  assert.equal(
+    (await verifyProviderAdmission({
+      selection,
+      catalog,
+      observed: mergeObservedEffects(azureBlob.effects),
+    })).status,
+    "passed",
+  );
+});
+
 test("every catalog entry declares complete effects and claim-free admission metadata", () => {
   const catalog = validateProviderAdmissionCatalog();
 
