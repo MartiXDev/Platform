@@ -1,6 +1,7 @@
 # UI observability evidence
 
-Provider: `react`
+Provider: `blazor-webapp`
+Rendering profile: `application`
 
 Route and feature boundaries emit safe operation identifiers, trace
 correlation, release context, and a public support identifier. Reporter

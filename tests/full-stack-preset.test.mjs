@@ -277,7 +277,7 @@ test("Blazor Full Stack uses the isolated C# client profile", async () => {
 
     assert.ok(result.files.includes("src/MartiX.Portal.Web/MartiX.Portal.Web.csproj"));
     assert.match(webProject, /NSwag\.ConsoleCore.*14\.7\.1/);
-    assert.match(client, /HttpClient/);
+    assert.match(client, /HttpRequestMessage|ApiTransport/);
     assert.match(client, /CancellationToken/);
     assert.match(client, /GetOrdersStatusAsync/);
     assert.match(client, /\/api\/v1\/orders\/status/);
@@ -288,6 +288,168 @@ test("Blazor Full Stack uses the isolated C# client profile", async () => {
     assert.match(client, /ProblemDetails|ApiException/);
     assert.doesNotMatch(webProject, /ProjectReference/);
     assert.doesNotMatch(client, /MartiX\.Portal\.(Api|Orders)/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Blazor Full Stack emits a server-owned Fluent UI composition boundary", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    const result = await generateFullStackPreset({
+      ...baseOptions,
+      uiProvider: "blazor-webapp",
+      outputDirectory: join(root, "generated"),
+    });
+    const webRoot = join(
+      root,
+      "generated",
+      "src",
+      "MartiX.Portal.Web",
+    );
+    const files = await listFiles(join(root, "generated"));
+    const program = await readFile(join(webRoot, "Program.cs"), "utf8");
+    const webProject = await readFile(
+      join(webRoot, "MartiX.Portal.Web.csproj"),
+      "utf8",
+    );
+    const testProject = await readFile(
+      join(
+        root,
+        "generated",
+        "tests",
+        "MartiX.Portal.Tests",
+        "MartiX.Portal.Tests.csproj",
+      ),
+      "utf8",
+    );
+    const uiContract = JSON.parse(
+      await readFile(
+        join(root, "generated", "contracts", "ui-capability-v1.json"),
+        "utf8",
+      ),
+    );
+    const app = await readFile(join(webRoot, "App.razor"), "utf8");
+    const routes = await readFile(
+      join(webRoot, "Components", "Routes.razor"),
+      "utf8",
+    );
+    const transport = await readFile(
+      join(webRoot, "Platform", "Api", "Transport.cs"),
+      "utf8",
+    );
+    const generatedClient = await readFile(
+      join(webRoot, "Platform", "Api", "GeneratedClient.cs"),
+      "utf8",
+    );
+    const session = await readFile(
+      join(webRoot, "Platform", "Session", "Session.cs"),
+      "utf8",
+    );
+    const authorization = await readFile(
+      join(webRoot, "Platform", "Authorization", "Authorization.cs"),
+      "utf8",
+    );
+    const componentCss = await readFile(
+      join(webRoot, "Components", "Routes.razor.css"),
+      "utf8",
+    );
+    const browserTest = await readFile(
+      join(
+        root,
+        "generated",
+        "tests",
+        "MartiX.Portal.Tests",
+        "UiCapabilityContractTests.cs",
+      ),
+      "utf8",
+    );
+    const browserEvidence = await readFile(
+      join(root, "generated", "evidence", "ui", "browser.md"),
+      "utf8",
+    );
+
+    assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Api/Transport.cs"));
+    assert.ok(files.includes("src/MartiX.Portal.Web/Platform/Session/Session.cs"));
+    assert.ok(
+      files.includes(
+        "src/MartiX.Portal.Web/Platform/Authorization/Authorization.cs",
+      ),
+    );
+    assert.ok(
+      files.includes("src/MartiX.Portal.Web/Components/Routes.razor.css"),
+    );
+    assert.ok(
+      files.includes(
+        "src/MartiX.Portal.Web/wwwroot/Platform/Ui/DesignContract.css",
+      ),
+    );
+    assert.ok(
+      files.includes("src/MartiX.Portal.Web/wwwroot/Platform/Ui/themes.css"),
+    );
+    assert.equal(
+      files.some((file) => file.startsWith("src/MartiX.Portal.Web/") &&
+        (file.endsWith(".ts") || file.endsWith(".tsx"))),
+      false,
+    );
+    assert.match(webProject, /Microsoft\.FluentUI\.AspNetCore\.Components/);
+    assert.match(testProject, /Include="bunit"/);
+    assert.match(testProject, /Include="Microsoft\.Playwright"/);
+    assert.deepEqual(uiContract.rendering.claims, {
+      serverRendering: "interactive-server-prerendered",
+      publicSeo: "not-guaranteed",
+      privateCaching: "no-store",
+    });
+    assert.match(program, /AddFluentUIComponents/);
+    assert.match(app, /FluentDesignTheme/);
+    assert.match(routes, /GeneratedClient|Transport/);
+    assert.match(routes, /FluentButton|Appearance/);
+    assert.match(transport, /HttpClient/);
+    assert.match(generatedClient, /apiTransport\.SendAsync/);
+    assert.match(generatedClient, /ProblemDetails/);
+    assert.match(generatedClient, /HttpMethod\.Get/);
+    assert.match(transport, /Idempotency-Key/);
+    assert.match(transport, /If-Match/);
+    assert.match(session, /AuthenticationStateProvider|server-owned/i);
+    assert.match(session, /IHttpContextAccessor|FromPrincipal/);
+    assert.match(authorization, /anonymous|authenticated|denied|expired/i);
+    assert.match(transport, /CloneSafeReadRequest/);
+    assert.match(componentCss, /:host|application-shell/);
+    assert.match(browserTest, /Playwright|bUnit|loading|reconnect/i);
+    assert.match(browserEvidence, /Interactive Server|prerender|reconnect/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Blazor hybrid rendering keeps public routes static and private state interactive", async () => {
+  const root = await createTemporaryDirectory();
+
+  try {
+    await generateFullStackPreset({
+      ...baseOptions,
+      uiProvider: "blazor-webapp",
+      renderingProfile: "hybrid-web",
+      outputDirectory: join(root, "generated"),
+    });
+    const webRoot = join(
+      root,
+      "generated",
+      "src",
+      "MartiX.Portal.Web",
+    );
+    const app = await readFile(join(webRoot, "App.razor"), "utf8");
+    const routes = await readFile(
+      join(webRoot, "Components", "Routes.razor"),
+      "utf8",
+    );
+
+    assert.doesNotMatch(app, /<Routes\s+@rendermode="InteractiveServer"/);
+    assert.match(
+      routes,
+      /<AuthorizeView\s+@rendermode="InteractiveServer">/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

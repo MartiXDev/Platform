@@ -160,7 +160,7 @@
       "state": "selected"
     },
     {
-      "id": "react",
+      "id": "blazor-webapp",
       "capability": "application-ui",
       "state": "selected"
     }
@@ -172,7 +172,7 @@
     "state": "selected"
   },
   "ui": {
-    "provider": "react",
+    "provider": "blazor-webapp",
     "contractVersion": "1.0.0",
     "renderingProfile": "application",
     "defaultCulture": "en-US",

@@ -119,7 +119,7 @@ test("Full Stack verification rejects UI contract version drift", async () => {
   });
 });
 
-test("Full Stack verification rejects a client that omits an HTTP method", async () => {
+test("Full Stack verification rejects a Blazor client with an incorrect HTTP method", async () => {
   await withTemporaryBootstrapRoot(async (temporaryRoot) => {
     const clientPath = fullStackFixturePath(
       temporaryRoot,
@@ -127,13 +127,45 @@ test("Full Stack verification rejects a client that omits an HTTP method", async
       "MartiX.FullStackTestApp.Web",
       "Platform",
       "Api",
-      "generated.ts",
+      "GeneratedClient.cs",
     );
     const client = await readFile(clientPath, "utf8");
     await writeFile(
       clientPath,
-      client.replace("    get: {", "    post: {"),
+      client.replace(
+        "HttpMethod.Get,\n            \"/api/v1/orders/status\"",
+        "HttpMethod.Post,\n            \"/api/v1/orders/status\"",
+      ),
     );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /generated UI client must expose every operation/,
+    );
+  });
+});
+
+test("Full Stack verification rejects a Blazor client missing an OpenAPI parameter", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const contractPath = fullStackFixturePath(
+      temporaryRoot,
+      "contracts",
+      "openapi-v1.json",
+    );
+    const contract = JSON.parse(await readFile(contractPath, "utf8"));
+    const operation = contract.paths["/api/v1/orders/status"].get;
+    operation.parameters = [
+      {
+        name: "cursor",
+        in: "query",
+        required: true,
+        schema: { type: "string" },
+      },
+    ];
+    operation["x-client"].queryParameters = [
+      { name: "cursor", type: "string" },
+    ];
+    await writeFile(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
 
     await assert.rejects(
       () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),

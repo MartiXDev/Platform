@@ -4,6 +4,7 @@ export {
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_PROVIDERS,
+  FULL_STACK_UI_RENDERING_PROFILE_CLAIMS,
   createFullStackPresetPlan,
   generateFullStackPreset,
   ModularMonolithPresetGenerationError as FullStackPresetGenerationError,

@@ -4,5 +4,5 @@
   <Project Path="src/MartiX.FullStackTestApp.Migrator/MartiX.FullStackTestApp.Migrator.csproj" />
   <Project Path="src/MartiX.FullStackTestApp.Orders/MartiX.FullStackTestApp.Orders.csproj" />
   <Project Path="tests/MartiX.FullStackTestApp.Tests/MartiX.FullStackTestApp.Tests.csproj" />
-  <Project Path="src/MartiX.FullStackTestApp.Web/package.json" />
+  <Project Path="src/MartiX.FullStackTestApp.Web/MartiX.FullStackTestApp.Web.csproj" />
 </Solution>

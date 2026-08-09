@@ -71,6 +71,14 @@
     ],
     "tokens": "semantic"
   },
+  "rendering": {
+    "profile": "application",
+    "claims": {
+      "serverRendering": "interactive-server-prerendered",
+      "publicSeo": "not-guaranteed",
+      "privateCaching": "no-store"
+    }
+  },
   "evidence": [
     "browser",
     "build",
