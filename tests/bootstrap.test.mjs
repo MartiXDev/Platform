@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   REQUIRED_BOOTSTRAP_INPUTS,
+  validateProviderAdmissionFixture,
   verifyBootstrap,
 } from "../eng/verify.mjs";
 
@@ -92,6 +93,7 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.generated-solution"));
   assert.equal(result.modularMonolithSolution, "ModularMonolithGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
+  assert.ok(result.gates.includes("bootstrap.provider-admission"));
 });
 
 test("the named Full Stack fixture exercises the Blazor provider", async () => {
@@ -110,6 +112,30 @@ test("the named Full Stack fixture exercises the Blazor provider", async () => {
       capability: "application-ui",
       state: "selected",
     }],
+  );
+});
+
+test("the named Provider Admission fixture proves selection, absence, and invalid input", async () => {
+  const fixture = JSON.parse(
+    await readFile(
+      join(
+        repositoryRoot,
+        "tests",
+        "fixtures",
+        "ProviderAdmissionGeneratedSolution",
+        "provider-admission.json",
+      ),
+      "utf8",
+    ),
+  );
+  const result = await validateProviderAdmissionFixture(fixture);
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.providerCount, 2);
+  assert.equal(result.invalidSelectionCount, 4);
+  assert.equal(
+    result.matrixCoordinate,
+    "operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
   );
 });
 
