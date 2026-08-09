@@ -14,6 +14,35 @@ async function readPackageFile(name) {
   return readFile(join(packageRoot, name), "utf8");
 }
 
+test("RabbitMQ adapter normalizes routing and cleans up host-owned resources", async () => {
+  const [options, topology, connectionManager, registration, transport] =
+    await Promise.all([
+      readPackageFile("RabbitMqTransportOptions.cs"),
+      readPackageFile("RabbitMqTopology.cs"),
+      readPackageFile("RabbitMqConnectionManager.cs"),
+      readPackageFile("RabbitMqReliableEventsRegistration.cs"),
+      readPackageFile("RabbitMqReliableEventsTransport.cs"),
+    ]);
+
+  assert.match(options, /GetNormalizedSubscriptions/);
+  assert.match(options, /GetConfiguredSubscription/);
+  assert.match(options, /Encoding\.UTF8\.GetByteCount/);
+  assert.match(options, /Contains\('\*'\)|Contains\('#'\)/);
+  assert.match(topology, /options\.GetNormalizedSubscriptions\(\)/);
+  assert.match(transport, /options\.GetNormalizedSubscriptions\(\)/);
+  assert.match(transport, /options\.GetConfiguredSubscription/);
+  assert.match(
+    connectionManager,
+    /CreateChannelAsync[\s\S]*catch[\s\S]*connection\.DisposeAsync/,
+  );
+  assert.match(registration, /services\.AddReliableEvents\(\)/);
+  assert.match(registration, /callbacks\.ClaimAsync/);
+  assert.match(registration, /callbacks\.DeliverAsync/);
+  assert.match(registration, /callbacks\.AcknowledgeAsync/);
+  assert.match(registration, /callbacks\.ScheduleRetryAsync/);
+  assert.match(registration, /callbacks\.FailAsync/);
+});
+
 test("RabbitMQ adapter pins the provider and preserves durable transport boundaries", async () => {
   const [
     project,

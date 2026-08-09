@@ -28,6 +28,7 @@ internal sealed class RabbitMqConnectionManager
         bool publisherConfirms,
         CancellationToken cancellationToken)
     {
+        IConnection? connection = null;
         try
         {
             var factory = new ConnectionFactory
@@ -38,17 +39,37 @@ internal sealed class RabbitMqConnectionManager
                 ConsumerDispatchConcurrency = 1,
                 ClientProvidedName = options.ClientProvidedName,
             };
-            var connection = await factory
+            connection = await factory
                 .CreateConnectionAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var channel = await connection
-                .CreateChannelAsync(
-                    new CreateChannelOptions(
-                        publisherConfirmationsEnabled: publisherConfirms,
-                        publisherConfirmationTrackingEnabled: publisherConfirms,
-                        consumerDispatchConcurrency: 1),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            IChannel channel;
+            try
+            {
+                channel = await connection
+                    .CreateChannelAsync(
+                        new CreateChannelOptions(
+                            publisherConfirmationsEnabled: publisherConfirms,
+                            publisherConfirmationTrackingEnabled: publisherConfirms,
+                            consumerDispatchConcurrency: 1),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                try
+                {
+                    await connection.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception cleanupException)
+                {
+                    logger.LogWarning(
+                        cleanupException,
+                        "RabbitMQ connection cleanup failed after channel creation failed.");
+                }
+
+                throw;
+            }
+
             diagnostics.SetConnected(true);
             return new RabbitMqChannelLease(connection, channel);
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace MartiX.Platform.IntegrationEvents.RabbitMq;
 
@@ -38,6 +39,32 @@ public sealed class RabbitMqTransportOptions
     /// <summary>Validates provider, topology, and bounded operational settings.</summary>
     public void Validate()
     {
+        ValidateSettings();
+        _ = NormalizeSubscriptions(Subscriptions);
+    }
+
+    internal IReadOnlyList<string> GetNormalizedSubscriptions()
+    {
+        ValidateSettings();
+        return NormalizeSubscriptions(Subscriptions);
+    }
+
+    internal string GetConfiguredSubscription(string subscription)
+    {
+        var normalized = NormalizeSubscription(subscription);
+        if (!GetNormalizedSubscriptions().Contains(
+                normalized,
+                StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"RabbitMQ subscription '{normalized}' is not configured.");
+        }
+
+        return normalized;
+    }
+
+    private void ValidateSettings()
+    {
         if (!Uri.TryCreate(ConnectionString, UriKind.Absolute, out var uri) ||
             (uri.Scheme != "amqp" && uri.Scheme != "amqps") ||
             string.IsNullOrWhiteSpace(uri.Host))
@@ -65,22 +92,6 @@ public sealed class RabbitMqTransportOptions
             throw new InvalidOperationException(
                 "RabbitMQ polling and reconnect delays must be positive.");
         }
-
-        if (Subscriptions.Count == 0)
-        {
-            throw new InvalidOperationException(
-                "RabbitMQ requires at least one explicit subscription.");
-        }
-
-        var normalizedSubscriptions = Subscriptions
-            .Select(subscription => NormalizeSubscription(subscription))
-            .ToArray();
-        if (normalizedSubscriptions.Distinct(StringComparer.Ordinal).Count() !=
-            normalizedSubscriptions.Length)
-        {
-            throw new InvalidOperationException(
-                "RabbitMQ subscription identities must be unique.");
-        }
     }
 
     /// <summary>Returns a copy with the generated subscription identities.</summary>
@@ -98,8 +109,31 @@ public sealed class RabbitMqTransportOptions
             PublishPollInterval = PublishPollInterval,
             ReconnectDelay = ReconnectDelay,
             ClientProvidedName = ClientProvidedName,
-            Subscriptions = subscriptions.ToArray(),
+            Subscriptions = NormalizeSubscriptions(subscriptions),
         };
+    }
+
+    private static string[] NormalizeSubscriptions(
+        IReadOnlyList<string> subscriptions)
+    {
+        ArgumentNullException.ThrowIfNull(subscriptions);
+        if (subscriptions.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "RabbitMQ requires at least one explicit subscription.");
+        }
+
+        var normalizedSubscriptions = subscriptions
+            .Select(subscription => NormalizeSubscription(subscription))
+            .ToArray();
+        if (normalizedSubscriptions.Distinct(StringComparer.Ordinal).Count() !=
+            normalizedSubscriptions.Length)
+        {
+            throw new InvalidOperationException(
+                "RabbitMQ subscription identities must be unique.");
+        }
+
+        return normalizedSubscriptions;
     }
 
     private static string NormalizeSubscription(string value)
@@ -115,6 +149,16 @@ public sealed class RabbitMqTransportOptions
         {
             throw new InvalidOperationException(
                 "RabbitMQ subscription identities cannot exceed 200 characters.");
+        }
+        if (normalized.Contains('*') || normalized.Contains('#'))
+        {
+            throw new InvalidOperationException(
+                "RabbitMQ subscription identities cannot contain topic wildcards.");
+        }
+        if (Encoding.UTF8.GetByteCount(normalized) > 255)
+        {
+            throw new InvalidOperationException(
+                "RabbitMQ subscription identities cannot exceed 255 UTF-8 bytes.");
         }
 
         return normalized;

@@ -25,7 +25,7 @@ internal static class RabbitMqTopology
             durable: true,
             autoDelete: false,
             cancellationToken: cancellationToken).ConfigureAwait(false);
-        foreach (var subscription in options.Subscriptions)
+        foreach (var subscription in options.GetNormalizedSubscriptions())
         {
             var queue = GetQueueName(options.QueuePrefix, subscription);
             await channel.QueueDeclareAsync(

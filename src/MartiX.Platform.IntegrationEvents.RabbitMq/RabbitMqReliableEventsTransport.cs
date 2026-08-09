@@ -39,6 +39,13 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(delivery);
+        var subscription = options.GetConfiguredSubscription(delivery.SubscriptionId);
+        var publishedDelivery = string.Equals(
+                delivery.SubscriptionId,
+                subscription,
+                StringComparison.Ordinal)
+            ? delivery
+            : delivery with { SubscriptionId = subscription };
         await using var lease = await connections
             .CreateChannelAsync(publisherConfirms: true, cancellationToken)
             .ConfigureAwait(false);
@@ -51,38 +58,42 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
             ActivityKind.Producer);
         activity?.SetTag("messaging.system", "rabbitmq");
         activity?.SetTag("messaging.destination.name", options.Exchange);
-        activity?.SetTag("messaging.rabbitmq.routing_key", delivery.SubscriptionId);
-        activity?.SetTag("messaging.message.id", delivery.MessageId);
-        activity?.SetTag("martix.reliable_events.event_name", delivery.Envelope.EventName);
-        activity?.SetTag("martix.reliable_events.schema_version", delivery.Envelope.SchemaVersion);
+        activity?.SetTag("messaging.rabbitmq.routing_key", subscription);
+        activity?.SetTag("messaging.message.id", publishedDelivery.MessageId);
+        activity?.SetTag(
+            "martix.reliable_events.event_name",
+            publishedDelivery.Envelope.EventName);
+        activity?.SetTag(
+            "martix.reliable_events.schema_version",
+            publishedDelivery.Envelope.SchemaVersion);
 
         var headers = new Dictionary<string, object?>
         {
-            ["martix-event-name"] = delivery.Envelope.EventName,
-            ["martix-schema-version"] = delivery.Envelope.SchemaVersion,
-            ["martix-publisher"] = delivery.Envelope.Publisher,
-            ["martix-lease-id"] = delivery.LeaseId.ToString("D"),
+            ["martix-event-name"] = publishedDelivery.Envelope.EventName,
+            ["martix-schema-version"] = publishedDelivery.Envelope.SchemaVersion,
+            ["martix-publisher"] = publishedDelivery.Envelope.Publisher,
+            ["martix-lease-id"] = publishedDelivery.LeaseId.ToString("D"),
         };
-        if (delivery.Envelope.TraceParent is not null)
+        if (publishedDelivery.Envelope.TraceParent is not null)
         {
-            headers["traceparent"] = delivery.Envelope.TraceParent;
+            headers["traceparent"] = publishedDelivery.Envelope.TraceParent;
         }
 
         var properties = new BasicProperties
         {
             ContentType = "application/json",
             DeliveryMode = DeliveryModes.Persistent,
-            MessageId = delivery.MessageId.ToString("D"),
-            Type = delivery.Envelope.EventName,
+            MessageId = publishedDelivery.MessageId.ToString("D"),
+            Type = publishedDelivery.Envelope.EventName,
             Headers = headers,
         };
 
         await lease.Channel.BasicPublishAsync(
             options.Exchange,
-            delivery.SubscriptionId,
+            subscription,
             mandatory: true,
             properties,
-            RabbitMqEnvelopeSerializer.Serialize(delivery),
+            RabbitMqEnvelopeSerializer.Serialize(publishedDelivery),
             cancellationToken).ConfigureAwait(false);
         diagnostics.Published.Add(1);
     }
@@ -128,7 +139,7 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
                     return Task.CompletedTask;
                 };
 
-                foreach (var subscription in options.Subscriptions)
+                foreach (var subscription in options.GetNormalizedSubscriptions())
                 {
                     await lease.Channel.BasicConsumeAsync(
                         RabbitMqTopology.GetQueueName(
@@ -187,13 +198,22 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
                 throw new InvalidOperationException(
                     "RabbitMQ delivered an empty reliable-event subscription.");
             }
+            var subscription = options.GetConfiguredSubscription(
+                delivery.SubscriptionId);
             if (!string.Equals(
                     args.RoutingKey,
-                    delivery.SubscriptionId,
+                    subscription,
                     StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     "RabbitMQ routing key did not match the reliable-event subscription.");
+            }
+            if (!string.Equals(
+                    delivery.SubscriptionId,
+                    subscription,
+                    StringComparison.Ordinal))
+            {
+                delivery = delivery with { SubscriptionId = subscription };
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
