@@ -207,22 +207,14 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
             await RejectAsync(channel, args.DeliveryTag).ConfigureAwait(false);
             return;
         }
-        catch (ArgumentException exception)
+        catch (Exception exception)
+            when (exception is ArgumentException or InvalidOperationException)
         {
-            diagnostics.PoisonMessages.Add(1);
-            logger.LogError(
-                "RabbitMQ rejected a malformed reliable-event message: {Detail}",
-                exception.Message);
-            await RejectAsync(channel, args.DeliveryTag).ConfigureAwait(false);
-            return;
-        }
-        catch (InvalidOperationException exception)
-        {
-            diagnostics.PoisonMessages.Add(1);
-            logger.LogError(
-                "RabbitMQ rejected a malformed reliable-event message: {Detail}",
-                exception.Message);
-            await RejectAsync(channel, args.DeliveryTag).ConfigureAwait(false);
+            await RejectMalformedDeliveryAsync(
+                    channel,
+                    args.DeliveryTag,
+                    exception)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -276,6 +268,18 @@ internal sealed class RabbitMqReliableEventsTransport : IReliableEventsTransport
                 deliveryTag,
                 exception.GetType().Name);
         }
+    }
+
+    private async Task RejectMalformedDeliveryAsync(
+        IChannel channel,
+        ulong deliveryTag,
+        Exception exception)
+    {
+        diagnostics.PoisonMessages.Add(1);
+        logger.LogError(
+            "RabbitMQ rejected a malformed reliable-event message: {Detail}",
+            exception.Message);
+        await RejectAsync(channel, deliveryTag).ConfigureAwait(false);
     }
 
     private async Task RejectAsync(IChannel channel, ulong deliveryTag)

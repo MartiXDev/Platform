@@ -1,17 +1,12 @@
 using System;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 
 namespace MartiX.Platform.IntegrationEvents.RabbitMq;
 
 internal static class RabbitMqEnvelopeSerializer
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false,
-    };
-
     public static byte[] Serialize(ReliableEventDelivery delivery)
     {
         ArgumentNullException.ThrowIfNull(delivery);
@@ -22,7 +17,7 @@ internal static class RabbitMqEnvelopeSerializer
         }
 
         return JsonSerializer.SerializeToUtf8Bytes(
-            new WireMessage(
+            new RabbitMqEnvelopeWireMessage(
                 delivery.MessageId,
                 delivery.SubscriptionId,
                 delivery.LeaseId,
@@ -40,12 +35,14 @@ internal static class RabbitMqEnvelopeSerializer
                 delivery.Envelope.Payload.ToArray(),
                 delivery.Envelope.PayloadFingerprint,
                 delivery.Attempt),
-            JsonOptions);
+            RabbitMqEnvelopeJsonContext.Default.RabbitMqEnvelopeWireMessage);
     }
 
     public static ReliableEventDelivery Deserialize(ReadOnlyMemory<byte> body)
     {
-        var message = JsonSerializer.Deserialize<WireMessage>(body.Span, JsonOptions)
+        var message = JsonSerializer.Deserialize(
+                body.Span,
+                RabbitMqEnvelopeJsonContext.Default.RabbitMqEnvelopeWireMessage)
             ?? throw new InvalidOperationException(
                 "RabbitMQ delivered an empty reliable-event envelope.");
         if (message.LeaseId == Guid.Empty ||
@@ -88,23 +85,30 @@ internal static class RabbitMqEnvelopeSerializer
             envelope,
             message.Attempt);
     }
-
-    private sealed record WireMessage(
-        Guid MessageId,
-        string SubscriptionId,
-        Guid LeaseId,
-        Guid EnvelopeMessageId,
-        string EventName,
-        int SchemaVersion,
-        string Publisher,
-        DateTimeOffset OccurredAtUtc,
-        DateTimeOffset CapturedAtUtc,
-        string? CorrelationId,
-        Guid? CausationId,
-        string? ActorId,
-        string? TraceParent,
-        string ContentType,
-        byte[] Payload,
-        string PayloadFingerprint,
-        int Attempt);
 }
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(RabbitMqEnvelopeWireMessage))]
+internal partial class RabbitMqEnvelopeJsonContext : JsonSerializerContext
+{
+}
+
+internal sealed record RabbitMqEnvelopeWireMessage(
+    Guid MessageId,
+    string SubscriptionId,
+    Guid LeaseId,
+    Guid EnvelopeMessageId,
+    string EventName,
+    int SchemaVersion,
+    string Publisher,
+    DateTimeOffset OccurredAtUtc,
+    DateTimeOffset CapturedAtUtc,
+    string? CorrelationId,
+    Guid? CausationId,
+    string? ActorId,
+    string? TraceParent,
+    string ContentType,
+    byte[] Payload,
+    string PayloadFingerprint,
+    int Attempt);

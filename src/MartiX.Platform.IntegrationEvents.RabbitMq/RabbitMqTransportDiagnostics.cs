@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Threading;
+using Microsoft.Extensions.Diagnostics.Metrics;
 
 namespace MartiX.Platform.IntegrationEvents.RabbitMq;
 
@@ -16,10 +17,11 @@ public sealed class RabbitMqTransportDiagnostics : IDisposable
 
     private int connected;
 
-    /// <summary>Creates the provider diagnostics instruments.</summary>
-    public RabbitMqTransportDiagnostics()
+    /// <summary>Creates provider diagnostics instruments through the host meter factory.</summary>
+    public RabbitMqTransportDiagnostics(IMeterFactory meterFactory)
     {
-        Meter = new Meter(MeterName);
+        ArgumentNullException.ThrowIfNull(meterFactory);
+        Meter = meterFactory.Create(MeterName);
         ActivitySource = new ActivitySource(ActivitySourceName);
         Published = Meter.CreateCounter<long>("published");
         Consumed = Meter.CreateCounter<long>("consumed");
@@ -66,6 +68,5 @@ public sealed class RabbitMqTransportDiagnostics : IDisposable
     public void Dispose()
     {
         ActivitySource.Dispose();
-        Meter.Dispose();
     }
 }

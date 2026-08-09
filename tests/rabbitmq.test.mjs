@@ -23,6 +23,7 @@ test("RabbitMQ adapter pins the provider and preserves durable transport boundar
     connectionManager,
     transport,
     registration,
+    diagnostics,
   ] =
     await Promise.all([
       readPackageFile("MartiX.Platform.IntegrationEvents.RabbitMq.csproj"),
@@ -32,6 +33,7 @@ test("RabbitMQ adapter pins the provider and preserves durable transport boundar
       readPackageFile("RabbitMqConnectionManager.cs"),
       readPackageFile("RabbitMqReliableEventsTransport.cs"),
       readPackageFile("RabbitMqReliableEventsRegistration.cs"),
+      readPackageFile("RabbitMqTransportDiagnostics.cs"),
     ]);
 
   assert.match(project, /PackageId>MartiX\.Platform\.IntegrationEvents\.RabbitMq/);
@@ -52,17 +54,25 @@ test("RabbitMQ adapter pins the provider and preserves durable transport boundar
   assert.match(serializer, /LeaseId/);
   assert.match(serializer, /PayloadFingerprint/);
   assert.match(serializer, /ReliableEventEnvelope\.Rehydrate/);
+  assert.match(serializer, /JsonSerializerContext/);
+  assert.match(serializer, /JsonSerializable/);
+  assert.doesNotMatch(serializer, /JsonSerializerOptions/);
   assert.match(
     `${connectionManager}\n${transport}`,
     /publisherConfirmationsEnabled|CreateChannelOptions/,
   );
+  assert.match(diagnostics, /IMeterFactory/);
+  assert.doesNotMatch(diagnostics, /new Meter\(/);
   assert.match(transport, /mandatory: true/);
   assert.match(transport, /DeliveryModes\.Persistent/);
   assert.match(transport, /BasicConsumeAsync/);
   assert.match(transport, /BasicQosAsync/);
   assert.match(transport, /BasicAckAsync/);
   assert.match(transport, /BasicNackAsync/);
-  assert.match(transport, /catch \(ArgumentException/);
+  assert.match(
+    transport,
+    /exception is ArgumentException or InvalidOperationException/,
+  );
   assert.match(transport, /catch \(Exception exception\)[\s\S]*requeueing/);
   assert.match(registration, /AddHealthChecks/);
   assert.match(registration, /RabbitMqConsumer/);
