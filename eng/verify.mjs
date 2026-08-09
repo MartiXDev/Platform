@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
@@ -2644,6 +2644,264 @@ function requireExactArray(actual, expected, path) {
   }
 }
 
+const OTLP_EXPORT_SELECTION_PROPERTIES = Object.freeze([
+  "preset",
+  "capabilities",
+  "providers",
+  "runtime",
+  "operatingSystem",
+  "configuration",
+]);
+const OTLP_EXPORT_EVIDENCE_PROPERTIES = Object.freeze([
+  "schemaVersion",
+  "outcome",
+  "provider",
+  "signals",
+  "privacy",
+  "reliability",
+  "isolation",
+  "absence",
+]);
+const OTLP_EXPORT_SIGNAL_PROPERTIES = Object.freeze([
+  "id",
+  "contract",
+  "redaction",
+]);
+
+function validateOtlpSelectionValues(selection, fixturePath) {
+  const selectionPath = `${fixturePath}.selection`;
+  requireExactArray(
+    selection.capabilities,
+    ["observability-export"],
+    `${selectionPath}.capabilities`,
+  );
+  requireExactArray(
+    selection.providers,
+    [{
+      capability: "observability-export",
+      id: "otlp",
+    }],
+    `${selectionPath}.providers`,
+  );
+
+  for (const [property, expected] of [
+    ["preset", "api"],
+    ["runtime", "net10.0"],
+    ["operatingSystem", "linux"],
+  ]) {
+    requireString(selection[property], `${selectionPath}.${property}`);
+    if (selection[property] !== expected) {
+      fail(
+        `Invalid OTLP export fixture selection at ${selectionPath}.${property}: expected ${expected}.`,
+      );
+    }
+  }
+
+  requireExactArray(
+    selection.configuration,
+    ["OTEL_EXPORTER_OTLP_ENDPOINT"],
+    `${selectionPath}.configuration`,
+  );
+}
+
+function validateOtlpObservedValues(observed, fixturePath) {
+  for (const kind of OTLP_EXPORT_EFFECT_KINDS) {
+    requireArray(observed[kind], `${fixturePath}.observed.${kind}`);
+  }
+}
+
+function validateOtlpManifest(manifest, selectedProviders, manifestPath) {
+  requireRecord(manifest, manifestPath);
+  requireArray(manifest.capabilities, `${manifestPath}.capabilities`);
+  requireArray(manifest.providers, `${manifestPath}.providers`);
+  requireArray(manifest.supportClaims, `${manifestPath}.supportClaims`);
+  if (manifest.supportClaims.length !== 0) {
+    fail("OTLP export manifest must not make a Supported claim.");
+  }
+
+  const selectedCapability = manifest.capabilities.find(
+    ({ id }) => id === "observability-export",
+  );
+  if (selectedCapability?.state !== "selected") {
+    fail("OTLP export manifest must select observability-export.");
+  }
+
+  const manifestSelectedProviders = manifest.providers
+    .filter(({ state }) => state === "selected")
+    .map(({ capability, id }) => ({ capability, id }));
+  requireExactArray(
+    manifestSelectedProviders,
+    selectedProviders,
+    `${manifestPath}.providers`,
+  );
+}
+
+function validateOtlpSignalEvidence(signals, fixturePath) {
+  const signalsPath = `${fixturePath}.evidence.signals`;
+  requireArray(signals, signalsPath);
+  if (signals.length !== OTLP_EXPORT_SIGNAL_CONTRACTS.size) {
+    fail("OTLP export evidence must cover traces, metrics, and logs.");
+  }
+
+  for (const [index, signal] of signals.entries()) {
+    const signalPath = `${signalsPath}[${index}]`;
+    requireRecord(signal, signalPath);
+    rejectUnknownProperties(signal, OTLP_EXPORT_SIGNAL_PROPERTIES, signalPath);
+    requireString(signal.id, `${signalPath}.id`);
+    requireString(signal.contract, `${signalPath}.contract`);
+    requireString(signal.redaction, `${signalPath}.redaction`);
+    if (
+      OTLP_EXPORT_SIGNAL_CONTRACTS.get(signal.id) !== signal.contract
+      || signal.redaction.length === 0
+    ) {
+      fail(`OTLP export signal evidence is invalid at ${signalPath}.`);
+    }
+  }
+
+  if (
+    new Set(signals.map(({ id }) => id)).size
+      !== OTLP_EXPORT_SIGNAL_CONTRACTS.size
+    || [...OTLP_EXPORT_SIGNAL_CONTRACTS.keys()].some(
+      (id) => !signals.some((signal) => signal.id === id),
+    )
+  ) {
+    fail("OTLP export evidence must contain one entry for each signal.");
+  }
+}
+
+function validateOtlpPrivacyEvidence(privacy, fixturePath) {
+  const privacyPath = `${fixturePath}.evidence.privacy`;
+  const stringProperties = [
+    "classification",
+    "fallbackRedactor",
+    "processorOrder",
+    "endpointPolicy",
+  ];
+  requireRecord(privacy, privacyPath);
+  rejectUnknownProperties(
+    privacy,
+    [...stringProperties, "sensitiveKeyFragments"],
+    privacyPath,
+  );
+  for (const property of stringProperties) {
+    requireString(privacy[property], `${privacyPath}.${property}`);
+  }
+  requireArray(
+    privacy.sensitiveKeyFragments,
+    `${privacyPath}.sensitiveKeyFragments`,
+  );
+  if (
+    privacy.classification !== "HostDataClassification.Secret"
+    || privacy.fallbackRedactor !== "ErasingRedactor"
+    || privacy.processorOrder !== "redaction-before-export"
+    || privacy.endpointPolicy !== "absolute-http-https-without-user-info"
+    || privacy.sensitiveKeyFragments.length < 5
+  ) {
+    fail("OTLP export privacy evidence is incomplete.");
+  }
+}
+
+function validateOtlpReliabilityEvidence(reliability, fixturePath) {
+  const reliabilityPath = `${fixturePath}.evidence.reliability`;
+  const boundedProperties = [
+    ["maxQueueSize", 2048],
+    ["maxExportBatchSize", 512],
+    ["scheduledDelayMilliseconds", 5000],
+    ["exporterTimeoutMilliseconds", 30000],
+  ];
+  const textProperties = ["retry", "cancellation", "shutdown"];
+  const booleanProperties = ["boundedQueue", "boundedFailure"];
+  requireRecord(reliability, reliabilityPath);
+  rejectUnknownProperties(
+    reliability,
+    [
+      ...boundedProperties.map(([property]) => property),
+      ...textProperties,
+      ...booleanProperties,
+    ],
+    reliabilityPath,
+  );
+
+  for (const [property, expected] of boundedProperties) {
+    requireNumber(reliability[property], `${reliabilityPath}.${property}`);
+    if (reliability[property] !== expected) {
+      fail(`OTLP export reliability bound is invalid: ${property}.`);
+    }
+  }
+  for (const property of textProperties) {
+    requireString(reliability[property], `${reliabilityPath}.${property}`);
+  }
+  for (const property of booleanProperties) {
+    requireBoolean(reliability[property], `${reliabilityPath}.${property}`);
+    if (!reliability[property]) {
+      fail(`OTLP export reliability must declare ${property}.`);
+    }
+  }
+}
+
+function validateOtlpIsolationEvidence(isolation, fixturePath) {
+  const isolationPath = `${fixturePath}.evidence.isolation`;
+  const properties = [
+    "collectorUnavailable",
+    "collectorSlow",
+    "collectorRejects",
+    "authorization",
+    "readiness",
+    "healthChecks",
+    "registration",
+  ];
+  requireRecord(isolation, isolationPath);
+  rejectUnknownProperties(isolation, properties, isolationPath);
+  for (const property of properties) {
+    requireString(isolation[property], `${isolationPath}.${property}`);
+  }
+  if (
+    isolation.collectorUnavailable !== "business-result-preserved"
+    || isolation.collectorSlow !== "business-result-preserved"
+    || isolation.collectorRejects !== "business-result-preserved"
+    || isolation.authorization !== "unchanged"
+    || isolation.readiness !== "unchanged"
+    || isolation.healthChecks !== "unchanged"
+    || isolation.registration !== "asynchronous-provider"
+  ) {
+    fail("OTLP export isolation evidence is incomplete.");
+  }
+}
+
+function validateOtlpAbsenceEvidence(absence, fixturePath) {
+  const absencePath = `${fixturePath}.evidence.absence`;
+  requireRecord(absence, absencePath);
+  rejectUnknownProperties(absence, OTLP_EXPORT_EFFECT_KINDS, absencePath);
+  let absentResidueCount = 0;
+  for (const kind of OTLP_EXPORT_EFFECT_KINDS) {
+    requireArray(absence[kind], `${absencePath}.${kind}`);
+    absentResidueCount += absence[kind].length;
+  }
+  if (absentResidueCount !== 0) {
+    fail("OTLP export absence evidence must be empty and passed.");
+  }
+  return absentResidueCount;
+}
+
+function validateOtlpEvidence(evidence, fixturePath) {
+  requireString(evidence.schemaVersion, `${fixturePath}.evidence.schemaVersion`);
+  requireString(evidence.outcome, `${fixturePath}.evidence.outcome`);
+  requireString(evidence.provider, `${fixturePath}.evidence.provider`);
+  if (
+    evidence.schemaVersion !== "1.0.0"
+    || evidence.outcome !== "passed"
+    || evidence.provider !== "observability-export:otlp"
+  ) {
+    fail("OTLP export fixture evidence identity is invalid.");
+  }
+
+  validateOtlpSignalEvidence(evidence.signals, fixturePath);
+  validateOtlpPrivacyEvidence(evidence.privacy, fixturePath);
+  validateOtlpReliabilityEvidence(evidence.reliability, fixturePath);
+  validateOtlpIsolationEvidence(evidence.isolation, fixturePath);
+  return validateOtlpAbsenceEvidence(evidence.absence, fixturePath);
+}
+
 async function verifyGeneratedOtlpComposition() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-otlp-export-"));
   const selectedRoot = join(temporaryRoot, "selected");
@@ -2655,7 +2913,7 @@ async function verifyGeneratedOtlpComposition() {
     `src/${applicationName}.Api/${applicationName}.Api.csproj`;
 
   try {
-    const [selected, baseline] = await Promise.all([
+    const [selected] = await Promise.all([
       generateApiPreset({
         applicationName,
         providers: ["otlp"],
@@ -2712,11 +2970,10 @@ async function verifyGeneratedOtlpComposition() {
         fail("OTLP Generated Solution baseline retains unselected residue.");
       }
     }
-    if (
+    const hasOtlpHealthCheck =
       selectedHost.includes("AddCheck(\"otlp")
-      || selectedHost.includes("AddCheck<") &&
-        selectedHost.match(/AddCheck<[^>]*otlp/i)
-    ) {
+      || /AddCheck<[^>]*otlp/i.test(selectedHost);
+    if (hasOtlpHealthCheck) {
       fail("OTLP Generated Solution must not add an OTLP health check.");
     }
   } finally {
@@ -2726,6 +2983,7 @@ async function verifyGeneratedOtlpComposition() {
 
 export async function validateOtlpExportFixture(fixture, manifest) {
   const fixturePath = `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`;
+  const manifestPath = `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`;
   assertSecretFree(fixture, fixturePath, "OTLP export fixture");
   requireRecord(fixture, fixturePath);
   rejectUnknownProperties(
@@ -2736,16 +2994,10 @@ export async function validateOtlpExportFixture(fixture, manifest) {
   requireRecord(fixture.selection, `${fixturePath}.selection`);
   requireRecord(fixture.observed, `${fixturePath}.observed`);
   requireRecord(fixture.evidence, `${fixturePath}.evidence`);
+  const evidence = fixture.evidence;
   rejectUnknownProperties(
     fixture.selection,
-    [
-      "preset",
-      "capabilities",
-      "providers",
-      "runtime",
-      "operatingSystem",
-      "configuration",
-    ],
+    OTLP_EXPORT_SELECTION_PROPERTIES,
     `${fixturePath}.selection`,
   );
   rejectUnknownProperties(
@@ -2755,56 +3007,12 @@ export async function validateOtlpExportFixture(fixture, manifest) {
   );
   rejectUnknownProperties(
     fixture.evidence,
-    [
-      "schemaVersion",
-      "outcome",
-      "provider",
-      "signals",
-      "privacy",
-      "reliability",
-      "isolation",
-      "absence",
-    ],
+    OTLP_EXPORT_EVIDENCE_PROPERTIES,
     `${fixturePath}.evidence`,
   );
 
-  requireExactArray(
-    fixture.selection.capabilities,
-    ["observability-export"],
-    `${fixturePath}.selection.capabilities`,
-  );
-  requireExactArray(
-    fixture.selection.providers,
-    [{
-      capability: "observability-export",
-      id: "otlp",
-    }],
-    `${fixturePath}.selection.providers`,
-  );
-  for (const [property, expected] of [
-    ["preset", "api"],
-    ["runtime", "net10.0"],
-    ["operatingSystem", "linux"],
-  ]) {
-    requireString(
-      fixture.selection[property],
-      `${fixturePath}.selection.${property}`,
-    );
-    if (fixture.selection[property] !== expected) {
-      fail(
-        `Invalid OTLP export fixture selection at ${fixturePath}.selection.${property}: expected ${expected}.`,
-      );
-    }
-  }
-  requireExactArray(
-    fixture.selection.configuration,
-    ["OTEL_EXPORTER_OTLP_ENDPOINT"],
-    `${fixturePath}.selection.configuration`,
-  );
-
-  for (const kind of OTLP_EXPORT_EFFECT_KINDS) {
-    requireArray(fixture.observed[kind], `${fixturePath}.observed.${kind}`);
-  }
+  validateOtlpSelectionValues(fixture.selection, fixturePath);
+  validateOtlpObservedValues(fixture.observed, fixturePath);
   const admission = await verifyProviderAdmission({
     selection: fixture.selection,
     observed: fixture.observed,
@@ -2813,213 +3021,12 @@ export async function validateOtlpExportFixture(fixture, manifest) {
     fail("OTLP export provider admission did not pass.");
   }
 
-  requireRecord(manifest, `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`);
-  requireArray(
-    manifest.capabilities,
-    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.capabilities`,
+  validateOtlpManifest(manifest, fixture.selection.providers, manifestPath);
+  const absentResidueCount = validateOtlpEvidence(
+    evidence,
+    fixturePath,
   );
-  requireArray(
-    manifest.providers,
-    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.providers`,
-  );
-  requireArray(
-    manifest.supportClaims,
-    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.supportClaims`,
-  );
-  if (manifest.supportClaims.length !== 0) {
-    fail("OTLP export manifest must not make a Supported claim.");
-  }
-  const selectedCapability = manifest.capabilities.find(
-    ({ id }) => id === "observability-export",
-  );
-  if (selectedCapability?.state !== "selected") {
-    fail("OTLP export manifest must select observability-export.");
-  }
-  const selectedProviders = manifest.providers
-    .filter(({ state }) => state === "selected")
-    .map(({ capability, id }) => ({ capability, id }));
-  requireExactArray(
-    selectedProviders,
-    fixture.selection.providers,
-    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.providers`,
-  );
-
-  const evidence = fixture.evidence;
-  requireString(evidence.schemaVersion, `${fixturePath}.evidence.schemaVersion`);
-  requireString(evidence.outcome, `${fixturePath}.evidence.outcome`);
-  requireString(evidence.provider, `${fixturePath}.evidence.provider`);
-  if (
-    evidence.schemaVersion !== "1.0.0"
-    || evidence.outcome !== "passed"
-    || evidence.provider !== "observability-export:otlp"
-  ) {
-    fail("OTLP export fixture evidence identity is invalid.");
-  }
-
-  requireArray(evidence.signals, `${fixturePath}.evidence.signals`);
-  if (evidence.signals.length !== OTLP_EXPORT_SIGNAL_CONTRACTS.size) {
-    fail("OTLP export evidence must cover traces, metrics, and logs.");
-  }
-  for (const [index, signal] of evidence.signals.entries()) {
-    const signalPath = `${fixturePath}.evidence.signals[${index}]`;
-    requireRecord(signal, signalPath);
-    rejectUnknownProperties(
-      signal,
-      ["id", "contract", "redaction"],
-      signalPath,
-    );
-    requireString(signal.id, `${signalPath}.id`);
-    requireString(signal.contract, `${signalPath}.contract`);
-    requireString(signal.redaction, `${signalPath}.redaction`);
-    if (
-      OTLP_EXPORT_SIGNAL_CONTRACTS.get(signal.id) !== signal.contract
-      || signal.redaction.length === 0
-    ) {
-      fail(`OTLP export signal evidence is invalid at ${signalPath}.`);
-    }
-  }
-  if (
-    new Set(evidence.signals.map(({ id }) => id)).size
-      !== OTLP_EXPORT_SIGNAL_CONTRACTS.size
-    || [...OTLP_EXPORT_SIGNAL_CONTRACTS.keys()].some(
-      (id) => !evidence.signals.some((signal) => signal.id === id),
-    )
-  ) {
-    fail("OTLP export evidence must contain one entry for each signal.");
-  }
-
-  requireRecord(evidence.privacy, `${fixturePath}.evidence.privacy`);
-  rejectUnknownProperties(
-    evidence.privacy,
-    [
-      "classification",
-      "fallbackRedactor",
-      "processorOrder",
-      "sensitiveKeyFragments",
-      "endpointPolicy",
-    ],
-    `${fixturePath}.evidence.privacy`,
-  );
-  for (const property of [
-    "classification",
-    "fallbackRedactor",
-    "processorOrder",
-    "endpointPolicy",
-  ]) {
-    requireString(evidence.privacy[property], `${fixturePath}.evidence.privacy.${property}`);
-  }
-  requireArray(
-    evidence.privacy.sensitiveKeyFragments,
-    `${fixturePath}.evidence.privacy.sensitiveKeyFragments`,
-  );
-  if (
-    evidence.privacy.classification !== "HostDataClassification.Secret"
-    || evidence.privacy.fallbackRedactor !== "ErasingRedactor"
-    || evidence.privacy.processorOrder !== "redaction-before-export"
-    || evidence.privacy.endpointPolicy !== "absolute-http-https-without-user-info"
-    || evidence.privacy.sensitiveKeyFragments.length < 5
-  ) {
-    fail("OTLP export privacy evidence is incomplete.");
-  }
-
-  requireRecord(evidence.reliability, `${fixturePath}.evidence.reliability`);
-  rejectUnknownProperties(
-    evidence.reliability,
-    [
-      "maxQueueSize",
-      "maxExportBatchSize",
-      "scheduledDelayMilliseconds",
-      "exporterTimeoutMilliseconds",
-      "retry",
-      "cancellation",
-      "shutdown",
-      "boundedQueue",
-      "boundedFailure",
-    ],
-    `${fixturePath}.evidence.reliability`,
-  );
-  for (const [property, expected] of [
-    ["maxQueueSize", 2048],
-    ["maxExportBatchSize", 512],
-    ["scheduledDelayMilliseconds", 5000],
-    ["exporterTimeoutMilliseconds", 30000],
-  ]) {
-    requireNumber(
-      evidence.reliability[property],
-      `${fixturePath}.evidence.reliability.${property}`,
-    );
-    if (evidence.reliability[property] !== expected) {
-      fail(`OTLP export reliability bound is invalid: ${property}.`);
-    }
-  }
-  for (const property of ["retry", "cancellation", "shutdown"]) {
-    requireString(
-      evidence.reliability[property],
-      `${fixturePath}.evidence.reliability.${property}`,
-    );
-  }
-  for (const property of ["boundedQueue", "boundedFailure"]) {
-    requireBoolean(
-      evidence.reliability[property],
-      `${fixturePath}.evidence.reliability.${property}`,
-    );
-    if (!evidence.reliability[property]) {
-      fail(`OTLP export reliability must declare ${property}.`);
-    }
-  }
-
-  requireRecord(evidence.isolation, `${fixturePath}.evidence.isolation`);
-  rejectUnknownProperties(
-    evidence.isolation,
-    [
-      "collectorUnavailable",
-      "collectorSlow",
-      "collectorRejects",
-      "authorization",
-      "readiness",
-      "healthChecks",
-      "registration",
-    ],
-    `${fixturePath}.evidence.isolation`,
-  );
-  for (const property of [
-    "collectorUnavailable",
-    "collectorSlow",
-    "collectorRejects",
-    "authorization",
-    "readiness",
-    "healthChecks",
-    "registration",
-  ]) {
-    requireString(
-      evidence.isolation[property],
-      `${fixturePath}.evidence.isolation.${property}`,
-    );
-  }
-  if (
-    evidence.isolation.collectorUnavailable !== "business-result-preserved"
-    || evidence.isolation.collectorSlow !== "business-result-preserved"
-    || evidence.isolation.collectorRejects !== "business-result-preserved"
-    || evidence.isolation.authorization !== "unchanged"
-    || evidence.isolation.readiness !== "unchanged"
-    || evidence.isolation.healthChecks !== "unchanged"
-    || evidence.isolation.registration !== "asynchronous-provider"
-  ) {
-    fail("OTLP export isolation evidence is incomplete.");
-  }
-
-  requireRecord(evidence.absence, `${fixturePath}.evidence.absence`);
-  rejectUnknownProperties(
-    evidence.absence,
-    OTLP_EXPORT_EFFECT_KINDS,
-    `${fixturePath}.evidence.absence`,
-  );
-  let absentResidueCount = 0;
-  for (const kind of OTLP_EXPORT_EFFECT_KINDS) {
-    requireArray(evidence.absence[kind], `${fixturePath}.evidence.absence.${kind}`);
-    absentResidueCount += evidence.absence[kind].length;
-  }
-  if (absentResidueCount !== 0 || admission.absence.outcome !== "passed") {
+  if (admission.absence.outcome !== "passed") {
     fail("OTLP export absence evidence must be empty and passed.");
   }
   await verifyGeneratedOtlpComposition();

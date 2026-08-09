@@ -110,7 +110,7 @@ export const API_BASELINE_CAPABILITIES = Object.freeze(
 );
 export const API_OPTIONAL_CAPABILITIES = Object.freeze(
   API_CAPABILITY_MATRIX
-    .filter((capability) => capability.classification !== "required")
+    .filter((capability) => capability.classification === "optional-supported")
     .map((capability) => capability.id),
 );
 export const API_PROVIDER_MATRIX = Object.freeze([
@@ -149,6 +149,14 @@ const API_PROVIDER_PACKAGE_REFERENCES = new Map(
     Object.freeze({ id: packageId, version }),
   ]),
 );
+
+function hasApiProviderForCapability(providerIds, capability) {
+  return providerIds.some((providerId) =>
+    API_PROVIDER_MATRIX.some(
+      ({ id, capability: providerCapability }) =>
+        id === providerId && providerCapability === capability,
+    ));
+}
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
   Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
@@ -386,12 +394,7 @@ function validateApiSelections({
       continue;
     }
     if (API_OPTIONAL_CAPABILITIES.includes(capability)) {
-      if (!requestedProviders.some((requestedProvider) =>
-        API_PROVIDER_MATRIX.some(
-          (providerDefinition) =>
-            providerDefinition.id === requestedProvider
-            && providerDefinition.capability === capability,
-        ))) {
+      if (!hasApiProviderForCapability(requestedProviders, capability)) {
         fail(
           `Capability "${capability}" requires a matching selected provider.`,
         );

@@ -12,9 +12,9 @@ export const HOST_BASELINE_SOURCE_PATH =
 export function renderHostSecurityFile(
   applicationName,
   authenticationProfile = "none",
-  otlpExporter = false,
+  includeOtlpExporter = false,
 ) {
-  const openTelemetryRegistration = otlpExporter
+  const openTelemetryRegistration = includeOtlpExporter
     ? String.raw`        services.AddOpenTelemetry()
             .WithTracing(tracing =>
                 tracing
@@ -86,13 +86,13 @@ export function renderHostSecurityFile(
                         "System.Net.Http",
                         "System.Net.NameResolution",
                         "System.Runtime"));`;
-  const otlpUsings = otlpExporter
+  const otlpUsings = includeOtlpExporter
     ? String.raw`using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 `
     : "";
-  const otlpSupport = otlpExporter
+  const otlpSupport = includeOtlpExporter
     ? String.raw`
 internal static class OtlpExportConfiguration
 {
@@ -141,9 +141,9 @@ internal static class OtlpExportConfiguration
     }
 }
 
-internal sealed class OtlpActivityRedactionProcessor : BaseProcessor<Activity>
+internal static class OtlpRedaction
 {
-    private static readonly string[] SensitiveTagFragments =
+    private static readonly string[] SensitiveKeyFragments =
     [
         "authorization",
         "client.address",
@@ -165,12 +165,18 @@ internal sealed class OtlpActivityRedactionProcessor : BaseProcessor<Activity>
         "user_agent.original",
     ];
 
+    public static bool IsSensitiveKey(string key) =>
+        SensitiveKeyFragments.Any(fragment =>
+            key.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+}
+
+internal sealed class OtlpActivityRedactionProcessor : BaseProcessor<Activity>
+{
     public override void OnEnd(Activity activity)
     {
         foreach (var tag in activity.TagObjects.ToArray())
         {
-            if (SensitiveTagFragments.Any(fragment =>
-                    tag.Key.Contains(fragment, StringComparison.OrdinalIgnoreCase)))
+            if (OtlpRedaction.IsSensitiveKey(tag.Key))
             {
                 activity.SetTag(
                     tag.Key,
@@ -188,7 +194,7 @@ internal sealed class OtlpLogRedactionProcessor : BaseProcessor<LogRecord>
     {
         var attributes = logRecord.Attributes?
             .Select(attribute =>
-                Sensitive(attribute.Key)
+                OtlpRedaction.IsSensitiveKey(attribute.Key)
                     ? new KeyValuePair<string, object?>(
                         attribute.Key,
                         HostRedactor.Redact(
@@ -223,26 +229,6 @@ internal sealed class OtlpLogRedactionProcessor : BaseProcessor<LogRecord>
             logRecord.Exception = null;
         }
     }
-
-    private static bool Sensitive(string key) =>
-        key.Contains("authorization", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("client.address", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("client.port", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("cookie", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("exception", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("http.request.header", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("http.response.header", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("http.target", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("http.url", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("network.peer.address", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("network.peer.port", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("password", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("secret", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("token", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("url.full", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("url.path", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("url.query", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("user_agent.original", StringComparison.OrdinalIgnoreCase);
 }
 `
     : "";
@@ -298,7 +284,7 @@ internal static class HostSecurity
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-${otlpExporter ? "        OtlpExportConfiguration.Validate(configuration);\n" : ""}        ReadOptions(configuration).Validate(environment);
+${includeOtlpExporter ? "        OtlpExportConfiguration.Validate(configuration);\n" : ""}        ReadOptions(configuration).Validate(environment);
     }
 
     public static void ConfigureBuilder(WebApplicationBuilder builder)

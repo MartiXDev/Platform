@@ -811,9 +811,10 @@ function validateSelections(options) {
       "defaultCulture must be a valid BCP 47 culture identifier such as en-US.",
     );
   }
+  const observabilityExporter = hasOtlpExporter(requestedProviders);
   if (
     requestedCapabilities.includes(OTLP_EXPORTER_CAPABILITY)
-    && !hasOtlpExporter(requestedProviders)
+    && !observabilityExporter
   ) {
     fail(
       `Capability "${OTLP_EXPORTER_CAPABILITY}" requires a matching selected provider.`,
@@ -823,7 +824,7 @@ function validateSelections(options) {
   return {
     persistence,
     relationalProvider,
-    observabilityExporter: hasOtlpExporter(requestedProviders),
+    observabilityExporter,
     uiProvider,
     renderingProfile,
     defaultCulture: defaultCulture.trim(),
