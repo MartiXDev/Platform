@@ -294,6 +294,204 @@ test("the selected relational provider is recorded in the plan", () => {
   ]);
 });
 
+test("durable jobs are opt-in and generate an explicit Quartz composition", async () => {
+  const baseline = createModularMonolithPresetPlan({
+    applicationName: "MartiX.Planner",
+    businessModules: ["Orders"],
+  });
+  const root = await createTemporaryDirectory();
+  try {
+    const plan = createModularMonolithPresetPlan({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      capabilities: ["durable-jobs"],
+      providers: ["quartz"],
+    });
+    assert.ok(
+      plan.capabilities.includes("modular-monolith.durable-jobs"),
+    );
+    assert.deepEqual(
+      plan.providers.find(({ capability }) => capability === "durable-jobs"),
+      {
+        id: "quartz",
+        capability: "durable-jobs",
+        state: "selected",
+      },
+    );
+
+    const result = await generateModularMonolithPreset({
+        applicationName: "MartiX.Planner",
+        businessModules: ["Orders"],
+        capabilities: ["durable-jobs"],
+        providers: ["quartz"],
+        outputDirectory: join(root, "generated"),
+      });
+    assert.ok(
+      result.files.includes(
+        "src/MartiX.Planner.Api/Infrastructure/DurableJobs/DurableJobsComposition.cs",
+      ),
+    );
+    assert.ok(
+      result.files.includes(
+        "src/MartiX.Planner.Migrator/Infrastructure/DurableJobs/QuartzMigrationComposition.cs",
+      ),
+    );
+    const apiProject = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "MartiX.Planner.Api.csproj",
+      ),
+      "utf8",
+    );
+    const api = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Program.cs",
+      ),
+      "utf8",
+    );
+    const durableJobs = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "DurableJobs",
+        "DurableJobsComposition.cs",
+      ),
+      "utf8",
+    );
+    const migrator = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Migrator",
+        "Program.cs",
+      ),
+      "utf8",
+    );
+    assert.match(apiProject, /PackageReference Include="Quartz"/);
+    assert.match(api, /DurableJobsComposition\.AddServices/);
+    assert.match(durableJobs, /AddQuartzHostedService/);
+    assert.match(durableJobs, /StoreDurably\(true\)/);
+    assert.match(durableJobs, /MaxConcurrency = 8/);
+    assert.match(durableJobs, /public Task<bool> DeleteAsync/);
+    assert.match(durableJobs, /int schemaVersion/);
+    assert.match(migrator, /QuartzMigrationComposition\.ExecuteMigrationAsync/);
+    const quartzMigration = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Migrator",
+        "Infrastructure",
+        "DurableJobs",
+        "QuartzMigrationComposition.cs",
+      ),
+      "utf8",
+    );
+    assert.match(quartzMigration, /RequiredTables/);
+    assert.match(quartzMigration, /qrtz_fired_triggers/);
+    assert.equal(
+      baseline.capabilities.includes("modular-monolith.durable-jobs"),
+      false,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("durable jobs reject incomplete selections and leave the baseline Quartz-free", async () => {
+  assert.throws(
+    () =>
+      createModularMonolithPresetPlan({
+        applicationName: "MartiX.Planner",
+        businessModules: ["Orders"],
+        capabilities: ["durable-jobs"],
+      }),
+    /exactly one durable-jobs provider/i,
+  );
+  assert.throws(
+    () =>
+      createModularMonolithPresetPlan({
+        applicationName: "MartiX.Planner",
+        businessModules: ["Orders"],
+        providers: ["quartz"],
+      }),
+    /requires the durable-jobs capability/i,
+  );
+
+  const root = await createTemporaryDirectory();
+  try {
+    const result = await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      outputDirectory: join(root, "generated"),
+    });
+    assert.equal(result.plan.durableJobs, false);
+    assert.equal(
+      result.files.some((file) => file.includes("DurableJobs")),
+      false,
+    );
+    assert.equal(
+      result.plan.packageReferences.some(({ id }) => id.startsWith("Quartz")),
+      false,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("durable jobs translate the selected relational provider", async () => {
+  const root = await createTemporaryDirectory();
+  try {
+    await generateModularMonolithPreset({
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      capabilities: ["durable-jobs"],
+      providers: ["sqlserver", "quartz"],
+      outputDirectory: join(root, "generated"),
+    });
+    const durableJobs = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Api",
+        "Infrastructure",
+        "DurableJobs",
+        "DurableJobsComposition.cs",
+      ),
+      "utf8",
+    );
+    const quartzMigration = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Migrator",
+        "Infrastructure",
+        "DurableJobs",
+        "QuartzMigrationComposition.cs",
+      ),
+      "utf8",
+    );
+    assert.match(durableJobs, /SqlServerDelegate/);
+    assert.match(quartzMigration, /Microsoft\.Data\.SqlClient/);
+    assert.match(quartzMigration, /sys\.foreign_keys/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("generation emits module-owned relational persistence for each provider", async () => {
   const roots = await Promise.all([
     createTemporaryDirectory(),
