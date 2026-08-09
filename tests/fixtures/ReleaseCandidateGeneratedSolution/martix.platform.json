@@ -1,0 +1,36 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "1.0.0-rc.1",
+  "platformContractVersion": "1.0.0-rc.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "ReleaseCandidateGeneratedSolution",
+    "product": "MartiX Platform Release Candidate evidence",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "api",
+  "capabilities": [],
+  "providers": [],
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  }
+}

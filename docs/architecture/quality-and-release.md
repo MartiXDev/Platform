@@ -1,9 +1,10 @@
 # Quality and release architecture
 
-> Status: **Approved target with implemented bootstrap, Beta integration, and
-> Experimental alpha evidence**. The current repository exposes bootstrap
-> gates, a claim-free Beta integration profile, and the claim-free Modular
-> Monolith alpha profile; none is a Supported Capability claim.
+> Status: **Approved target with implemented bootstrap, Beta integration,
+> Experimental alpha, and Release Candidate evidence**. The current repository
+> exposes bootstrap gates, a claim-free Beta integration profile, the
+> claim-free Modular Monolith alpha profile, and a digest-bound Release
+> Candidate profile; none is a Supported Capability claim.
 
 ## Current bootstrap evidence
 
@@ -27,6 +28,7 @@ npm run verify:pr
 npm run verify:api
 npm run verify:fastendpoints
 npm run verify:beta-integration
+npm run verify:release-candidate
 ```
 
 The `modular-monolith-alpha` profile is release-candidate-only and requires
@@ -53,6 +55,18 @@ The 1.0 Capability and public-contract scope is frozen at Beta. Post-freeze
 changes are limited to defects, evidence gaps, and release blockers; new
 features and providers require a later scope decision and independent
 attestation.
+
+The `release-candidate` profile uses the named
+`ReleaseCandidateGeneratedSolution` fixture and
+[`release-candidate.schema.json`](../../schemas/release-candidate.schema.json).
+Its evidence manifest binds every release artifact kind, all bootstrap/alpha/
+Beta/Release Candidate gates and retained attempts, compatibility and
+reproducibility evidence, provider/migration/security/performance/deployment
+evidence, documentation, and agent readiness to one canonical content digest.
+The candidate is clean, reviewed, claim-free, built once, promoted without
+rebuild, and verified against exact bytes. A release-blocking fix creates a
+new candidate, reruns affected gates, and invalidates the prior candidate;
+in-place patching is rejected.
 
 The target roadmap later calls for one .NET file-based Verification Entrypoint
 with the same cadence contract. Until that tracer is implemented, the
@@ -188,9 +202,13 @@ application code. Migration recovery is classified honestly; universal rollback
 is not promised.
 
 Release candidates are built once, signed, verified, and promoted without
-rebuild. A release-blocking fix creates a new candidate. The trust chain binds
-author identity, OIDC publishing identity, SBOM, provenance, content-addressed
-Candidate Evidence, Promotion Receipts, and final Release Evidence.
+rebuild. The executable `npm run verify:release-candidate` surface fails closed
+when an artifact, gate attempt, evidence category, exact-byte policy, schema,
+fixture path, or candidate digest is missing or changed. A release-blocking fix
+creates a new candidate and reruns affected gates; the prior candidate is
+invalidated rather than patched. The trust chain binds author identity, OIDC
+publishing identity, SBOM, provenance, content-addressed Candidate Evidence,
+Promotion Receipts, and final Release Evidence.
 
 The first production line starts at `1.0.0`. The support model retains the
 current Active major and the immediately previous Maintenance major, subject to

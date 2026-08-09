@@ -1,0 +1,659 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/release-candidate.schema.json",
+  "schemaVersion": "1.0.0",
+  "kind": "release-candidate-evidence",
+  "solution": "ReleaseCandidateGeneratedSolution",
+  "candidateId": "rc-1.0.0-rc.1-c9de6825b2906876",
+  "platformVersion": "1.0.0-rc.1",
+  "platformContractVersion": "1.0.0-rc.1",
+  "maturity": "release-candidate",
+  "source": {
+    "commit": "70749a5838ff24611b085010201e00eb595f27c8",
+    "clean": true,
+    "reviewed": true,
+    "reviewEvidence": [
+      "docs/architecture/quality-and-release.md",
+      "docs/wayfinder/martix-platform/migration-roadmap.md"
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "release-docs",
+      "kind": "documentation",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:87b7774f515d6bc57e54139f16b4799f5fc6e0635e83e0669bc5671d5bbde48c",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:47a2af41125a4bb8b51f16a0e260bd8b874ea0049a27d866a8937d864a107c55"
+      },
+      "path": "docs/architecture/quality-and-release.md"
+    },
+    {
+      "id": "release-evidence",
+      "kind": "evidence-bundle",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:2066681f591e8ba1bdf9772e24a8136e76c30fbc95ec8662bbeff93e49c3a1b4",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:0f913a02b3ae192afb908e116d19c8a06e3c2f6d8f4ed024efcac04830a7e1eb"
+      },
+      "path": "tests/fixtures/ReleaseCandidateGeneratedSolution/README.md"
+    },
+    {
+      "id": "MartiX.Verification.Client",
+      "kind": "generated-client",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:be43ba896dba1a365979cb4e0cf190ae1edaef6cf52f20bb6b32674683da629f",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:5a42fbb593ce21a62da9afcd405be8cd993e4a8ba6836fbf1641471654328868"
+      },
+      "path": "tests/fixtures/FullStackGeneratedSolution/src/MartiX.FullStackTestApp.Web/Platform/Api/GeneratedClient.cs"
+    },
+    {
+      "id": "platform-migration",
+      "kind": "migration",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:f8f6f6e1f6cc1bb580c30a455d7b39212706efcedca255ddcfc20b1c9e98cd25",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:3805e049ad70c2641359110a167c943884096e990c147bc8137dd5f73244ff4c"
+      },
+      "path": "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json"
+    },
+    {
+      "id": "ghcr.io/martixdev/platform",
+      "kind": "oci-image",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:6a1049353f41975d324c3ce41f057a1e1dae55b9803da47d4822914ae2a50d8d",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:278bf1a512e9c65ea7d1b2eea827410817a626cb6725628b7269c5c0fd55a2de"
+      },
+      "path": "tests/fixtures/DeploymentManifestGeneratedSolution/deployment-evidence.json"
+    },
+    {
+      "id": "MartiX.Platform",
+      "kind": "package",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:01af6bfb1167c157d0ff108ee9cbe81e58d64cbd0a7b3347873ee53390ac97a6",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:f2d0c1ad7eb70f0eaff8f192eee02ebe4185a57c155d10e04e6979a0d913d51a"
+      },
+      "path": "src/MartiX.Platform/MartiX.Platform.csproj"
+    },
+    {
+      "id": "MartiX.Platform.Analyzers",
+      "kind": "package",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:5b8f2eb711f04d85cac685b9e2d3f5039fbec83823a0165f7981d4d683801955",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:81606025e182b747d2a524e8989d262321290b25f2ddf7df7bff43cabadea2e2"
+      },
+      "path": "src/MartiX.Platform.Analyzers/MartiX.Platform.Analyzers.csproj"
+    },
+    {
+      "id": "MartiX.Platform.AspNetCore",
+      "kind": "package",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:394bdbd9b6e0eb5b676dab6bf0bbcd479db564643c8a950deee9e96e050716f0",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:acdb28e4236fce179ae4f48529ae367d5f005f6552dc98de0daf489d296af95f"
+      },
+      "path": "src/MartiX.Platform.AspNetCore/MartiX.Platform.AspNetCore.csproj"
+    },
+    {
+      "id": "MartiX.Platform.AspNetCore.FastEndpoints",
+      "kind": "package",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:3d07460505eeb275752964221738f54caa65c5a53f3c01c04543c189f6828ad4",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:c0965ee91b43a219d69fbbf35f3cb234e0519c482c5a33e3184699a86fa1339e"
+      },
+      "path": "src/MartiX.Platform.AspNetCore.FastEndpoints/MartiX.Platform.AspNetCore.FastEndpoints.csproj"
+    },
+    {
+      "id": "MartiX.Platform.EntityFrameworkCore",
+      "kind": "package",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:e4ecbcb5906ff72a225bbc7490215f0f7f8f70046b7d28cbd20c2478cb9c138e",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:0725f08b84ab8e8f17e51ad5aea962ae8c4f0048e41afa3284635b6d89259876"
+      },
+      "path": "src/MartiX.Platform.EntityFrameworkCore/MartiX.Platform.EntityFrameworkCore.csproj"
+    },
+    {
+      "id": "MartiX.Platform.IntegrationEvents.RabbitMq",
+      "kind": "package",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:6b77f18ecaf2c178bc232b023de73e1b997b8e0732777c09624d57b8e4dc3b7a",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:e5b43486f0d3bd5171ede74c082c3d1ba3159161f3fb90aa857103167288ca1c"
+      },
+      "path": "src/MartiX.Platform.IntegrationEvents.RabbitMq/MartiX.Platform.IntegrationEvents.RabbitMq.csproj"
+    },
+    {
+      "id": "martix-platform-process",
+      "kind": "process-archive",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:cb8696b97a0bcbe8a8717352dfbd7ba51152fef85b1b278bc4689ef94bd09f2e",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:f3138869a564595e8376d18524900b3b6d9d43bf80f45d4b4c28b35e46d795c1"
+      },
+      "path": "tests/fixtures/DeploymentManifestGeneratedSolution/deployment-manifest.json"
+    },
+    {
+      "id": "martix-platform.provenance",
+      "kind": "provenance",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:a695b0a8d223f8feed91bc7749c5e1a041e92efee372cd3fda0a86318cd34bab",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:cb04822871aa898264caae7a1e1457c20b0e12f3dcb2ab555eb74f7333e3b4e8"
+      },
+      "path": "PROVENANCE.md"
+    },
+    {
+      "id": "martix-platform.sbom",
+      "kind": "sbom",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:a8346a5d6237111d792d9d90624c58887bbe043f309390cecfde4e7194d2ff68",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:3ddb792815e9e69b8c2ebe1161ec0666dd146d0fc3a67a5e7738349aa3d8552d"
+      },
+      "path": "docs/architecture/quality-and-release.md"
+    },
+    {
+      "id": "martix.platform.schema",
+      "kind": "schema",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:fcd060192987f5e5ba1e51b5e676c08a2504757b4a77c0046dc3632fd7740c83",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:caa0392310c00d7d8d09cf6aa591a4ad32392810f2d2f1a1281d72bef7cc062e"
+      },
+      "path": "schemas/martix.platform.schema.json"
+    },
+    {
+      "id": "martix-platform",
+      "kind": "skill",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:d7e3ea17b5fc1a1d0470455d2041614a71fb51da097316fc3f10b392e964ed61"
+      },
+      "path": "skills/martix-platform/SKILL.md"
+    },
+    {
+      "id": "martix-app",
+      "kind": "template",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:80a978556bcf72d5863af84e666a46925bbca5f17f44bb0456a1f2433c1eea48"
+      },
+      "path": "eng/generate.mjs"
+    },
+    {
+      "id": "MartiX.Platform.Tool",
+      "kind": "tool",
+      "version": "1.0.0-rc.1",
+      "digest": "sha256:cab1944ef49ef0f6273da35c505c57106c13e28a2069bd889cd75a8d06b404e7",
+      "identity": {
+        "mode": "signed",
+        "signatureDigest": "sha256:42b34bf99ee97817a6ec057324510a4b93fce2a43f5467080811c839922e6dec"
+      },
+      "path": "eng/platform-migration.mjs"
+    }
+  ],
+  "artifactSetDigest": "sha256:2aa7b5643a5f11a838c1c06de1c90f64b3b3ab0bbee9ecce600bc9432544f0f0",
+  "gates": [
+    {
+      "id": "beta.integration",
+      "outcome": "passed",
+      "inputDigest": "sha256:848f443ed3b72fa0cfd853f07359f7bb0dd9619fcc85c3a4334b21faac10cab1",
+      "evidenceDigest": "sha256:4f74c00d92234153b90f77113eba6dc7c0ba3cbd789b6813228d563b245ae007",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.agent-readiness",
+      "outcome": "passed",
+      "inputDigest": "sha256:e327d093bb80cbee4dba79b75531c30c41f1eeaae591aef1c388d745ebb1c6b1",
+      "evidenceDigest": "sha256:f7c3db9cc93209630d61dd46fb65acc80dc016910132f0d0fd159062048d9116",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.deployment-manifest",
+      "outcome": "passed",
+      "inputDigest": "sha256:c5ee7874d36a82fc445dedf5d01c58d25b1426d5319cb8de8123cb8da1da7694",
+      "evidenceDigest": "sha256:df796ac293ba8630823e36be1258c603cf78d47ddf02a5923dcd46daeb2878d2",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.feature-management",
+      "outcome": "passed",
+      "inputDigest": "sha256:3d2bdd05cc4f7d6e1fdf220e748de399b6eb8263ddac2d0c177652be0216285b",
+      "evidenceDigest": "sha256:4bfdc916b422a4b65d8dd0e8088ed10b2be6a850534b90d52de92470d3cbf57f",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.full-stack",
+      "outcome": "passed",
+      "inputDigest": "sha256:b30da1af7f47a1c6ba855446ec39e954975ea6f1e4a89cf8165009c5352a619c",
+      "evidenceDigest": "sha256:f2e8a2f2e86fe7d377ac3c4f9e35e7dfe32efcf44928872237e461499e067e59",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.generated-solution",
+      "outcome": "passed",
+      "inputDigest": "sha256:d3a7942597d6f3671388d8e2d203b9e12247e0d7a82962f8146e740f2a69a333",
+      "evidenceDigest": "sha256:adecb292c3b72c27acd996c5ff32984b100647589ba412e4c92b86153f40aec6",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.governance",
+      "outcome": "passed",
+      "inputDigest": "sha256:fa381d8ab88505c18dadf1c9fb242878e1f102444225aa554d8fa15c72b0bce1",
+      "evidenceDigest": "sha256:8fd9f239f82f14a63092b6189c4ecbf723387aee5b373e88b9586de5f86534e9",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.host-baseline",
+      "outcome": "passed",
+      "inputDigest": "sha256:1c9c4d347338d897a7fc4838fe577ce9ae97fec65d00a2815d7d966b9ba63e30",
+      "evidenceDigest": "sha256:083aaf4bfda5fb27a9174564c9ea1ecc46bfc8da6be8c6d216d1475accc1abbf",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.local-orchestration",
+      "outcome": "passed",
+      "inputDigest": "sha256:d813241e8521864dece6fcd0f29212a68b2438a939709d07cfeca7fe2ca0b185",
+      "evidenceDigest": "sha256:6619506b865f4a4b1fcdf15284885c988b6e7544405068ead1c7a631c8be0df5",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.mailkit-smtp",
+      "outcome": "passed",
+      "inputDigest": "sha256:b70fa6898706f83e24f20894f2c4adc06a0584c1f0ab8ea983e95d3dbfbd0e84",
+      "evidenceDigest": "sha256:81029c1a36c0e6be7cc66659370268151274999b8c869c08d431772cf6ac6cec",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.manifest",
+      "outcome": "passed",
+      "inputDigest": "sha256:13f5f4afbe5f88c1e77609603f6d2d0aa676f82b19444beaab7cf00d6f929fcb",
+      "evidenceDigest": "sha256:814552cc7b01d56813aa5060c48b13a2e26bdd9b654d2546a9c0898a163f56d8",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.modular-monolith",
+      "outcome": "passed",
+      "inputDigest": "sha256:0cf8c75d29b9226062f257e82f50f3f920551b0ffc1c74e5202fab4cefeaff35",
+      "evidenceDigest": "sha256:85ba4e581ee19c47bfe9d2aca3e16da0f37eca9ada3cc38d30fd62fc5239180f",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.otlp-export",
+      "outcome": "passed",
+      "inputDigest": "sha256:933d95dee35f4772c68a7d744a54e36a0d91816402f6fb3967fd0fd14336a1c7",
+      "evidenceDigest": "sha256:72f508784c1cb92d9c28480d5ad383a41dfb0c52011b6d5829547677c3729144",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.portable-host-conformance",
+      "outcome": "passed",
+      "inputDigest": "sha256:ed155bba0154d90a111af9d75992a3444a9e8e87572a2dfacdef1c6e3f030cb1",
+      "evidenceDigest": "sha256:ea66fef362c96a325c793392c1a91ed9320e244af47fe6f8bae52fcbee99f235",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.provider-admission",
+      "outcome": "passed",
+      "inputDigest": "sha256:8177b7d94d5799ebba6e796dcc0b8647d240ce67f5e2224e1d116e7263eb2675",
+      "evidenceDigest": "sha256:aedddf430b20d203513ff94551fb1e9499d0835b238b0d07959af794ab67dbef",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.quartz-durable-jobs",
+      "outcome": "passed",
+      "inputDigest": "sha256:896baf014c21f7af491ab393eaf502e293a0d6166e14a8c0a31c5a8bf1e52378",
+      "evidenceDigest": "sha256:27873c186a4fe0ced8d158221188b9b57de41fe3ea71346e967b8ddbe3cb4b82",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.secret-free",
+      "outcome": "passed",
+      "inputDigest": "sha256:ba739cd3c8174eea78b320f7dbe9e5956a5ff1b75618275ee9ec6abf96949895",
+      "evidenceDigest": "sha256:1876638e9636e2949986f188bda27fbd5ade2a32299083d6b1cce6ccf5dadc11",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap.valkey-distributed-cache",
+      "outcome": "passed",
+      "inputDigest": "sha256:c6169a4f5c6bb90afc83f5759b95498fdfd10a0d66390fad7f103d477ba85321",
+      "evidenceDigest": "sha256:5b5442e3481980f23ebe953a5fcfe91450e6f10540b6ecbbd82a20ab24e4b005",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "modular-monolith.architecture",
+      "outcome": "passed",
+      "inputDigest": "sha256:7c4005c9dc19712691b56ee235ef3419479557c9a61cfb584f089b97f0b9da5f",
+      "evidenceDigest": "sha256:f37d319288fffb628c77ca9fc1ca9d62d49290253d8d3ab2ce112943a29f6118",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "modular-monolith.generated-solution",
+      "outcome": "passed",
+      "inputDigest": "sha256:55c1cdfc9f3d0d2997dbb4b5516419d5a269dbc47414dec0d5c95a4ab1af19a5",
+      "evidenceDigest": "sha256:0db429888dbb716f41a79e4dc25f07b912cd9caf64b64ca03cbe4257702344f4",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "modular-monolith.migration",
+      "outcome": "passed",
+      "inputDigest": "sha256:75e57a0dca97441a93a95bf07600f779793f3dc3fb0273818900870dd96ed749",
+      "evidenceDigest": "sha256:6e69ee08c17608641cbedd0e3dad770a03374f3ec14ec5ee00b9d218ce329487",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "modular-monolith.provider-integration",
+      "outcome": "passed",
+      "inputDigest": "sha256:054f5e5780d446174f5d5b3c85033e0575773ebe079a45b66220c8ea1c52d58c",
+      "evidenceDigest": "sha256:6b3b8eedb49c620abccb6b77039215228d7211af45516b560af3fa9d62bdbd2d",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "modular-monolith.release-evidence",
+      "outcome": "passed",
+      "inputDigest": "sha256:905c5df50266128cbdd385cfb1bc995d66cd142c06fa6fa78eea6a743bcf16a3",
+      "evidenceDigest": "sha256:27ced3622e93a51322cb74b02aa900a3c81d3225579b84d68d21821ef774e977",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "modular-monolith.reliability",
+      "outcome": "passed",
+      "inputDigest": "sha256:e593f030017ccb41c02865ad993d99789b8b56e7a11e30222826adcf35793104",
+      "evidenceDigest": "sha256:53b4cf62f66319b66a8e325a5a0bd70e17e40c5a001a117f9881da2ab8914b18",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "id": "release-candidate.evidence",
+      "outcome": "passed",
+      "inputDigest": "sha256:2283017b369c6545a79c57f033793f67c01b044ed7c8cabbb27c5419de51bc28",
+      "evidenceDigest": "sha256:f89987e101df50c7297bea47862bc3b4d2aefa3c51bd3d91f4a430c881b7f796",
+      "attempts": [
+        {
+          "number": 1,
+          "outcome": "passed"
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "compatibility": {
+      "status": "passed",
+      "digest": "sha256:340cb3096aab7205942c4c05ffbddf4dc527f674e3b73e7799caa24aff38ceed",
+      "evidence": [
+        "tests/api-release.test.mjs",
+        "tests/kernel.test.mjs",
+        "tests/full-stack-preset.test.mjs"
+      ]
+    },
+    "reproducibility": {
+      "status": "passed",
+      "digest": "sha256:4793db17bf38ca0443ed51450199633e56e16eab78508d0c0c0d5ae7de26c83a",
+      "evidence": [
+        "tests/api-release.test.mjs",
+        "eng/generate.mjs"
+      ]
+    },
+    "licensingProvenance": {
+      "status": "passed",
+      "digest": "sha256:aafcb6b11d4a6fdd38a7b7820eaf2185c245857d9f5c3fd8fe14c544f47c6260",
+      "evidence": [
+        "LICENSE",
+        "PROVENANCE.md",
+        "docs/architecture/quality-and-release.md"
+      ]
+    },
+    "realProvider": {
+      "status": "passed",
+      "digest": "sha256:f15c11a4cecf03330aecc5ea2c7eaf4c9726f084f2624db22f9418329f66fd23",
+      "evidence": [
+        "tests/modular-monolith-alpha.test.mjs",
+        "eng/verify-modular-monolith-alpha.mjs"
+      ]
+    },
+    "failureInjection": {
+      "status": "passed",
+      "digest": "sha256:2f135c495a17d8a2a91f97cf390f751364f380aebab172fb9bbb4b6e2751d2d5",
+      "evidence": [
+        "tests/deployment-manifest.test.mjs",
+        "tests/portable-host-conformance.test.mjs",
+        "tests/local-orchestration.test.mjs"
+      ]
+    },
+    "security": {
+      "status": "passed",
+      "digest": "sha256:9971f2e745e27d1bc1d87f08458608d262303aacd0b536d775f6e718b9f78526",
+      "evidence": [
+        "tests/agent-readiness.test.mjs",
+        "tests/aspnetcore.test.mjs",
+        "docs/architecture/quality-and-release.md"
+      ]
+    },
+    "performance": {
+      "status": "passed",
+      "digest": "sha256:8fd687678583d1b962b55adbba757176496c5c9718ce5785804580268fae3a7b",
+      "evidence": [
+        "docs/wayfinder/martix-platform/tickets/112-aot-performance-matrix.md",
+        "tests/beta-integration.test.mjs"
+      ]
+    },
+    "deployment": {
+      "status": "passed",
+      "digest": "sha256:41c1f5e1365e7fa546cbb3acc564292b72e41219b42ed018603eae06086dbc43",
+      "evidence": [
+        "tests/deployment-manifest.test.mjs",
+        "tests/portable-host-conformance.test.mjs",
+        "tests/local-orchestration.test.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "passed",
+      "digest": "sha256:31a964375010fdf153695aab26ae1991a0feedc65923ef59667eb36b0bc3ed88",
+      "evidence": [
+        "docs/architecture/quality-and-release.md",
+        "docs/changes/20260809-beta-integration-scope-freeze.md"
+      ]
+    },
+    "agentReadiness": {
+      "status": "passed",
+      "digest": "sha256:5e9d29e098f4d5ed2be7bc0853a4562f9c0dbbcb3474279d6bafff7a11ffa539",
+      "evidence": [
+        "tests/agent-readiness.test.mjs",
+        "eng/agent-readiness.mjs",
+        "skills/martix-platform/SKILL.md"
+      ]
+    }
+  },
+  "releasePolicy": {
+    "builtOnce": true,
+    "exactBytes": true,
+    "promotionWithoutRebuild": true,
+    "patchInPlace": false,
+    "releaseBlockingFix": {
+      "createsNewCandidate": true,
+      "rerunsAffectedGates": true,
+      "invalidatesPreviousCandidate": true
+    }
+  },
+  "verification": {
+    "cadence": "release-candidate",
+    "policyVersion": "0.0.0-bootstrap",
+    "entrypoint": "eng/verify.mjs",
+    "command": "npm run verify:release-candidate",
+    "failClosed": true,
+    "requiredGates": [
+      "bootstrap.manifest",
+      "bootstrap.governance",
+      "bootstrap.generated-solution",
+      "bootstrap.modular-monolith",
+      "bootstrap.full-stack",
+      "bootstrap.provider-admission",
+      "bootstrap.deployment-manifest",
+      "bootstrap.portable-host-conformance",
+      "bootstrap.local-orchestration",
+      "bootstrap.otlp-export",
+      "bootstrap.feature-management",
+      "bootstrap.mailkit-smtp",
+      "bootstrap.valkey-distributed-cache",
+      "bootstrap.quartz-durable-jobs",
+      "bootstrap.host-baseline",
+      "bootstrap.secret-free",
+      "bootstrap.agent-readiness",
+      "modular-monolith.generated-solution",
+      "modular-monolith.architecture",
+      "modular-monolith.provider-integration",
+      "modular-monolith.migration",
+      "modular-monolith.reliability",
+      "modular-monolith.release-evidence",
+      "beta.integration",
+      "release-candidate.evidence"
+    ],
+    "notApplicable": [],
+    "notSelected": []
+  },
+  "supportClaims": [],
+  "evidenceDigest": "sha256:d4542303ae11f1b15ed59a5214ab268eb7c8c5365a3f7a491cde028c5a3357a6"
+}

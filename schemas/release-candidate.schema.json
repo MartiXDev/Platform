@@ -1,0 +1,423 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/release-candidate.schema.json",
+  "title": "MartiX Platform release candidate evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "kind",
+    "solution",
+    "candidateId",
+    "platformVersion",
+    "platformContractVersion",
+    "maturity",
+    "source",
+    "artifacts",
+    "artifactSetDigest",
+    "gates",
+    "evidence",
+    "releasePolicy",
+    "verification",
+    "supportClaims",
+    "evidenceDigest"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://github.com/MartiXDev/Platform/schemas/release-candidate.schema.json"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "release-candidate-evidence"
+    },
+    "solution": {
+      "const": "ReleaseCandidateGeneratedSolution"
+    },
+    "candidateId": {
+      "type": "string",
+      "pattern": "^rc-1\\.0\\.0-rc\\.1-[0-9a-f]{16}$"
+    },
+    "platformVersion": {
+      "const": "1.0.0-rc.1"
+    },
+    "platformContractVersion": {
+      "const": "1.0.0-rc.1"
+    },
+    "maturity": {
+      "const": "release-candidate"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "artifactSetDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 25,
+      "items": {
+        "$ref": "#/$defs/gate"
+      }
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "releasePolicy": {
+      "$ref": "#/$defs/releasePolicy"
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "evidenceDigest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "clean",
+        "reviewed"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "clean": {
+          "const": true
+        },
+        "reviewed": {
+          "const": true
+        },
+        "reviewEvidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "version",
+        "digest",
+        "identity"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "package",
+            "template",
+            "tool",
+            "process-archive",
+            "oci-image",
+            "schema",
+            "skill",
+            "generated-client",
+            "sbom",
+            "provenance",
+            "evidence-bundle",
+            "documentation",
+            "migration"
+          ]
+        },
+        "version": {
+          "const": "1.0.0-rc.1"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        }
+      }
+    },
+    "identity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "signatureDigest"
+          ],
+          "properties": {
+            "mode": {
+              "const": "signed"
+            },
+            "signatureDigest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "digest-identified"
+            }
+          }
+        }
+      ]
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "outcome"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "const": "passed"
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "outcome",
+        "inputDigest",
+        "evidenceDigest",
+        "attempts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "const": "passed"
+        },
+        "inputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidenceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "attempts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/attempt"
+          }
+        }
+      }
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "digest",
+        "evidence"
+      ],
+      "properties": {
+        "status": {
+          "const": "passed"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compatibility",
+        "reproducibility",
+        "licensingProvenance",
+        "realProvider",
+        "failureInjection",
+        "security",
+        "performance",
+        "deployment",
+        "documentation",
+        "agentReadiness"
+      ],
+      "properties": {
+        "compatibility": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "reproducibility": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "licensingProvenance": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "realProvider": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "failureInjection": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "security": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "performance": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "deployment": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "documentation": {
+          "$ref": "#/$defs/evidenceItem"
+        },
+        "agentReadiness": {
+          "$ref": "#/$defs/evidenceItem"
+        }
+      }
+    },
+    "releasePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "builtOnce",
+        "exactBytes",
+        "promotionWithoutRebuild",
+        "patchInPlace",
+        "releaseBlockingFix"
+      ],
+      "properties": {
+        "builtOnce": {
+          "const": true
+        },
+        "exactBytes": {
+          "const": true
+        },
+        "promotionWithoutRebuild": {
+          "const": true
+        },
+        "patchInPlace": {
+          "const": false
+        },
+        "releaseBlockingFix": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "createsNewCandidate",
+            "rerunsAffectedGates",
+            "invalidatesPreviousCandidate"
+          ],
+          "properties": {
+            "createsNewCandidate": {
+              "const": true
+            },
+            "rerunsAffectedGates": {
+              "const": true
+            },
+            "invalidatesPreviousCandidate": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cadence",
+        "policyVersion",
+        "entrypoint",
+        "command",
+        "failClosed",
+        "requiredGates",
+        "notApplicable",
+        "notSelected"
+      ],
+      "properties": {
+        "cadence": {
+          "const": "release-candidate"
+        },
+        "policyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entrypoint": {
+          "const": "eng/verify.mjs"
+        },
+        "command": {
+          "const": "npm run verify:release-candidate"
+        },
+        "failClosed": {
+          "const": true
+        },
+        "requiredGates": {
+          "type": "array",
+          "minItems": 25,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notApplicable": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "notSelected": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    }
+  }
+}

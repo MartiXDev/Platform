@@ -65,6 +65,19 @@
         "beta.integration"
       ],
       "command": "npm run verify:beta-integration"
+    },
+    {
+      "id": "release-candidate",
+      "maturity": "release-candidate",
+      "preset": "platform",
+      "providers": [],
+      "cadences": [
+        "release-candidate"
+      ],
+      "gates": [
+        "release-candidate.evidence"
+      ],
+      "command": "npm run verify:release-candidate"
     }
   ],
   "gates": [
@@ -259,6 +272,16 @@
         "release-candidate"
       ],
       "purpose": "The named Beta Integration Generated Solution records claim-free risk-based coverage, security and supply-chain review, performance baselines, compatibility inputs, explicit Not Attested scope, and the frozen 1.0 feature/provider boundary."
+    },
+    {
+      "id": "release-candidate.evidence",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "The named Release Candidate Generated Solution binds all release artifacts, quality-gate attempts, evidence categories, and immutable build-once promotion policy to one digest-identified candidate."
     },
     {
       "id": "bootstrap.host-baseline",
