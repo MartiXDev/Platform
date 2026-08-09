@@ -27,6 +27,10 @@
     {
       "id": "modular-monolith.durable-jobs",
       "state": "selected"
+    },
+    {
+      "id": "modular-monolith.secrets",
+      "state": "selected"
     }
   ],
   "providers": [
@@ -38,6 +42,11 @@
     {
       "id": "quartz",
       "capability": "durable-jobs",
+      "state": "selected"
+    },
+    {
+      "id": "azure-key-vault",
+      "capability": "secrets",
       "state": "selected"
     }
   ],

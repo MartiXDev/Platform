@@ -58,6 +58,12 @@ import {
   FEATURE_MANAGEMENT_SOLUTION_ROOT,
   validateFeatureManagementFixture,
 } from "./feature-management.mjs";
+import {
+  AZURE_KEY_VAULT_PROVIDER,
+  AZURE_KEY_VAULT_REQUIRED_CONFIGURATION,
+  AzureKeyVaultEvidenceError,
+  verifyAzureKeyVaultEvidence,
+} from "./azure-key-vault.mjs";
 
 const CADENCES = [
   "fast",
@@ -264,6 +270,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${OTLP_EXPORT_SOLUTION_ROOT}/CONTEXT.md`,
   `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
   `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`,
+  "eng/azure-key-vault.mjs",
   "eng/provider-admission.mjs",
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/README.md`,
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/AGENTS.md`,
@@ -2538,6 +2545,10 @@ export async function validateProviderAdmissionFixture(
     fixture.evidence,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.evidence`,
   );
+  requireRecord(
+    fixture.providerEvidence,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.providerEvidence`,
+  );
   requireArray(
     fixture.invalidSelections,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections`,
@@ -2558,6 +2569,49 @@ export async function validateProviderAdmissionFixture(
       fail(`Provider admission fixture failed: ${error.message}`);
     }
     throw error;
+  }
+
+  try {
+    verifyAzureKeyVaultEvidence(fixture.providerEvidence);
+  } catch (error) {
+    if (error instanceof AzureKeyVaultEvidenceError) {
+      fail(`Azure Key Vault provider evidence failed: ${error.message}`);
+    }
+    throw error;
+  }
+
+  const selectedKeyVault = result.plan.providers.find(
+    ({ capability, id }) =>
+      capability === AZURE_KEY_VAULT_PROVIDER.capability &&
+      id === AZURE_KEY_VAULT_PROVIDER.id,
+  );
+  if (selectedKeyVault === undefined) {
+    fail("Provider admission fixture must select Azure Key Vault.");
+  }
+  const providerEvidence = fixture.providerEvidence;
+  if (
+    providerEvidence.provider.capability !== selectedKeyVault.capability ||
+    providerEvidence.provider.id !== selectedKeyVault.id
+  ) {
+    fail("Azure Key Vault provider evidence does not match the selected provider.");
+  }
+  if (
+    JSON.stringify(providerEvidence.configuration.requiredKeys) !==
+    JSON.stringify([...AZURE_KEY_VAULT_REQUIRED_CONFIGURATION])
+  ) {
+    fail(
+      "Azure Key Vault provider evidence does not declare its required configuration.",
+    );
+  }
+  const selectedConfiguration = new Set(result.plan.configuration.selectedKeys);
+  if (
+    providerEvidence.configuration.selectedKeys.some(
+      (key) => !selectedConfiguration.has(key),
+    )
+  ) {
+    fail(
+      "Azure Key Vault provider evidence declares configuration that was not selected.",
+    );
   }
 
   if (JSON.stringify(result.evidence) !== JSON.stringify(fixture.evidence)) {
@@ -2632,6 +2686,7 @@ export async function validateProviderAdmissionFixture(
     providerCount: result.plan.providers.length,
     matrixCoordinate: result.evidence.matrix.coordinate,
     evidenceDigest: result.evidence.verification.evidenceDigest,
+    providerEvidenceDigest: providerEvidence.evidenceDigest,
     invalidSelectionCount: fixture.invalidSelections.length,
   };
 }

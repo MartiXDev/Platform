@@ -3,7 +3,8 @@
     "preset": "modular-monolith",
     "capabilities": [
       "relational-persistence",
-      "durable-jobs"
+      "durable-jobs",
+      "secrets"
     ],
     "providers": [
       {
@@ -13,13 +14,19 @@
       {
         "capability": "durable-jobs",
         "id": "quartz"
+      },
+      {
+        "capability": "secrets",
+        "id": "azure-key-vault"
       }
     ],
     "runtime": "net10.0",
     "operatingSystem": "linux",
     "configuration": [
       "ConnectionStrings:Database",
-      "ConnectionStrings:Quartz"
+      "ConnectionStrings:Quartz",
+      "Azure:KeyVault:ReloadInterval",
+      "Azure:KeyVault:Uri"
     ]
   },
   "observed": {
@@ -31,16 +38,27 @@
       {
         "id": "Quartz",
         "version": "3.18.2"
+      },
+      {
+        "id": "Azure.Extensions.AspNetCore.Configuration.Secrets",
+        "version": "1.5.1"
+      },
+      {
+        "id": "Azure.Identity",
+        "version": "1.21.0"
       }
     ],
     "configuration": [
       "ConnectionStrings:Database",
       "ConnectionStrings:Quartz",
-      "Quartz:SchedulerName"
+      "Quartz:SchedulerName",
+      "Azure:KeyVault:ReloadInterval",
+      "Azure:KeyVault:Uri"
     ],
     "registrations": [
       "EntityFrameworkCore:PostgreSQL",
-      "Quartz:Scheduler"
+      "Quartz:Scheduler",
+      "IConfiguration:AzureKeyVault"
     ],
     "workers": [
       "QuartzHostedService"
@@ -51,14 +69,16 @@
     ],
     "telemetry": [
       "relational-database",
-      "durable-jobs"
+      "durable-jobs",
+      "secrets-provider"
     ],
     "containers": [
       "postgresql:17"
     ],
     "deployment": [
       "relational-database",
-      "durable-jobs-schema"
+      "durable-jobs-schema",
+      "managed-identity"
     ]
   },
   "evidence": {
@@ -76,6 +96,11 @@
       {
         "capability": "relational-persistence",
         "id": "postgresql",
+        "state": "selected"
+      },
+      {
+        "capability": "secrets",
+        "id": "azure-key-vault",
         "state": "selected"
       }
     ],
@@ -96,16 +121,28 @@
     "conflicts": [],
     "configuration": {
       "requiredKeys": [
+        "Azure:KeyVault:ReloadInterval",
+        "Azure:KeyVault:Uri",
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz"
       ],
       "selectedKeys": [
+        "Azure:KeyVault:ReloadInterval",
+        "Azure:KeyVault:Uri",
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz"
       ]
     },
     "effects": {
       "packages": [
+        {
+          "id": "Azure.Extensions.AspNetCore.Configuration.Secrets",
+          "version": "1.5.1"
+        },
+        {
+          "id": "Azure.Identity",
+          "version": "1.21.0"
+        },
         {
           "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
           "version": "10.0.0"
@@ -116,12 +153,15 @@
         }
       ],
       "configuration": [
+        "Azure:KeyVault:ReloadInterval",
+        "Azure:KeyVault:Uri",
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz",
         "Quartz:SchedulerName"
       ],
       "registrations": [
         "EntityFrameworkCore:PostgreSQL",
+        "IConfiguration:AzureKeyVault",
         "Quartz:Scheduler"
       ],
       "workers": [
@@ -133,13 +173,15 @@
       ],
       "telemetry": [
         "durable-jobs",
-        "relational-database"
+        "relational-database",
+        "secrets-provider"
       ],
       "containers": [
         "postgresql:17"
       ],
       "deployment": [
         "durable-jobs-schema",
+        "managed-identity",
         "relational-database"
       ]
     },
@@ -155,25 +197,37 @@
         "release-evidence"
       ],
       "providerGates": [
+        "cache-freshness",
+        "managed-identity",
         "migration",
         "operator-controls",
+        "outage",
         "persistent-scheduling",
         "provider-translation",
         "recovery",
-        "reliability"
+        "redaction",
+        "reliability",
+        "rotation",
+        "startup"
       ],
       "gates": [
         "architecture",
+        "cache-freshness",
+        "managed-identity",
         "migration",
         "operator-controls",
+        "outage",
         "persistent-scheduling",
         "provider-integration",
         "provider-translation",
         "recovery",
+        "redaction",
         "release-evidence",
         "reliability",
         "reliability-operations",
+        "rotation",
         "security-supply-chain",
+        "startup",
         "template-generation"
       ],
       "evidence": [
@@ -188,7 +242,8 @@
       ],
       "providers": [
         "durable-jobs:quartz",
-        "relational-persistence:postgresql"
+        "relational-persistence:postgresql",
+        "secrets:azure-key-vault"
       ],
       "matrix": {
         "preset": "modular-monolith",
@@ -200,7 +255,8 @@
       "preset": "modular-monolith",
       "capabilities": [
         "relational-persistence",
-        "durable-jobs"
+        "durable-jobs",
+        "secrets"
       ],
       "providers": [
         {
@@ -210,15 +266,108 @@
         {
           "capability": "durable-jobs",
           "provider": "quartz"
+        },
+        {
+          "capability": "secrets",
+          "provider": "azure-key-vault"
         }
       ]
     },
     "verification": {
       "selection": "passed",
       "absence": "passed",
-      "evidenceDigest": "sha256:f808d143792ea2c0b477a16200b4480cd4a725249eb20d64dec19888070fa1d4"
+      "evidenceDigest": "sha256:83f3e10adde2b622c2b3b38debabd4b29ac370a0a446baceede1b2a41e396bfb"
     },
     "supportClaims": []
+  },
+  "providerEvidence": {
+    "schemaVersion": "1.0.0",
+    "provider": {
+      "capability": "secrets",
+      "id": "azure-key-vault"
+    },
+    "outcome": "passed",
+    "failClosed": true,
+    "configuration": {
+      "requiredKeys": [
+        "Azure:KeyVault:ReloadInterval",
+        "Azure:KeyVault:Uri"
+      ],
+      "selectedKeys": [
+        "Azure:KeyVault:ReloadInterval",
+        "Azure:KeyVault:Uri"
+      ],
+      "uriSource": "Azure:KeyVault:Uri",
+      "uriFormat": "https",
+      "keyPrefix": "App--",
+      "reloadIntervalSeconds": 300,
+      "failFast": true,
+      "fallbackPolicy": "none"
+    },
+    "identity": {
+      "mode": "managed-identity",
+      "localMode": "standard-configuration",
+      "fallbackPolicy": "none"
+    },
+    "lifecycle": {
+      "rotation": {
+        "strategy": "replace-and-restart",
+        "restartRequired": true,
+        "oldBindingRevokedBeforeReady": true
+      },
+      "freshness": {
+        "reloadIntervalSeconds": 300,
+        "maxStaleSeconds": 600,
+        "cachePolicy": "bounded-last-known",
+        "staleValuePolicy": "never-empty-or-development"
+      }
+    },
+    "outage": {
+      "startupPolicy": "fail-closed",
+      "runtimePolicy": "bounded-last-known",
+      "maxStaleSeconds": 600,
+      "readinessPolicy": "not-ready-after-max-stale"
+    },
+    "startup": {
+      "missingUri": "fail-before-readiness",
+      "invalidUri": "fail-before-readiness",
+      "localFallback": "disabled"
+    },
+    "redaction": {
+      "logs": "metadata-only",
+      "telemetry": "metadata-only",
+      "health": "metadata-only",
+      "exceptions": "metadata-only",
+      "evidence": "metadata-only"
+    },
+    "checks": [
+      {
+        "id": "cache-freshness",
+        "outcome": "passed"
+      },
+      {
+        "id": "managed-identity",
+        "outcome": "passed"
+      },
+      {
+        "id": "outage",
+        "outcome": "passed"
+      },
+      {
+        "id": "redaction",
+        "outcome": "passed"
+      },
+      {
+        "id": "rotation-restart",
+        "outcome": "passed"
+      },
+      {
+        "id": "startup",
+        "outcome": "passed"
+      }
+    ],
+    "supportClaims": [],
+    "evidenceDigest": "sha256:e810de43b45f77e536306ae3cf7793e8f5d5f6011a9a67e8710f9345c14f1d6c"
   },
   "invalidSelections": [
     {

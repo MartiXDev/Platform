@@ -75,6 +75,78 @@ test("selected providers resolve prerequisites and a complete composed quality p
   assert.equal(plan.supportClaims.length, 0);
 });
 
+test("Azure Key Vault composes explicit configuration and managed-identity effects", async () => {
+  const selection = quartzSelection({
+    capabilities: ["relational-persistence", "durable-jobs", "secrets"],
+    providers: [
+      { capability: "relational-persistence", id: "postgresql" },
+      { capability: "durable-jobs", id: "quartz" },
+      { capability: "secrets", id: "azure-key-vault" },
+    ],
+    configuration: [
+      "ConnectionStrings:Database",
+      "ConnectionStrings:Quartz",
+      "Azure:KeyVault:ReloadInterval",
+      "Azure:KeyVault:Uri",
+    ],
+  });
+  const catalog = validateProviderAdmissionCatalog();
+  const keyVault = catalog.find(
+    ({ capability, id }) =>
+      capability === "secrets" && id === "azure-key-vault",
+  );
+  const result = await verifyProviderAdmission({
+    selection,
+    observed: mergeObservedEffects(
+      catalog.find(
+        ({ capability, id }) =>
+          capability === "relational-persistence" && id === "postgresql",
+      ).effects,
+      catalog.find(
+        ({ capability, id }) =>
+          capability === "durable-jobs" && id === "quartz",
+      ).effects,
+      keyVault.effects,
+    ),
+  });
+
+  assert.equal(result.status, "passed");
+  assert.ok(
+    result.plan.providers.some(
+      ({ capability, id }) =>
+        capability === "secrets" && id === "azure-key-vault",
+    ),
+  );
+  assert.deepEqual(result.plan.configuration.requiredKeys, [
+    "Azure:KeyVault:ReloadInterval",
+    "Azure:KeyVault:Uri",
+    "ConnectionStrings:Database",
+    "ConnectionStrings:Quartz",
+  ]);
+  assert.deepEqual(result.plan.effects.deployment, [
+    "durable-jobs-schema",
+    "managed-identity",
+    "relational-database",
+  ]);
+  assert.ok(
+    result.plan.qualityProfile.providerGates.includes("managed-identity"),
+  );
+  assert.ok(result.plan.qualityProfile.providerGates.includes("redaction"));
+  assert.ok(result.plan.qualityProfile.providerGates.includes("rotation"));
+  assert.throws(
+    () =>
+      resolveProviderAdmission({
+        ...selection,
+        configuration: [
+          "ConnectionStrings:Database",
+          "ConnectionStrings:Quartz",
+          "Azure:KeyVault:Uri",
+        ],
+      }),
+    /require configuration keys.*Azure:KeyVault:ReloadInterval/i,
+  );
+});
+
 test("every catalog entry declares complete effects and claim-free admission metadata", () => {
   const catalog = validateProviderAdmissionCatalog();
 
@@ -180,6 +252,22 @@ test("absence fails closed when an unselected provider leaves any residue", () =
   assert.throws(
     () => verifyProviderAbsence({ plan, catalog, observed }),
     /Unselected provider residue detected.*distributed-cache:valkey.*packages/i,
+  );
+});
+
+test("unselected Azure Key Vault leaves no package residue", () => {
+  const plan = resolveProviderAdmission(quartzSelection());
+  const catalog = validateProviderAdmissionCatalog();
+  const keyVault = catalog.find(
+    ({ capability, id }) =>
+      capability === "secrets" && id === "azure-key-vault",
+  );
+  const observed = mergeObservedEffects(plan.effects);
+  observed.packages.push(keyVault.effects.packages[0]);
+
+  assert.throws(
+    () => verifyProviderAbsence({ plan, catalog, observed }),
+    /Unselected provider residue detected.*secrets:azure-key-vault.*packages/i,
   );
 });
 

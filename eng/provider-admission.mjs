@@ -379,13 +379,19 @@ const OPTIONAL_PROVIDER_DEFINITIONS = [
     capability: "secrets",
     id: "azure-key-vault",
     presets: ["api", "modular-monolith", "full-stack"],
-    requiredConfiguration: ["Azure:KeyVault:Uri"],
+    requiredConfiguration: [
+      "Azure:KeyVault:ReloadInterval",
+      "Azure:KeyVault:Uri",
+    ],
     effects: emptyEffects({
       packages: [
         packageEffect("Azure.Extensions.AspNetCore.Configuration.Secrets", "1.5.1"),
         packageEffect("Azure.Identity", "1.21.0"),
       ],
-      configuration: ["Azure:KeyVault:Uri"],
+      configuration: [
+        "Azure:KeyVault:ReloadInterval",
+        "Azure:KeyVault:Uri",
+      ],
       registrations: ["IConfiguration:AzureKeyVault"],
       healthChecks: [],
       telemetry: ["secrets-provider"],
@@ -393,7 +399,14 @@ const OPTIONAL_PROVIDER_DEFINITIONS = [
     }),
     quality: qualityProfile(
       "provider.secrets.azure-key-vault",
-      ["managed-identity", "rotation", "redaction"],
+      [
+        "managed-identity",
+        "cache-freshness",
+        "outage",
+        "redaction",
+        "rotation",
+        "startup",
+      ],
     ),
     matrix: {
       deploymentProfiles: ["direct", "container"],
