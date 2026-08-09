@@ -90,9 +90,17 @@ public sealed class GeneratedClient(ApiTransport transport)
         CancellationToken cancellationToken,
         string fallbackCode = "ui.invalid-problem")
     {
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(
-            JsonOptions,
-            cancellationToken);
+        ProblemDetails? problem = null;
+        try
+        {
+            problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(
+                JsonOptions,
+                cancellationToken);
+        }
+        catch (JsonException)
+        {
+            // Keep malformed error payloads on the canonical failure path.
+        }
         var code = response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => "session-expired",
