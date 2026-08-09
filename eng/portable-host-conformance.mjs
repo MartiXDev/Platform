@@ -4,6 +4,24 @@ import {
   validateDeploymentManifest,
 } from "./deployment-manifest.mjs";
 
+const PORTABLE_HOST_SOLUTION_NAME =
+  "PortableHostConformanceGeneratedSolution";
+const DEPLOYMENT_MANIFEST_SOURCE =
+  "../DeploymentManifestGeneratedSolution/deployment-manifest.json";
+const UBUNTU_26_04_COMBINATION_ID = "ubuntu-26.04";
+const HOST_COORDINATE_FIELDS = Object.freeze([
+  "operatingSystem",
+  "distribution",
+  "osVersion",
+  "runtime",
+  "rid",
+]);
+const FIXED_COMBINATION_FIELDS = Object.freeze([
+  "profile",
+  "kind",
+  ...HOST_COORDINATE_FIELDS,
+]);
+
 export const PORTABLE_HOST_CONFORMANCE_SCHEMA_VERSION = "1.0.0";
 export const PORTABLE_HOST_CONFORMANCE_SCHEMA_URI =
   "https://github.com/MartiXDev/Platform/schemas/portable-host-conformance.schema.json";
@@ -46,7 +64,7 @@ const COMBINATION_DEFINITIONS = Object.freeze([
     adapter: "nginx-systemd",
   }),
   Object.freeze({
-    id: "ubuntu-26.04",
+    id: UBUNTU_26_04_COMBINATION_ID,
     profile: "process",
     kind: "archive",
     operatingSystem: "linux",
@@ -85,7 +103,7 @@ export const PORTABLE_HOST_PLANNED_TARGETS = Object.freeze([
 const DEFAULT_ARTIFACT_DIGESTS = Object.freeze({
   "linux-container": `sha256:${"3".repeat(64)}`,
   "linux-process": `sha256:${"4".repeat(64)}`,
-  "ubuntu-26.04": `sha256:${"4".repeat(64)}`,
+  [UBUNTU_26_04_COMBINATION_ID]: `sha256:${"4".repeat(64)}`,
   "windows-process": `sha256:${"5".repeat(64)}`,
 });
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -171,10 +189,6 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
-function deepClone(value) {
-  return structuredClone(value);
-}
-
 function assertSecretFree(value, path = "host conformance") {
   if (Array.isArray(value)) {
     value.forEach((item, index) =>
@@ -193,11 +207,11 @@ function assertSecretFree(value, path = "host conformance") {
   }
 }
 
-function checkRecord() {
+function createPassingChecks() {
   return Object.fromEntries(PORTABLE_HOST_CHECKS.map((check) => [check, true]));
 }
 
-function configurationProjection(manifest) {
+function projectConfiguration(manifest) {
   return {
     schemaVersion: manifest.configuration.schemaVersion,
     digest: manifest.identity.configurationSchemaDigest,
@@ -205,7 +219,7 @@ function configurationProjection(manifest) {
   };
 }
 
-function migrationProjection(manifest) {
+function projectMigration(manifest) {
   return {
     resource: manifest.migration.resource,
     order: [...manifest.migration.order],
@@ -214,7 +228,7 @@ function migrationProjection(manifest) {
   };
 }
 
-function artifactFor(manifest, profile) {
+function getManifestArtifact(manifest, profile) {
   const artifact = manifest.artifacts.find((candidate) => candidate.profile === profile);
   if (artifact === undefined) {
     fail(`No Deployment Manifest artifact exists for profile ${profile}.`, "invalid-artifact");
@@ -222,31 +236,21 @@ function artifactFor(manifest, profile) {
   return artifact;
 }
 
-function expectedDefinition(id) {
+function getCombinationDefinition(id) {
   return COMBINATION_DEFINITIONS.find((definition) => definition.id === id);
 }
 
+function matchesDefinitionProperties(value, definition, properties) {
+  return properties.every(
+    (property) => value[property] === definition[property],
+  );
+}
+
 function combinationDefinitionMatches(value, definition) {
-  const exactProperties =
-    definition.id === "ubuntu-26.04"
-      ? ["operatingSystem", "distribution", "osVersion", "runtime", "rid"]
-      : [
-          "profile",
-          "kind",
-          "operatingSystem",
-          "distribution",
-          "osVersion",
-          "runtime",
-          "rid",
-        ];
-  if (
-    exactProperties.some(
-      (property) => value[property] !== definition[property],
-    )
-  ) {
-    return false;
-  }
-  if (definition.id === "ubuntu-26.04") {
+  if (definition.id === UBUNTU_26_04_COMBINATION_ID) {
+    if (!matchesDefinitionProperties(value, definition, HOST_COORDINATE_FIELDS)) {
+      return false;
+    }
     return (
       (value.profile === "process" &&
         value.kind === "archive" &&
@@ -256,11 +260,14 @@ function combinationDefinitionMatches(value, definition) {
         value.adapter === "oci")
     );
   }
-  return value.adapter === definition.adapter;
+  return (
+    matchesDefinitionProperties(value, definition, FIXED_COMBINATION_FIELDS) &&
+    value.adapter === definition.adapter
+  );
 }
 
-function expectedArtifactMetadata(manifest, profile) {
-  const artifact = artifactFor(manifest, profile);
+function getExpectedArtifactMetadata(manifest, profile) {
+  const artifact = getManifestArtifact(manifest, profile);
   return {
     sourceDigest: artifact.digest,
     sourceRevision: manifest.identity.sourceRevision,
@@ -278,6 +285,88 @@ function evidenceDigest(value) {
       evidenceDigest: null,
     },
   });
+}
+
+function assertManifestBinding(value, normalizedManifest) {
+  const source = requireRecord(value.source, "source");
+  rejectUnknownProperties(source, ["manifest"], "source");
+  if (source.manifest !== DEPLOYMENT_MANIFEST_SOURCE) {
+    fail(
+      "Portable Host Conformance must consume the Deployment Manifest fixture.",
+      "invalid-source",
+    );
+  }
+
+  for (const [property, expected] of [
+    ["manifestDigest", normalizedManifest.identity.manifestDigest],
+    ["topologyDigest", normalizedManifest.identity.topologyDigest],
+    [
+      "configurationSchemaDigest",
+      normalizedManifest.identity.configurationSchemaDigest,
+    ],
+  ]) {
+    if (requireDigest(value[property], property) !== expected) {
+      fail(
+        `${property} does not identify the validated Deployment Manifest.`,
+        "drift-detected",
+      );
+    }
+  }
+}
+
+function assertProjectionMatches(
+  value,
+  expected,
+  allowedProperties,
+  label,
+  errorMessage,
+) {
+  const projection = requireRecord(value, label);
+  rejectUnknownProperties(projection, allowedProperties, label);
+  if (canonicalJson(projection) !== canonicalJson(expected)) {
+    fail(errorMessage, "drift-detected");
+  }
+}
+
+function hasExpectedCombinationSet(combinations) {
+  if (combinations.length !== COMBINATION_DEFINITIONS.length) {
+    return false;
+  }
+
+  const combinationIds = new Set(
+    combinations.map((combination) => combination?.id),
+  );
+  return (
+    combinationIds.size === combinations.length &&
+    COMBINATION_DEFINITIONS.every(({ id }) => combinationIds.has(id))
+  );
+}
+
+function normalizeCombinations(value, manifest) {
+  const combinations = requireArray(value, "combinations");
+  if (!hasExpectedCombinationSet(combinations)) {
+    fail(
+      "Portable Host Conformance must cover every admitted Windows/Linux process and OCI combination.",
+      "incomplete-evidence",
+    );
+  }
+  return combinations.map((combination, index) =>
+    normalizeCombination(combination, manifest, index),
+  );
+}
+
+function assertEvidenceDigest(value) {
+  const verification = requireRecord(value.verification, "verification");
+  rejectUnknownProperties(verification, ["evidenceDigest"], "verification");
+  if (
+    requireDigest(verification.evidenceDigest, "verification.evidenceDigest") !==
+    evidenceDigest(value)
+  ) {
+    fail(
+      "Portable Host Conformance evidence digest does not match its immutable content.",
+      "invalid-evidence",
+    );
+  }
 }
 
 function normalizePlannedTargets(value) {
@@ -352,7 +441,7 @@ function normalizeArtifact(value, manifest, profile, label) {
       `${label}.configurationSchemaDigest`,
     ),
   };
-  const expected = expectedArtifactMetadata(manifest, profile);
+  const expected = getExpectedArtifactMetadata(manifest, profile);
   if (canonicalJson(artifact) !== canonicalJson({ ...artifact, ...expected })) {
     fail(
       `${label} is not bound to the selected ${profile} Deployment Manifest artifact.`,
@@ -383,7 +472,7 @@ function normalizeCombination(value, manifest, index) {
     label,
   );
   const id = requireIdentifier(value.id, `${label}.id`);
-  const definition = expectedDefinition(id);
+  const definition = getCombinationDefinition(id);
   if (definition === undefined || !combinationDefinitionMatches(value, definition)) {
     fail(
       `${label} declares an unsupported OS/RID/runtime or host adapter combination.`,
@@ -456,67 +545,33 @@ function normalizeConformance(manifest, value) {
     fail("Unsupported Portable Host Conformance schema version.", "invalid-schema");
   }
   requireString(value.solution, "solution");
-  const source = requireRecord(value.source, "source");
-  rejectUnknownProperties(source, ["manifest"], "source");
-  if (source.manifest !== "../DeploymentManifestGeneratedSolution/deployment-manifest.json") {
-    fail("Portable Host Conformance must consume the Deployment Manifest fixture.", "invalid-source");
-  }
-  for (const [property, expected] of [
-    ["manifestDigest", normalizedManifest.identity.manifestDigest],
-    ["topologyDigest", normalizedManifest.identity.topologyDigest],
-    [
-      "configurationSchemaDigest",
-      normalizedManifest.identity.configurationSchemaDigest,
-    ],
-  ]) {
-    if (requireDigest(value[property], property) !== expected) {
-      fail(`${property} does not identify the validated Deployment Manifest.`, "drift-detected");
-    }
-  }
+  assertManifestBinding(value, normalizedManifest);
   if (value.outcome !== "passed" || value.failClosed !== true) {
     fail("Portable Host Conformance must be a passed fail-closed record.", "invalid-evidence");
   }
-  const configuration = requireRecord(value.configuration, "configuration");
-  rejectUnknownProperties(configuration, ["schemaVersion", "digest", "keys"], "configuration");
-  if (canonicalJson(configuration) !== canonicalJson(configurationProjection(normalizedManifest))) {
-    fail("Host configuration evidence drifted from the Deployment Manifest.", "drift-detected");
-  }
-  const migration = requireRecord(value.migration, "migration");
-  rejectUnknownProperties(
-    migration,
+  assertProjectionMatches(
+    value.configuration,
+    projectConfiguration(normalizedManifest),
+    ["schemaVersion", "digest", "keys"],
+    "configuration",
+    "Host configuration evidence drifted from the Deployment Manifest.",
+  );
+  assertProjectionMatches(
+    value.migration,
+    projectMigration(normalizedManifest),
     ["resource", "order", "beforeServing", "concurrency"],
     "migration",
+    "Host migration evidence drifted from the Deployment Manifest.",
   );
-  if (canonicalJson(migration) !== canonicalJson(migrationProjection(normalizedManifest))) {
-    fail("Host migration evidence drifted from the Deployment Manifest.", "drift-detected");
-  }
-  const combinations = requireArray(value.combinations, "combinations");
-  if (
-    combinations.length !== COMBINATION_DEFINITIONS.length ||
-    new Set(combinations.map((combination) => combination?.id)).size !==
-      combinations.length ||
-    COMBINATION_DEFINITIONS.some(
-      (definition) =>
-        !combinations.some((combination) => combination?.id === definition.id),
-    )
-  ) {
-    fail(
-      "Portable Host Conformance must cover every admitted Windows/Linux process and OCI combination.",
-      "incomplete-evidence",
-    );
-  }
-  const normalizedCombinations = combinations.map((combination, index) =>
-    normalizeCombination(combination, normalizedManifest, index),
+  const normalizedCombinations = normalizeCombinations(
+    value.combinations,
+    normalizedManifest,
   );
   const plannedTargets = normalizePlannedTargets(value.plannedTargets);
   if (!Array.isArray(value.supportClaims) || value.supportClaims.length !== 0) {
     fail("Portable Host Conformance cannot make a Supported claim.", "support-claim");
   }
-  const verification = requireRecord(value.verification, "verification");
-  rejectUnknownProperties(verification, ["evidenceDigest"], "verification");
-  if (requireDigest(verification.evidenceDigest, "verification.evidenceDigest") !== evidenceDigest(value)) {
-    fail("Portable Host Conformance evidence digest does not match its immutable content.", "invalid-evidence");
-  }
+  assertEvidenceDigest(value);
   return {
     ...value,
     manifest: normalizedManifest,
@@ -532,7 +587,10 @@ export function createPortableHostConformance({
 } = {}) {
   const normalizedManifest = validateDeploymentManifest(manifest);
   const combinations = COMBINATION_DEFINITIONS.map((definition) => {
-    const sourceArtifact = artifactFor(normalizedManifest, definition.profile);
+    const sourceArtifact = getManifestArtifact(
+      normalizedManifest,
+      definition.profile,
+    );
     const digest = artifactDigests[definition.id];
     if (digest === undefined) {
       fail(`No digest was supplied for ${definition.id}.`, "invalid-artifact");
@@ -548,25 +606,25 @@ export function createPortableHostConformance({
         configurationSchemaDigest:
           normalizedManifest.identity.configurationSchemaDigest,
       },
-      checks: checkRecord(),
+      checks: createPassingChecks(),
     };
   });
   const value = {
     $schema: PORTABLE_HOST_CONFORMANCE_SCHEMA_URI,
     schemaVersion: PORTABLE_HOST_CONFORMANCE_SCHEMA_VERSION,
-    solution: "PortableHostConformanceGeneratedSolution",
+    solution: PORTABLE_HOST_SOLUTION_NAME,
     source: {
-      manifest: "../DeploymentManifestGeneratedSolution/deployment-manifest.json",
+      manifest: DEPLOYMENT_MANIFEST_SOURCE,
     },
     manifestDigest: normalizedManifest.identity.manifestDigest,
     topologyDigest: normalizedManifest.identity.topologyDigest,
     configurationSchemaDigest: normalizedManifest.identity.configurationSchemaDigest,
-    configuration: configurationProjection(normalizedManifest),
-    migration: migrationProjection(normalizedManifest),
+    configuration: projectConfiguration(normalizedManifest),
+    migration: projectMigration(normalizedManifest),
     outcome: "passed",
     failClosed: true,
     combinations,
-    plannedTargets: deepClone(plannedTargets),
+    plannedTargets: structuredClone(plannedTargets),
     supportClaims: [],
     verification: {
       evidenceDigest: null,

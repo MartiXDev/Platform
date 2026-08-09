@@ -38,21 +38,23 @@ const portableHostSchemaPath = join(
   "portable-host-conformance.schema.json",
 );
 
+async function loadDeploymentManifest() {
+  const source = JSON.parse(await readFile(deploymentManifestPath, "utf8"));
+  return validateDeploymentManifest(source);
+}
+
 test("portable host evidence binds admitted profiles to one deployment identity", async () => {
-  const manifest = validateDeploymentManifest(
-    JSON.parse(await readFile(deploymentManifestPath, "utf8")),
-  );
+  const manifest = await loadDeploymentManifest();
   const conformance = createPortableHostConformance({ manifest });
 
   assert.deepEqual(
     conformance.combinations.map(({ id }) => id),
     ["linux-container", "linux-process", "ubuntu-26.04", "windows-process"],
   );
-  assert.equal(
+  assert.ok(
     conformance.combinations.every(({ checks }) =>
       Object.values(checks).every((value) => value === true),
     ),
-    true,
   );
   assert.equal(
     verifyPortableHostConformance(manifest, conformance).status,
@@ -67,9 +69,7 @@ test("portable host evidence binds admitted profiles to one deployment identity"
 });
 
 test("unsupported host coordinates and provider promotion fail closed", async () => {
-  const manifest = validateDeploymentManifest(
-    JSON.parse(await readFile(deploymentManifestPath, "utf8")),
-  );
+  const manifest = await loadDeploymentManifest();
   const conformance = createPortableHostConformance({ manifest });
 
   const unsupported = structuredClone(conformance);
@@ -95,16 +95,19 @@ test("unsupported host coordinates and provider promotion fail closed", async ()
   assert.equal(result.failClosed, true);
 
   const failedCheck = structuredClone(conformance);
-  failedCheck.combinations.find(({ id }) => id === "ubuntu-26.04").checks.readiness =
-    false;
+  failedCheck.combinations.find(
+    ({ id }) => id === "ubuntu-26.04",
+  ).checks.readiness = false;
   assert.throws(
     () => verifyPortableHostConformance(manifest, failedCheck),
     /readiness failed|fail-closed/i,
   );
 
   const driftedArtifact = structuredClone(conformance);
-  driftedArtifact.combinations.find(({ id }) => id === "linux-container").artifact
-    .sourceDigest = "sha256:9999999999999999999999999999999999999999999999999999999999999999";
+  driftedArtifact.combinations.find(
+    ({ id }) => id === "linux-container",
+  ).artifact.sourceDigest =
+    "sha256:9999999999999999999999999999999999999999999999999999999999999999";
   assert.throws(
     () => verifyPortableHostConformance(manifest, driftedArtifact),
     /not bound|drifted/i,
