@@ -24,6 +24,7 @@ const RESOURCE_ROLES = new Set([
   "serving",
   "worker",
 ]);
+const EXECUTABLE_ROLES = new Set(["migrator", "serving", "worker"]);
 const DEPENDENCY_CONDITIONS = new Set(["ready", "healthy", "completed"]);
 const CONFIGURATION_TYPES = new Set([
   "boolean",
@@ -448,7 +449,7 @@ function normalizeResource(value, index, configurationKeys) {
     fail(`${label}.ports must have unique names.`, "invalid-topology");
   }
 
-  const executable = ["serving", "migrator", "worker"].includes(role);
+  const executable = EXECUTABLE_ROLES.has(role);
   let artifact;
   let command;
   let args;
@@ -944,14 +945,21 @@ export function validateDeploymentManifest(manifest) {
 
 export const resolveDeploymentManifest = validateDeploymentManifest;
 
-function artifactFor(manifest, profile, label = "artifact") {
-  const normalized = validateDeploymentManifest(manifest);
+function findArtifact(normalized, profile, label = "artifact") {
   const id = requireIdentifier(profile, `${label}.profile`);
   const artifact = normalized.artifacts.find((candidate) => candidate.profile === id);
   if (artifact === undefined) {
     fail(`${label} does not identify a selected Deployment Profile artifact.`, "invalid-artifact");
   }
-  return { manifest: normalized, artifact };
+  return artifact;
+}
+
+function artifactFor(manifest, profile, label = "artifact") {
+  const normalized = validateDeploymentManifest(manifest);
+  return {
+    manifest: normalized,
+    artifact: findArtifact(normalized, profile, label),
+  };
 }
 
 function projectionBody(manifest, profile) {
@@ -1013,13 +1021,13 @@ export function verifyDeploymentProjection(manifest, projection) {
 
 export const verifyDeploymentDrift = verifyDeploymentProjection;
 
-function normalizeArtifactReference(manifest, input, label) {
+function normalizeArtifactReference(normalized, input, label) {
   const value =
     typeof input === "string"
       ? { profile: "process", digest: input }
       : requireRecord(input, label);
   const profile = requireIdentifier(value.profile, `${label}.profile`);
-  const { artifact } = artifactFor(manifest, profile, label);
+  const artifact = findArtifact(normalized, profile, label);
   const digest = requireDigest(value.digest, `${label}.digest`);
   if (digest !== artifact.digest) {
     fail(
@@ -1028,6 +1036,45 @@ function normalizeArtifactReference(manifest, input, label) {
     );
   }
   return { profile, digest };
+}
+
+const REBUILD_MESSAGES = Object.freeze({
+  promote: "Promotion must consume the candidate artifact without a production rebuild.",
+  rollback: "Rollback must restore a previously built digest without rebuilding.",
+});
+
+function buildTransitionEvidence({
+  action,
+  normalizedManifest,
+  profile,
+  artifact,
+  sourceEnvironment,
+  targetEnvironment,
+  rebuilt,
+}) {
+  if (rebuilt !== false) {
+    fail(REBUILD_MESSAGES[action], "rebuild-detected");
+  }
+  const reference = normalizeArtifactReference(
+    normalizedManifest,
+    artifact ?? {
+      profile,
+      digest: findArtifact(normalizedManifest, profile, "profile").digest,
+    },
+    `${action}.artifact`,
+  );
+  return deepFreeze({
+    schemaVersion: DEPLOYMENT_EVIDENCE_SCHEMA_VERSION,
+    action,
+    profile: reference.profile,
+    artifactDigest: reference.digest,
+    manifestDigest: normalizedManifest.identity.manifestDigest,
+    topologyDigest: normalizedManifest.identity.topologyDigest,
+    sourceEnvironment: requireIdentifier(sourceEnvironment, "sourceEnvironment"),
+    targetEnvironment: requireIdentifier(targetEnvironment, "targetEnvironment"),
+    rebuilt: false,
+    verified: true,
+  });
 }
 
 export function promoteDeploymentArtifact({
@@ -1040,28 +1087,14 @@ export function promoteDeploymentArtifact({
 }) {
   const normalized = validateDeploymentManifest(manifest);
   const target = requireIdentifier(targetEnvironment, "targetEnvironment");
-  if (rebuilt !== false) {
-    fail(
-      "Promotion must consume the candidate artifact without a production rebuild.",
-      "rebuild-detected",
-    );
-  }
-  const reference = normalizeArtifactReference(
-    normalized,
-    artifact ?? { profile, digest: artifactFor(normalized, profile, "profile").artifact.digest },
-    "promotion.artifact",
-  );
-  return deepFreeze({
-    schemaVersion: DEPLOYMENT_EVIDENCE_SCHEMA_VERSION,
+  return buildTransitionEvidence({
     action: "promote",
-    profile: reference.profile,
-    artifactDigest: reference.digest,
-    manifestDigest: normalized.identity.manifestDigest,
-    topologyDigest: normalized.identity.topologyDigest,
-    sourceEnvironment: requireIdentifier(sourceEnvironment, "sourceEnvironment"),
+    normalizedManifest: normalized,
+    profile,
+    artifact,
+    sourceEnvironment,
     targetEnvironment: target,
-    rebuilt: false,
-    verified: true,
+    rebuilt,
   });
 }
 
@@ -1076,28 +1109,14 @@ export function rollbackDeploymentArtifact({
   rebuilt = false,
 }) {
   const normalized = validateDeploymentManifest(manifest);
-  if (rebuilt !== false) {
-    fail(
-      "Rollback must restore a previously built digest without rebuilding.",
-      "rebuild-detected",
-    );
-  }
-  const reference = normalizeArtifactReference(
-    normalized,
-    artifact ?? { profile, digest: artifactFor(normalized, profile, "profile").artifact.digest },
-    "rollback.artifact",
-  );
-  return deepFreeze({
-    schemaVersion: DEPLOYMENT_EVIDENCE_SCHEMA_VERSION,
+  return buildTransitionEvidence({
     action: "rollback",
-    profile: reference.profile,
-    artifactDigest: reference.digest,
-    manifestDigest: normalized.identity.manifestDigest,
-    topologyDigest: normalized.identity.topologyDigest,
-    sourceEnvironment: requireIdentifier(sourceEnvironment, "sourceEnvironment"),
-    targetEnvironment: requireIdentifier(targetEnvironment, "targetEnvironment"),
-    rebuilt: false,
-    verified: true,
+    normalizedManifest: normalized,
+    profile,
+    artifact,
+    sourceEnvironment,
+    targetEnvironment,
+    rebuilt,
   });
 }
 
@@ -1124,12 +1143,12 @@ function verifyTransition(manifest, transition, action) {
   if (value.schemaVersion !== DEPLOYMENT_EVIDENCE_SCHEMA_VERSION || value.action !== action) {
     fail(`${action} evidence has an unsupported schema or action.`, "invalid-evidence");
   }
+  const normalized = validateDeploymentManifest(manifest);
   const reference = normalizeArtifactReference(
-    manifest,
+    normalized,
     { profile: value.profile, digest: value.artifactDigest },
     `${action} evidence.artifact`,
   );
-  const normalized = validateDeploymentManifest(manifest);
   if (
     value.manifestDigest !== normalized.identity.manifestDigest ||
     value.topologyDigest !== normalized.identity.topologyDigest ||
@@ -1174,23 +1193,32 @@ function deploymentChecks(manifest, projections, promotion, rollback) {
   );
   verifyPromotionEvidence(normalized, promotion);
   verifyRollbackEvidence(normalized, rollback);
+  const servingResources = normalized.resources.filter(
+    (resource) => resource.role === "serving",
+  );
+  const shutdownResources = normalized.resources.filter(
+    (resource) => resource.shutdown !== null,
+  );
+  const resourcesById = new Map(
+    normalized.resources.map((resource) => [resource.id, resource]),
+  );
   return {
     artifactIdentity: true,
     reproducible: normalized.identity.reproducible === true,
     builtOnce: normalized.identity.builtOnce === true,
     externalConfiguration: normalized.security.containsSecrets === false,
-    readiness: normalized.resources
-      .filter((resource) => resource.role === "serving")
-      .every((resource) => resource.checks?.readiness !== undefined),
-    liveness: normalized.resources
-      .filter((resource) => resource.role === "serving")
-      .every((resource) => resource.checks?.liveness !== undefined),
-    gracefulShutdown: normalized.resources
-      .filter((resource) => resource.shutdown !== null)
-      .every((resource) => resource.shutdown.gracePeriodSeconds > 0),
+    readiness: servingResources.every(
+      (resource) => resource.checks?.readiness !== undefined,
+    ),
+    liveness: servingResources.every(
+      (resource) => resource.checks?.liveness !== undefined,
+    ),
+    gracefulShutdown: shutdownResources.every(
+      (resource) => resource.shutdown.gracePeriodSeconds > 0,
+    ),
     migratorOrdering: normalized.migration.beforeServing.every((resourceId) =>
-      normalized.resources
-        .find((resource) => resource.id === resourceId)
+      resourcesById
+        .get(resourceId)
         ?.dependsOn.some(
           (dependency) =>
             dependency.resource === normalized.migration.resource &&
