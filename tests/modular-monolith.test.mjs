@@ -320,12 +320,12 @@ test("durable jobs are opt-in and generate an explicit Quartz composition", asyn
     );
 
     const result = await generateModularMonolithPreset({
-        applicationName: "MartiX.Planner",
-        businessModules: ["Orders"],
-        capabilities: ["durable-jobs"],
-        providers: ["quartz"],
-        outputDirectory: join(root, "generated"),
-      });
+      applicationName: "MartiX.Planner",
+      businessModules: ["Orders"],
+      capabilities: ["durable-jobs"],
+      providers: ["quartz"],
+      outputDirectory: join(root, "generated"),
+    });
     assert.ok(
       result.files.includes(
         "src/MartiX.Planner.Api/Infrastructure/DurableJobs/DurableJobsComposition.cs",
@@ -378,13 +378,35 @@ test("durable jobs are opt-in and generate an explicit Quartz composition", asyn
       ),
       "utf8",
     );
+    const migratorProject = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Planner.Migrator",
+        "MartiX.Planner.Migrator.csproj",
+      ),
+      "utf8",
+    );
+    const testSource = await readFile(
+      join(
+        root,
+        "generated",
+        "tests",
+        "MartiX.Planner.Tests",
+        "ModularMonolithCompositionTests.cs",
+      ),
+      "utf8",
+    );
     assert.match(apiProject, /PackageReference Include="Quartz"/);
+    assert.doesNotMatch(migratorProject, /PackageReference Include="Quartz"/);
     assert.match(api, /DurableJobsComposition\.AddServices/);
     assert.match(durableJobs, /AddQuartzHostedService/);
     assert.match(durableJobs, /StoreDurably\(true\)/);
     assert.match(durableJobs, /MaxConcurrency = 8/);
     assert.match(durableJobs, /public Task<bool> DeleteAsync/);
     assert.match(durableJobs, /int schemaVersion/);
+    assert.match(durableJobs, /DurableJobValidation/);
     assert.match(migrator, /QuartzMigrationComposition\.ExecuteMigrationAsync/);
     const quartzMigration = await readFile(
       join(
@@ -400,6 +422,9 @@ test("durable jobs are opt-in and generate an explicit Quartz composition", asyn
     );
     assert.match(quartzMigration, /RequiredTables/);
     assert.match(quartzMigration, /qrtz_fired_triggers/);
+    assert.match(quartzMigration, /new NpgsqlConnection/);
+    assert.match(testSource, /ConnectionStrings:Quartz/);
+    assert.match(testSource, /Quartz:SchedulerName/);
     assert.equal(
       baseline.capabilities.includes("modular-monolith.durable-jobs"),
       false,
@@ -486,6 +511,7 @@ test("durable jobs translate the selected relational provider", async () => {
     );
     assert.match(durableJobs, /SqlServerDelegate/);
     assert.match(quartzMigration, /Microsoft\.Data\.SqlClient/);
+    assert.match(quartzMigration, /new SqlConnection/);
     assert.match(quartzMigration, /sys\.foreign_keys/);
   } finally {
     await rm(root, { recursive: true, force: true });

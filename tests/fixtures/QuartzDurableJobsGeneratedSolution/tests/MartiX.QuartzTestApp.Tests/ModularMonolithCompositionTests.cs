@@ -190,10 +190,16 @@ public sealed class ModularMonolithCompositionTests
                     EnvironmentName = Environments.Development,
                 });
             builder.WebHost.UseTestServer();
-            builder.Configuration["ConnectionStrings:Database"] =
+            var connectionString =
                 Environment.GetEnvironmentVariable(
                     "MARTIX_MODULAR_MONOLITH_DATABASE")
                 ?? "Host=localhost;Database=martix_test";
+            builder.Configuration["ConnectionStrings:Database"] =
+                connectionString;
+            builder.Configuration["ConnectionStrings:Quartz"] =
+                connectionString;
+            builder.Configuration["Quartz:SchedulerName"] =
+                "MartiX.QuartzTestApp.DurableJobs";
             ApiComposition.ConfigureBuilder(builder);
             ApiComposition.ConfigureServices(
                 builder.Services,

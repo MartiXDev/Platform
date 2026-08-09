@@ -1,5 +1,5 @@
-using System.Data;
 using System.Data.Common;
+using Npgsql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -76,16 +76,8 @@ public static class QuartzMigrationComposition
     }
 
     private static DbConnection CreateConnection(
-        QuartzMigrationOptions options)
-    {
-        var factory = DbProviderFactories.GetFactory(
-            options.ProviderInvariantName);
-        var connection = factory.CreateConnection()
-            ?? throw new InvalidOperationException(
-                "The selected Quartz database provider could not create a connection.");
-        connection.ConnectionString = options.ConnectionString;
-        return connection;
-    }
+        QuartzMigrationOptions options) =>
+        new NpgsqlConnection(options.ConnectionString);
 
     private static async Task<string> ValidateAsync(
         DbConnection connection,

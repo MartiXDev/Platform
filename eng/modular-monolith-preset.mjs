@@ -1089,7 +1089,6 @@ function migratorPackageReferences(plan) {
         privateAssets: true,
       }),
       providerReference,
-      ...(plan.durableJobs ? DURABLE_JOBS_PACKAGE_REFERENCES : []),
     ],
     [],
   );
@@ -1599,10 +1598,10 @@ ${failCases}
 function durableJobsCompositionFile(plan) {
   const providerStore =
     plan.relationalProvider === "postgresql"
-      ? `            store.UseGenericDatabase<Quartz.Impl.AdoJobStore.PostgreSQLDelegate>(
+      ? `                store.UseGenericDatabase<Quartz.Impl.AdoJobStore.PostgreSQLDelegate>(
                 "Npgsql",
                 provider => provider.ConnectionString = connectionString);`
-      : `            store.UseGenericDatabase<Quartz.Impl.AdoJobStore.SqlServerDelegate>(
+      : `                store.UseGenericDatabase<Quartz.Impl.AdoJobStore.SqlServerDelegate>(
                 "SqlServer",
                 provider => provider.ConnectionString = connectionString);`;
   return `using System.Collections.Immutable;
@@ -1628,18 +1627,14 @@ public sealed record JobInvocation
         int schemaVersion,
         IReadOnlyDictionary<string, string> arguments)
     {
-        if (string.IsNullOrWhiteSpace(operationName) ||
-            operationName.Length > 128 ||
-            operationName.Any(character =>
-                !(char.IsAsciiLetterOrDigit(character) ||
-                  character is '.' or '-' or '_')))
+        if (!DurableJobValidation.IsValidOperationName(operationName))
         {
             throw new ArgumentException(
                 "A durable job operation name must be a bounded identifier.",
                 nameof(operationName));
         }
 
-        if (schemaVersion <= 0)
+        if (!DurableJobValidation.IsValidSchemaVersion(schemaVersion))
         {
             throw new ArgumentOutOfRangeException(nameof(schemaVersion));
         }
@@ -1680,6 +1675,19 @@ public sealed record JobInvocation
     public int SchemaVersion { get; }
 
     public IReadOnlyDictionary<string, string> Arguments { get; }
+}
+
+internal static class DurableJobValidation
+{
+    internal static bool IsValidOperationName(string? operationName) =>
+        !string.IsNullOrWhiteSpace(operationName) &&
+        operationName.Length <= 128 &&
+        operationName.All(character =>
+            char.IsAsciiLetterOrDigit(character) ||
+            character is '.' or '-' or '_');
+
+    internal static bool IsValidSchemaVersion(int schemaVersion) =>
+        schemaVersion > 0;
 }
 
 public interface IDurableJobDispatcher
@@ -1794,17 +1802,13 @@ public static class DurableJobsComposition
         string operationName,
         int schemaVersion)
     {
-        if (string.IsNullOrWhiteSpace(operationName) ||
-            operationName.Length > 128 ||
-            operationName.Any(character =>
-                !(char.IsAsciiLetterOrDigit(character) ||
-                  character is '.' or '-' or '_')))
+        if (!DurableJobValidation.IsValidOperationName(operationName))
         {
             throw new ArgumentException(
                 "A durable job requires a bounded operation name.",
                 nameof(operationName));
         }
-        if (schemaVersion <= 0)
+        if (!DurableJobValidation.IsValidSchemaVersion(schemaVersion))
         {
             throw new ArgumentOutOfRangeException(nameof(schemaVersion));
         }
@@ -1934,7 +1938,7 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.PauseJob(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
 
     public Task ResumeAsync(
@@ -1942,7 +1946,7 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.ResumeJob(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
 
     public Task<bool> InterruptAsync(
@@ -1950,7 +1954,7 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.Interrupt(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
 
     public Task<bool> DeleteAsync(
@@ -1958,11 +1962,8 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.DeleteJob(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
-
-    private static JobKey CreateKey(string operationName, int schemaVersion)
-        => DurableJobsComposition.CreateJobKey(operationName, schemaVersion);
 }
 
 internal sealed class DurableJobsHealthCheck : IHealthCheck
@@ -3261,6 +3262,14 @@ function quartzMigrationCompositionFile(plan) {
     plan.relationalProvider === "postgresql"
       ? "Npgsql"
       : "Microsoft.Data.SqlClient";
+  const providerConnectionUsing =
+    plan.relationalProvider === "postgresql"
+      ? "using Npgsql;"
+      : "using Microsoft.Data.SqlClient;";
+  const providerConnectionExpression =
+    plan.relationalProvider === "postgresql"
+      ? "new NpgsqlConnection(options.ConnectionString)"
+      : "new SqlConnection(options.ConnectionString)";
   const schemaScript =
     plan.relationalProvider === "postgresql"
       ? `    private static string SchemaScript =>
@@ -3704,8 +3713,8 @@ function quartzMigrationCompositionFile(plan) {
             ON [dbo].[QRTZ_FIRED_TRIGGERS](
                 SCHED_NAME, TRIGGER_GROUP, TRIGGER_NAME);
         """;`;
-  return `using System.Data;
-using System.Data.Common;
+  return `using System.Data.Common;
+${providerConnectionUsing}
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -3782,16 +3791,8 @@ public static class QuartzMigrationComposition
     }
 
     private static DbConnection CreateConnection(
-        QuartzMigrationOptions options)
-    {
-        var factory = DbProviderFactories.GetFactory(
-            options.ProviderInvariantName);
-        var connection = factory.CreateConnection()
-            ?? throw new InvalidOperationException(
-                "The selected Quartz database provider could not create a connection.");
-        connection.ConnectionString = options.ConnectionString;
-        return connection;
-    }
+        QuartzMigrationOptions options) =>
+        ${providerConnectionExpression};
 
     private static async Task<string> ValidateAsync(
         DbConnection connection,
@@ -4059,6 +4060,13 @@ using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
     }
 `;
 
+  const durableJobsConfiguration = plan.durableJobs
+    ? `            builder.Configuration["ConnectionStrings:Quartz"] =
+                connectionString;
+            builder.Configuration["Quartz:SchedulerName"] =
+                "${plan.applicationName}.DurableJobs";`
+    : "";
+
   return `using System.Net;
 using System.Text.Json;
 using ${plan.applicationName}.Client;
@@ -4243,10 +4251,13 @@ ${crashRedeliveryScenario}
                     EnvironmentName = Environments.Development,
                 });
             builder.WebHost.UseTestServer();
-            builder.Configuration["ConnectionStrings:Database"] =
+            var connectionString =
                 Environment.GetEnvironmentVariable(
                     "MARTIX_MODULAR_MONOLITH_DATABASE")
                 ?? "Host=localhost;Database=martix_test";
+            builder.Configuration["ConnectionStrings:Database"] =
+                connectionString;
+${durableJobsConfiguration}
             ApiComposition.ConfigureBuilder(builder);
             ApiComposition.ConfigureServices(
                 builder.Services,

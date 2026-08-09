@@ -1234,6 +1234,9 @@ async function validateModularMonolithComposition(
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
   );
+  const testSource = await readSolutionFile(
+    `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
+  );
   const apiHostSource = await readSolutionFile(
     `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
   );
@@ -1440,15 +1443,19 @@ async function validateModularMonolithComposition(
 
   const migratorProjectPath = `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`;
   const migratorProject = await readSolutionFile(migratorProjectPath);
-  const quartzPackageResidue = [apiProject, migratorProject].some((source) =>
-    /PackageReference\b[^>]*\bInclude="Quartz(?:[."]|")/.test(source),
-  );
-  if (durableJobsSelected !== quartzPackageResidue) {
+  const apiQuartzPackageResidue =
+    /PackageReference\b[^>]*\bInclude="Quartz(?:[."]|")/.test(apiProject);
+  const migratorQuartzPackageResidue =
+    /PackageReference\b[^>]*\bInclude="Quartz(?:[."]|")/.test(migratorProject);
+  if (durableJobsSelected !== apiQuartzPackageResidue) {
     fail(
       durableJobsSelected
-        ? "Selected Quartz durable jobs must reference Quartz packages."
+        ? "Selected Quartz durable jobs must reference Quartz packages from the API project."
         : "Unselected Quartz durable jobs must leave no Quartz package residue.",
     );
+  }
+  if (migratorQuartzPackageResidue) {
+    fail("The Migrator must not reference Quartz runtime packages.");
   }
   const migratorProjectReferences =
     manifest.authentication?.profile === "identity:interactive"
@@ -1498,6 +1505,8 @@ async function validateModularMonolithComposition(
       !durableJobsSource.includes("AddCheck<DurableJobsHealthCheck>") ||
       !durableJobsSource.includes("AddSource(DurableJobsTelemetry.ActivitySourceName)") ||
       !durableJobsSource.includes("UseSystemTextJsonSerializer") ||
+      !testSource.includes("ConnectionStrings:Quartz") ||
+      !testSource.includes("Quartz:SchedulerName") ||
       !quartzMigrationSource.includes(
         "public static async Task<string> ExecuteMigrationAsync",
       ) ||
@@ -1573,9 +1582,6 @@ async function validateModularMonolithComposition(
   if (!/<PackageReference\b[^>]*\bInclude="TUnit"/.test(testProject)) {
     fail(`Modular Monolith test project must reference TUnit: ${testProjectPath}.`);
   }
-  const testSource = await readSolutionFile(
-    `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
-  );
   if (
     !testSource.includes("ActorContext.Create") ||
     !testSource.includes("permission-required") ||

@@ -21,18 +21,14 @@ public sealed record JobInvocation
         int schemaVersion,
         IReadOnlyDictionary<string, string> arguments)
     {
-        if (string.IsNullOrWhiteSpace(operationName) ||
-            operationName.Length > 128 ||
-            operationName.Any(character =>
-                !(char.IsAsciiLetterOrDigit(character) ||
-                  character is '.' or '-' or '_')))
+        if (!DurableJobValidation.IsValidOperationName(operationName))
         {
             throw new ArgumentException(
                 "A durable job operation name must be a bounded identifier.",
                 nameof(operationName));
         }
 
-        if (schemaVersion <= 0)
+        if (!DurableJobValidation.IsValidSchemaVersion(schemaVersion))
         {
             throw new ArgumentOutOfRangeException(nameof(schemaVersion));
         }
@@ -73,6 +69,19 @@ public sealed record JobInvocation
     public int SchemaVersion { get; }
 
     public IReadOnlyDictionary<string, string> Arguments { get; }
+}
+
+internal static class DurableJobValidation
+{
+    internal static bool IsValidOperationName(string? operationName) =>
+        !string.IsNullOrWhiteSpace(operationName) &&
+        operationName.Length <= 128 &&
+        operationName.All(character =>
+            char.IsAsciiLetterOrDigit(character) ||
+            character is '.' or '-' or '_');
+
+    internal static bool IsValidSchemaVersion(int schemaVersion) =>
+        schemaVersion > 0;
 }
 
 public interface IDurableJobDispatcher
@@ -187,17 +196,13 @@ public static class DurableJobsComposition
         string operationName,
         int schemaVersion)
     {
-        if (string.IsNullOrWhiteSpace(operationName) ||
-            operationName.Length > 128 ||
-            operationName.Any(character =>
-                !(char.IsAsciiLetterOrDigit(character) ||
-                  character is '.' or '-' or '_')))
+        if (!DurableJobValidation.IsValidOperationName(operationName))
         {
             throw new ArgumentException(
                 "A durable job requires a bounded operation name.",
                 nameof(operationName));
         }
-        if (schemaVersion <= 0)
+        if (!DurableJobValidation.IsValidSchemaVersion(schemaVersion))
         {
             throw new ArgumentOutOfRangeException(nameof(schemaVersion));
         }
@@ -255,7 +260,7 @@ public static class DurableJobsComposition
                 store.UseProperties = true;
                 store.RetryInterval = TimeSpan.FromSeconds(15);
                 store.MaxTransientRetries = 3;
-            store.UseGenericDatabase<Quartz.Impl.AdoJobStore.PostgreSQLDelegate>(
+                store.UseGenericDatabase<Quartz.Impl.AdoJobStore.PostgreSQLDelegate>(
                 "Npgsql",
                 provider => provider.ConnectionString = connectionString);
                 store.UseClustering(cluster =>
@@ -329,7 +334,7 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.PauseJob(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
 
     public Task ResumeAsync(
@@ -337,7 +342,7 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.ResumeJob(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
 
     public Task<bool> InterruptAsync(
@@ -345,7 +350,7 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.Interrupt(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
 
     public Task<bool> DeleteAsync(
@@ -353,11 +358,8 @@ public sealed class DurableJobOperator
         int schemaVersion,
         CancellationToken cancellationToken = default) =>
         scheduler.DeleteJob(
-            CreateKey(operationName, schemaVersion),
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
             cancellationToken);
-
-    private static JobKey CreateKey(string operationName, int schemaVersion)
-        => DurableJobsComposition.CreateJobKey(operationName, schemaVersion);
 }
 
 internal sealed class DurableJobsHealthCheck : IHealthCheck
