@@ -25,6 +25,12 @@ import {
   resolveAuthenticationProfile,
 } from "./authentication-profile.mjs";
 import { renderFastEndpointsOrdersSource } from "./api-fastendpoints-source.mjs";
+import {
+  OTLP_EXPORTER_CAPABILITY,
+  OTLP_EXPORTER_ID,
+  OTLP_EXPORTER_PACKAGE,
+  hasOtlpExporter,
+} from "./otlp-export.mjs";
 
 export const API_PRESET = "api";
 export const API_MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -91,9 +97,21 @@ export const API_CAPABILITY_MATRIX = Object.freeze([
     classification: "required",
     provider: null,
   }),
+  Object.freeze({
+    id: OTLP_EXPORTER_CAPABILITY,
+    classification: "optional-supported",
+    provider: OTLP_EXPORTER_ID,
+  }),
 ]);
 export const API_BASELINE_CAPABILITIES = Object.freeze(
-  API_CAPABILITY_MATRIX.map((capability) => capability.id),
+  API_CAPABILITY_MATRIX
+    .filter((capability) => capability.classification === "required")
+    .map((capability) => capability.id),
+);
+export const API_OPTIONAL_CAPABILITIES = Object.freeze(
+  API_CAPABILITY_MATRIX
+    .filter((capability) => capability.classification !== "required")
+    .map((capability) => capability.id),
 );
 export const API_PROVIDER_MATRIX = Object.freeze([
   Object.freeze({
@@ -101,6 +119,14 @@ export const API_PROVIDER_MATRIX = Object.freeze([
     capability: "aspnetcore.fastendpoints",
     package: "MartiX.Platform.AspNetCore.FastEndpoints",
     version: "0.1.0-preview.1",
+    runtimeSupport: "jit",
+    nativeAot: "undeclared",
+  }),
+  Object.freeze({
+    id: OTLP_EXPORTER_ID,
+    capability: OTLP_EXPORTER_CAPABILITY,
+    package: OTLP_EXPORTER_PACKAGE.id,
+    version: OTLP_EXPORTER_PACKAGE.version,
     runtimeSupport: "jit",
     nativeAot: "undeclared",
   }),
@@ -359,6 +385,19 @@ function validateApiSelections({
     if (API_BASELINE_CAPABILITIES.includes(capability)) {
       continue;
     }
+    if (API_OPTIONAL_CAPABILITIES.includes(capability)) {
+      if (!requestedProviders.some((requestedProvider) =>
+        API_PROVIDER_MATRIX.some(
+          (providerDefinition) =>
+            providerDefinition.id === requestedProvider
+            && providerDefinition.capability === capability,
+        ))) {
+        fail(
+          `Capability "${capability}" requires a matching selected provider.`,
+        );
+      }
+      continue;
+    }
 
     const reason = KNOWN_UNAVAILABLE_CAPABILITIES.has(capability)
       ? "not supported by the api preset"
@@ -366,7 +405,10 @@ function validateApiSelections({
     fail(`Capability "${capability}" is ${reason}.`);
   }
 
-  if (requestedProviders.length > 1) {
+  const endpointProviders = requestedProviders.filter(
+    (requestedProvider) => requestedProvider !== OTLP_EXPORTER_ID,
+  );
+  if (endpointProviders.length > 1) {
     fail(
       "The api preset supports exactly one endpoint provider selection.",
     );
@@ -397,7 +439,8 @@ function validateApiSelections({
   }
 
   return {
-    endpointProvider: requestedProviders[0] ?? null,
+    endpointProvider: endpointProviders[0] ?? null,
+    observabilityExporter: hasOtlpExporter(requestedProviders),
     authentication: resolveAuthenticationProfile(options, {
       preset: API_PRESET,
       persistence,
@@ -410,13 +453,19 @@ function createPlan(applicationName, selections) {
   const selectedProvider = selections.endpointProvider;
   const projectNames = getProjectNames(applicationName);
   const baselineCapabilities = [...API_BASELINE_CAPABILITIES];
+  const capabilities = selections.observabilityExporter
+    ? [...baselineCapabilities, OTLP_EXPORTER_CAPABILITY]
+    : baselineCapabilities;
   const endpointProvider = selectedProvider ?? "minimal-api";
-  const providerDefinition = API_PROVIDER_MATRIX.find(
-    ({ id }) => id === selectedProvider,
+  const selectedProviderIds = [
+    ...(selectedProvider === null ? [] : [selectedProvider]),
+    ...(selections.observabilityExporter ? [OTLP_EXPORTER_ID] : []),
+  ];
+  const providerDefinitions = selectedProviderIds.map((providerId) =>
+    API_PROVIDER_MATRIX.find(({ id }) => id === providerId),
   );
-  const providerPackageReferences = selectedProvider === null
-    ? []
-    : [API_PROVIDER_PACKAGE_REFERENCES.get(selectedProvider)];
+  const providerPackageReferences = selectedProviderIds
+    .map((providerId) => API_PROVIDER_PACKAGE_REFERENCES.get(providerId));
 
   return {
     applicationName,
@@ -429,17 +478,16 @@ function createPlan(applicationName, selections) {
       template: "martix-app",
     },
     baselineCapabilities,
-    capabilities: baselineCapabilities,
-    providers: providerDefinition === undefined
-      ? []
-      : [{
-          id: providerDefinition.id,
-          capability: providerDefinition.capability,
-          state: "selected",
-        }],
+    capabilities,
+    providers: providerDefinitions.map((providerDefinition) => ({
+      id: providerDefinition.id,
+      capability: providerDefinition.capability,
+      state: "selected",
+    })),
     authentication: authenticationManifest(selections.authentication),
     persistence: "none",
     endpointProvider,
+    observabilityExporter: selections.observabilityExporter,
     packageReferences: [
       ...API_PACKAGE_REFERENCES,
       ...providerPackageReferences,
@@ -453,6 +501,7 @@ function createPlan(applicationName, selections) {
       applicationUi: false,
       businessModules: false,
       endpointProvider,
+      observabilityExporter: selections.observabilityExporter,
       authenticationProfile: selections.authentication.profile,
       relationalPersistence: false,
     },
@@ -2061,6 +2110,7 @@ function createFiles(plan, manifest) {
       renderHostSecurityFile(
         plan.applicationName,
         plan.authentication.profile,
+        plan.observabilityExporter,
       ),
     ],
     [

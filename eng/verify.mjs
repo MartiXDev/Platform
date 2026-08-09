@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
@@ -45,6 +46,7 @@ import {
   verifyProviderAdmission,
   verifyProviderAdmissionEvidence,
 } from "./provider-admission.mjs";
+import { generateApiPreset } from "./api-preset.mjs";
 
 const CADENCES = [
   "fast",
@@ -63,6 +65,9 @@ const FULL_STACK_SOLUTION_ROOT = `tests/fixtures/${FULL_STACK_SOLUTION_NAME}`;
 const PROVIDER_ADMISSION_SOLUTION_NAME = "ProviderAdmissionGeneratedSolution";
 const PROVIDER_ADMISSION_SOLUTION_ROOT =
   `tests/fixtures/${PROVIDER_ADMISSION_SOLUTION_NAME}`;
+const OTLP_EXPORT_SOLUTION_NAME = "OtlpExportGeneratedSolution";
+const OTLP_EXPORT_SOLUTION_ROOT =
+  `tests/fixtures/${OTLP_EXPORT_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -80,6 +85,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.modular-monolith",
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
+  "bootstrap.otlp-export",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -236,6 +242,11 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/CONTEXT.md`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  `${OTLP_EXPORT_SOLUTION_ROOT}/README.md`,
+  `${OTLP_EXPORT_SOLUTION_ROOT}/AGENTS.md`,
+  `${OTLP_EXPORT_SOLUTION_ROOT}/CONTEXT.md`,
+  `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
+  `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`,
   "eng/provider-admission.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
@@ -2596,6 +2607,431 @@ export async function validateProviderAdmissionFixture(
   };
 }
 
+const OTLP_EXPORT_EFFECT_KINDS = [
+  "packages",
+  "configuration",
+  "registrations",
+  "workers",
+  "healthChecks",
+  "telemetry",
+  "containers",
+  "deployment",
+];
+const OTLP_EXPORT_SIGNAL_CONTRACTS = new Map([
+  ["traces", "ActivitySource"],
+  ["metrics", "Meter"],
+  ["logs", "ILogger"],
+]);
+
+function requireBoolean(value, path) {
+  if (typeof value !== "boolean") {
+    fail(`Invalid bootstrap value at ${path}: expected a boolean.`);
+  }
+}
+
+function requireNumber(value, path) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    fail(`Invalid bootstrap value at ${path}: expected a finite number.`);
+  }
+}
+
+function requireExactArray(actual, expected, path) {
+  requireArray(actual, path);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    fail(
+      `Invalid bootstrap value at ${path}: expected ${JSON.stringify(expected)}; received ${JSON.stringify(actual)}.`,
+    );
+  }
+}
+
+async function verifyGeneratedOtlpComposition() {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "martix-otlp-export-"));
+  const selectedRoot = join(temporaryRoot, "selected");
+  const baselineRoot = join(temporaryRoot, "baseline");
+  const applicationName = "Contoso.OtlpExport";
+  const hostRelativePath =
+    `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`;
+  const projectRelativePath =
+    `src/${applicationName}.Api/${applicationName}.Api.csproj`;
+
+  try {
+    const [selected, baseline] = await Promise.all([
+      generateApiPreset({
+        applicationName,
+        providers: ["otlp"],
+        outputDirectory: selectedRoot,
+      }),
+      generateApiPreset({
+        applicationName,
+        outputDirectory: baselineRoot,
+      }),
+    ]);
+    if (
+      JSON.stringify(selected.plan.providers) !==
+      JSON.stringify([{
+        id: "otlp",
+        capability: "observability-export",
+        state: "selected",
+      }])
+    ) {
+      fail("OTLP Generated Solution selected provider composition drifted.");
+    }
+
+    const [selectedHost, selectedProject, baselineHost, baselineProject] =
+      await Promise.all([
+        readFile(join(selectedRoot, hostRelativePath), "utf8"),
+        readFile(join(selectedRoot, projectRelativePath), "utf8"),
+        readFile(join(baselineRoot, hostRelativePath), "utf8"),
+        readFile(join(baselineRoot, projectRelativePath), "utf8"),
+      ]);
+    for (const marker of [
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+      "OTEL_EXPORTER_OTLP_ENDPOINT",
+      "AddOtlpExporter",
+      "WithLogging",
+      "OtlpActivityRedactionProcessor",
+      "OtlpLogRedactionProcessor",
+      "SetFallbackRedactor",
+      "MaxQueueSize = 2048",
+      "MaxExportBatchSize = 512",
+      "ScheduledDelayMilliseconds = 5000",
+      "ExporterTimeoutMilliseconds = 30000",
+      "HostOptions",
+    ]) {
+      if (!selectedHost.includes(marker) && !selectedProject.includes(marker)) {
+        fail(`OTLP Generated Solution is missing selected composition: ${marker}.`);
+      }
+    }
+    for (const source of [baselineHost, baselineProject]) {
+      if (
+        source.includes("OpenTelemetry.Exporter.OpenTelemetryProtocol")
+        || source.includes("OTEL_EXPORTER_OTLP_ENDPOINT")
+        || source.includes("AddOtlpExporter")
+        || source.includes("WithLogging")
+      ) {
+        fail("OTLP Generated Solution baseline retains unselected residue.");
+      }
+    }
+    if (
+      selectedHost.includes("AddCheck(\"otlp")
+      || selectedHost.includes("AddCheck<") &&
+        selectedHost.match(/AddCheck<[^>]*otlp/i)
+    ) {
+      fail("OTLP Generated Solution must not add an OTLP health check.");
+    }
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+export async function validateOtlpExportFixture(fixture, manifest) {
+  const fixturePath = `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`;
+  assertSecretFree(fixture, fixturePath, "OTLP export fixture");
+  requireRecord(fixture, fixturePath);
+  rejectUnknownProperties(
+    fixture,
+    ["selection", "observed", "evidence"],
+    fixturePath,
+  );
+  requireRecord(fixture.selection, `${fixturePath}.selection`);
+  requireRecord(fixture.observed, `${fixturePath}.observed`);
+  requireRecord(fixture.evidence, `${fixturePath}.evidence`);
+  rejectUnknownProperties(
+    fixture.selection,
+    [
+      "preset",
+      "capabilities",
+      "providers",
+      "runtime",
+      "operatingSystem",
+      "configuration",
+    ],
+    `${fixturePath}.selection`,
+  );
+  rejectUnknownProperties(
+    fixture.observed,
+    OTLP_EXPORT_EFFECT_KINDS,
+    `${fixturePath}.observed`,
+  );
+  rejectUnknownProperties(
+    fixture.evidence,
+    [
+      "schemaVersion",
+      "outcome",
+      "provider",
+      "signals",
+      "privacy",
+      "reliability",
+      "isolation",
+      "absence",
+    ],
+    `${fixturePath}.evidence`,
+  );
+
+  requireExactArray(
+    fixture.selection.capabilities,
+    ["observability-export"],
+    `${fixturePath}.selection.capabilities`,
+  );
+  requireExactArray(
+    fixture.selection.providers,
+    [{
+      capability: "observability-export",
+      id: "otlp",
+    }],
+    `${fixturePath}.selection.providers`,
+  );
+  for (const [property, expected] of [
+    ["preset", "api"],
+    ["runtime", "net10.0"],
+    ["operatingSystem", "linux"],
+  ]) {
+    requireString(
+      fixture.selection[property],
+      `${fixturePath}.selection.${property}`,
+    );
+    if (fixture.selection[property] !== expected) {
+      fail(
+        `Invalid OTLP export fixture selection at ${fixturePath}.selection.${property}: expected ${expected}.`,
+      );
+    }
+  }
+  requireExactArray(
+    fixture.selection.configuration,
+    ["OTEL_EXPORTER_OTLP_ENDPOINT"],
+    `${fixturePath}.selection.configuration`,
+  );
+
+  for (const kind of OTLP_EXPORT_EFFECT_KINDS) {
+    requireArray(fixture.observed[kind], `${fixturePath}.observed.${kind}`);
+  }
+  const admission = await verifyProviderAdmission({
+    selection: fixture.selection,
+    observed: fixture.observed,
+  });
+  if (admission.status !== "passed") {
+    fail("OTLP export provider admission did not pass.");
+  }
+
+  requireRecord(manifest, `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`);
+  requireArray(
+    manifest.capabilities,
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.capabilities`,
+  );
+  requireArray(
+    manifest.providers,
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.providers`,
+  );
+  requireArray(
+    manifest.supportClaims,
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.supportClaims`,
+  );
+  if (manifest.supportClaims.length !== 0) {
+    fail("OTLP export manifest must not make a Supported claim.");
+  }
+  const selectedCapability = manifest.capabilities.find(
+    ({ id }) => id === "observability-export",
+  );
+  if (selectedCapability?.state !== "selected") {
+    fail("OTLP export manifest must select observability-export.");
+  }
+  const selectedProviders = manifest.providers
+    .filter(({ state }) => state === "selected")
+    .map(({ capability, id }) => ({ capability, id }));
+  requireExactArray(
+    selectedProviders,
+    fixture.selection.providers,
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json.providers`,
+  );
+
+  const evidence = fixture.evidence;
+  requireString(evidence.schemaVersion, `${fixturePath}.evidence.schemaVersion`);
+  requireString(evidence.outcome, `${fixturePath}.evidence.outcome`);
+  requireString(evidence.provider, `${fixturePath}.evidence.provider`);
+  if (
+    evidence.schemaVersion !== "1.0.0"
+    || evidence.outcome !== "passed"
+    || evidence.provider !== "observability-export:otlp"
+  ) {
+    fail("OTLP export fixture evidence identity is invalid.");
+  }
+
+  requireArray(evidence.signals, `${fixturePath}.evidence.signals`);
+  if (evidence.signals.length !== OTLP_EXPORT_SIGNAL_CONTRACTS.size) {
+    fail("OTLP export evidence must cover traces, metrics, and logs.");
+  }
+  for (const [index, signal] of evidence.signals.entries()) {
+    const signalPath = `${fixturePath}.evidence.signals[${index}]`;
+    requireRecord(signal, signalPath);
+    rejectUnknownProperties(
+      signal,
+      ["id", "contract", "redaction"],
+      signalPath,
+    );
+    requireString(signal.id, `${signalPath}.id`);
+    requireString(signal.contract, `${signalPath}.contract`);
+    requireString(signal.redaction, `${signalPath}.redaction`);
+    if (
+      OTLP_EXPORT_SIGNAL_CONTRACTS.get(signal.id) !== signal.contract
+      || signal.redaction.length === 0
+    ) {
+      fail(`OTLP export signal evidence is invalid at ${signalPath}.`);
+    }
+  }
+  if (
+    new Set(evidence.signals.map(({ id }) => id)).size
+      !== OTLP_EXPORT_SIGNAL_CONTRACTS.size
+    || [...OTLP_EXPORT_SIGNAL_CONTRACTS.keys()].some(
+      (id) => !evidence.signals.some((signal) => signal.id === id),
+    )
+  ) {
+    fail("OTLP export evidence must contain one entry for each signal.");
+  }
+
+  requireRecord(evidence.privacy, `${fixturePath}.evidence.privacy`);
+  rejectUnknownProperties(
+    evidence.privacy,
+    [
+      "classification",
+      "fallbackRedactor",
+      "processorOrder",
+      "sensitiveKeyFragments",
+      "endpointPolicy",
+    ],
+    `${fixturePath}.evidence.privacy`,
+  );
+  for (const property of [
+    "classification",
+    "fallbackRedactor",
+    "processorOrder",
+    "endpointPolicy",
+  ]) {
+    requireString(evidence.privacy[property], `${fixturePath}.evidence.privacy.${property}`);
+  }
+  requireArray(
+    evidence.privacy.sensitiveKeyFragments,
+    `${fixturePath}.evidence.privacy.sensitiveKeyFragments`,
+  );
+  if (
+    evidence.privacy.classification !== "HostDataClassification.Secret"
+    || evidence.privacy.fallbackRedactor !== "ErasingRedactor"
+    || evidence.privacy.processorOrder !== "redaction-before-export"
+    || evidence.privacy.endpointPolicy !== "absolute-http-https-without-user-info"
+    || evidence.privacy.sensitiveKeyFragments.length < 5
+  ) {
+    fail("OTLP export privacy evidence is incomplete.");
+  }
+
+  requireRecord(evidence.reliability, `${fixturePath}.evidence.reliability`);
+  rejectUnknownProperties(
+    evidence.reliability,
+    [
+      "maxQueueSize",
+      "maxExportBatchSize",
+      "scheduledDelayMilliseconds",
+      "exporterTimeoutMilliseconds",
+      "retry",
+      "cancellation",
+      "shutdown",
+      "boundedQueue",
+      "boundedFailure",
+    ],
+    `${fixturePath}.evidence.reliability`,
+  );
+  for (const [property, expected] of [
+    ["maxQueueSize", 2048],
+    ["maxExportBatchSize", 512],
+    ["scheduledDelayMilliseconds", 5000],
+    ["exporterTimeoutMilliseconds", 30000],
+  ]) {
+    requireNumber(
+      evidence.reliability[property],
+      `${fixturePath}.evidence.reliability.${property}`,
+    );
+    if (evidence.reliability[property] !== expected) {
+      fail(`OTLP export reliability bound is invalid: ${property}.`);
+    }
+  }
+  for (const property of ["retry", "cancellation", "shutdown"]) {
+    requireString(
+      evidence.reliability[property],
+      `${fixturePath}.evidence.reliability.${property}`,
+    );
+  }
+  for (const property of ["boundedQueue", "boundedFailure"]) {
+    requireBoolean(
+      evidence.reliability[property],
+      `${fixturePath}.evidence.reliability.${property}`,
+    );
+    if (!evidence.reliability[property]) {
+      fail(`OTLP export reliability must declare ${property}.`);
+    }
+  }
+
+  requireRecord(evidence.isolation, `${fixturePath}.evidence.isolation`);
+  rejectUnknownProperties(
+    evidence.isolation,
+    [
+      "collectorUnavailable",
+      "collectorSlow",
+      "collectorRejects",
+      "authorization",
+      "readiness",
+      "healthChecks",
+      "registration",
+    ],
+    `${fixturePath}.evidence.isolation`,
+  );
+  for (const property of [
+    "collectorUnavailable",
+    "collectorSlow",
+    "collectorRejects",
+    "authorization",
+    "readiness",
+    "healthChecks",
+    "registration",
+  ]) {
+    requireString(
+      evidence.isolation[property],
+      `${fixturePath}.evidence.isolation.${property}`,
+    );
+  }
+  if (
+    evidence.isolation.collectorUnavailable !== "business-result-preserved"
+    || evidence.isolation.collectorSlow !== "business-result-preserved"
+    || evidence.isolation.collectorRejects !== "business-result-preserved"
+    || evidence.isolation.authorization !== "unchanged"
+    || evidence.isolation.readiness !== "unchanged"
+    || evidence.isolation.healthChecks !== "unchanged"
+    || evidence.isolation.registration !== "asynchronous-provider"
+  ) {
+    fail("OTLP export isolation evidence is incomplete.");
+  }
+
+  requireRecord(evidence.absence, `${fixturePath}.evidence.absence`);
+  rejectUnknownProperties(
+    evidence.absence,
+    OTLP_EXPORT_EFFECT_KINDS,
+    `${fixturePath}.evidence.absence`,
+  );
+  let absentResidueCount = 0;
+  for (const kind of OTLP_EXPORT_EFFECT_KINDS) {
+    requireArray(evidence.absence[kind], `${fixturePath}.evidence.absence.${kind}`);
+    absentResidueCount += evidence.absence[kind].length;
+  }
+  if (absentResidueCount !== 0 || admission.absence.outcome !== "passed") {
+    fail("OTLP export absence evidence must be empty and passed.");
+  }
+  await verifyGeneratedOtlpComposition();
+
+  return {
+    status: "passed",
+    signalCount: evidence.signals.length,
+    absentResidueCount,
+    evidenceDigest: admission.evidence.verification.evidenceDigest,
+  };
+}
+
 export async function verifyBootstrap({
   cadence = "fast",
   rootDir = process.cwd(),
@@ -2643,6 +3079,12 @@ export async function verifyBootstrap({
   );
   const providerAdmissionFixture = parseJson(
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  );
+  const otlpExportManifest = parseJson(
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const otlpExportFixture = parseJson(
+    `${OTLP_EXPORT_SOLUTION_ROOT}/otlp-export.json`,
   );
 
   validateManifestSchema(manifestSchema);
@@ -2720,6 +3162,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    otlpExportManifest,
+    "generated-solution",
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    otlpExportManifest,
+    manifestSchema,
+    `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -2732,6 +3184,10 @@ export async function verifyBootstrap({
   const providerAdmission = await validateProviderAdmissionFixture(
     providerAdmissionFixture,
     providerAdmissionManifest,
+  );
+  const otlpExport = await validateOtlpExportFixture(
+    otlpExportFixture,
+    otlpExportManifest,
   );
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
@@ -2759,6 +3215,8 @@ export async function verifyBootstrap({
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
     providerAdmission,
+    otlpExportSolution: OTLP_EXPORT_SOLUTION_NAME,
+    otlpExport,
     agentReadiness,
   };
 }
