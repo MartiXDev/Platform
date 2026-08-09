@@ -39,6 +39,12 @@ import {
   FULL_STACK_UI_SESSION_OWNER,
   FULL_STACK_UI_THEMES,
 } from "./full-stack-ui-contract.mjs";
+import {
+  ProviderAdmissionError,
+  admitProviderSelection,
+  verifyProviderAdmission,
+  verifyProviderAdmissionEvidence,
+} from "./provider-admission.mjs";
 
 const CADENCES = [
   "fast",
@@ -54,6 +60,9 @@ const MODULAR_MONOLITH_SOLUTION_ROOT =
   `tests/fixtures/${MODULAR_MONOLITH_SOLUTION_NAME}`;
 const FULL_STACK_SOLUTION_NAME = "FullStackGeneratedSolution";
 const FULL_STACK_SOLUTION_ROOT = `tests/fixtures/${FULL_STACK_SOLUTION_NAME}`;
+const PROVIDER_ADMISSION_SOLUTION_NAME = "ProviderAdmissionGeneratedSolution";
+const PROVIDER_ADMISSION_SOLUTION_ROOT =
+  `tests/fixtures/${PROVIDER_ADMISSION_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -70,6 +79,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.generated-solution",
   "bootstrap.modular-monolith",
   "bootstrap.full-stack",
+  "bootstrap.provider-admission",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -221,6 +231,12 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/tests/MartiX.FullStackTestApp.Tests/MartiX.FullStackTestApp.Tests.csproj`,
   `${FULL_STACK_SOLUTION_ROOT}/tests/MartiX.FullStackTestApp.Tests/ModularMonolithCompositionTests.cs`,
   ...FULL_STACK_UI_INPUTS,
+  `${PROVIDER_ADMISSION_SOLUTION_ROOT}/README.md`,
+  `${PROVIDER_ADMISSION_SOLUTION_ROOT}/AGENTS.md`,
+  `${PROVIDER_ADMISSION_SOLUTION_ROOT}/CONTEXT.md`,
+  `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
+  `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+  "eng/provider-admission.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -2459,6 +2475,127 @@ function validateGovernanceDocuments(documents) {
   }
 }
 
+export async function validateProviderAdmissionFixture(
+  fixture,
+  manifest,
+) {
+  const manifestPath = `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`;
+  assertSecretFree(
+    fixture,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
+    "Provider admission fixture",
+  );
+  requireRecord(fixture, `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`);
+  requireRecord(
+    fixture.selection,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.selection`,
+  );
+  requireRecord(
+    fixture.observed,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.observed`,
+  );
+  requireRecord(
+    fixture.evidence,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.evidence`,
+  );
+  requireArray(
+    fixture.invalidSelections,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections`,
+  );
+  requireRecord(manifest, manifestPath);
+  requireArray(manifest.providers, `${manifestPath}.providers`);
+  requireArray(manifest.supportClaims, `${manifestPath}.supportClaims`);
+
+  let result;
+  try {
+    result = await verifyProviderAdmission({
+      selection: fixture.selection,
+      observed: fixture.observed,
+    });
+    verifyProviderAdmissionEvidence(fixture.evidence);
+  } catch (error) {
+    if (error instanceof ProviderAdmissionError) {
+      fail(`Provider admission fixture failed: ${error.message}`);
+    }
+    throw error;
+  }
+
+  if (JSON.stringify(result.evidence) !== JSON.stringify(fixture.evidence)) {
+    fail(
+      `Provider admission fixture evidence does not match the resolved composition: ${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.`,
+    );
+  }
+  if (manifest.preset !== fixture.selection.preset) {
+    fail(
+      `Provider admission manifest preset ${manifest.preset} does not match the fixture selection preset ${fixture.selection.preset}.`,
+    );
+  }
+  const manifestProviders = manifest.providers
+    .filter((provider) => provider?.state === "selected")
+    .map(({ capability, id }) => ({ capability, id }))
+    .sort((left, right) =>
+      `${left.capability}:${left.id}`.localeCompare(
+        `${right.capability}:${right.id}`,
+      ),
+    );
+  const selectedProviders = result.plan.providers.map(({ capability, id }) => ({
+    capability,
+    id,
+  }));
+  if (JSON.stringify(manifestProviders) !== JSON.stringify(selectedProviders)) {
+    fail(
+      "Provider admission manifest providers do not match the resolved fixture selection.",
+    );
+  }
+  if (manifest.supportClaims.length !== 0) {
+    fail("Provider admission manifest must not make a Supported claim.");
+  }
+
+  for (const [index, invalid] of fixture.invalidSelections.entries()) {
+    const path =
+      `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections[${index}]`;
+    requireRecord(invalid, path);
+    requireString(invalid.id, `${path}.id`);
+    requireString(invalid.expectedCode, `${path}.expectedCode`);
+    requireRecord(invalid.selection, `${path}.selection`);
+    let generated = false;
+    try {
+      await admitProviderSelection({
+        selection: invalid.selection,
+        generate: async () => {
+          generated = true;
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof ProviderAdmissionError)) {
+        throw error;
+      }
+      if (error.code !== invalid.expectedCode) {
+        fail(
+          `Provider admission invalid selection ${invalid.id} returned ${error.code}; expected ${invalid.expectedCode}.`,
+        );
+      }
+      if (generated) {
+        fail(
+          `Provider admission invalid selection ${invalid.id} invoked generation before rejection.`,
+        );
+      }
+      continue;
+    }
+    fail(
+      `Provider admission invalid selection ${invalid.id} was accepted before generation.`,
+    );
+  }
+
+  return {
+    status: "passed",
+    providerCount: result.plan.providers.length,
+    matrixCoordinate: result.evidence.matrix.coordinate,
+    evidenceDigest: result.evidence.verification.evidenceDigest,
+    invalidSelectionCount: fixture.invalidSelections.length,
+  };
+}
+
 export async function verifyBootstrap({
   cadence = "fast",
   rootDir = process.cwd(),
@@ -2500,6 +2637,12 @@ export async function verifyBootstrap({
   );
   const fullStackManifest = parseJson(
     `${FULL_STACK_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const providerAdmissionManifest = parseJson(
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const providerAdmissionFixture = parseJson(
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
   );
 
   validateManifestSchema(manifestSchema);
@@ -2567,6 +2710,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${FULL_STACK_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    providerAdmissionManifest,
+    "generated-solution",
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    providerAdmissionManifest,
+    manifestSchema,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -2576,6 +2729,10 @@ export async function verifyBootstrap({
   validateGovernanceDocuments(documents);
   await validateModularMonolithSolution(root, modularMonolithManifest);
   await validateFullStackSolution(root, fullStackManifest);
+  const providerAdmission = await validateProviderAdmissionFixture(
+    providerAdmissionFixture,
+    providerAdmissionManifest,
+  );
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -2600,6 +2757,8 @@ export async function verifyBootstrap({
     generatedSolution: GENERATED_SOLUTION_NAME,
     modularMonolithSolution: MODULAR_MONOLITH_SOLUTION_NAME,
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
+    providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
+    providerAdmission,
     agentReadiness,
   };
 }

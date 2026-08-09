@@ -1,0 +1,318 @@
+{
+  "selection": {
+    "preset": "modular-monolith",
+    "capabilities": [
+      "relational-persistence",
+      "durable-jobs"
+    ],
+    "providers": [
+      {
+        "capability": "relational-persistence",
+        "id": "postgresql"
+      },
+      {
+        "capability": "durable-jobs",
+        "id": "quartz"
+      }
+    ],
+    "runtime": "net10.0",
+    "operatingSystem": "linux",
+    "configuration": [
+      "ConnectionStrings:Database",
+      "ConnectionStrings:Quartz"
+    ]
+  },
+  "observed": {
+    "packages": [
+      {
+        "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
+        "version": "10.0.0"
+      },
+      {
+        "id": "Quartz",
+        "version": "3.18.2"
+      }
+    ],
+    "configuration": [
+      "ConnectionStrings:Database",
+      "ConnectionStrings:Quartz",
+      "Quartz:SchedulerName"
+    ],
+    "registrations": [
+      "EntityFrameworkCore:PostgreSQL",
+      "Quartz:Scheduler"
+    ],
+    "workers": [
+      "QuartzHostedService"
+    ],
+    "healthChecks": [
+      "relational-database",
+      "durable-jobs"
+    ],
+    "telemetry": [
+      "relational-database",
+      "durable-jobs"
+    ],
+    "containers": [
+      "postgresql:17"
+    ],
+    "deployment": [
+      "relational-database",
+      "durable-jobs-schema"
+    ]
+  },
+  "evidence": {
+    "schemaVersion": "1.0.0",
+    "catalogVersion": "0.1.0-bootstrap",
+    "outcome": "passed",
+    "failClosed": true,
+    "provider": null,
+    "providers": [
+      {
+        "capability": "durable-jobs",
+        "id": "quartz",
+        "state": "selected"
+      },
+      {
+        "capability": "relational-persistence",
+        "id": "postgresql",
+        "state": "selected"
+      }
+    ],
+    "runtime": "net10.0",
+    "operatingSystem": "linux",
+    "matrix": {
+      "preset": "modular-monolith",
+      "runtime": "net10.0",
+      "operatingSystem": "linux",
+      "coordinate": "operatingSystem=linux|preset=modular-monolith|runtime=net10.0"
+    },
+    "prerequisites": [
+      {
+        "capability": "relational-persistence",
+        "provider": "postgresql"
+      }
+    ],
+    "conflicts": [],
+    "configuration": {
+      "requiredKeys": [
+        "ConnectionStrings:Database",
+        "ConnectionStrings:Quartz"
+      ],
+      "selectedKeys": [
+        "ConnectionStrings:Database",
+        "ConnectionStrings:Quartz"
+      ]
+    },
+    "effects": {
+      "packages": [
+        {
+          "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
+          "version": "10.0.0"
+        },
+        {
+          "id": "Quartz",
+          "version": "3.18.2"
+        }
+      ],
+      "configuration": [
+        "ConnectionStrings:Database",
+        "ConnectionStrings:Quartz",
+        "Quartz:SchedulerName"
+      ],
+      "registrations": [
+        "EntityFrameworkCore:PostgreSQL",
+        "Quartz:Scheduler"
+      ],
+      "workers": [
+        "QuartzHostedService"
+      ],
+      "healthChecks": [
+        "durable-jobs",
+        "relational-database"
+      ],
+      "telemetry": [
+        "durable-jobs",
+        "relational-database"
+      ],
+      "containers": [
+        "postgresql:17"
+      ],
+      "deployment": [
+        "durable-jobs-schema",
+        "relational-database"
+      ]
+    },
+    "qualityProfile": {
+      "id": "composed-provider-admission.operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
+      "complete": true,
+      "commonGates": [
+        "template-generation",
+        "architecture",
+        "security-supply-chain",
+        "provider-integration",
+        "reliability-operations",
+        "release-evidence"
+      ],
+      "providerGates": [
+        "migration",
+        "operator-controls",
+        "persistent-scheduling",
+        "provider-translation",
+        "recovery",
+        "reliability"
+      ],
+      "gates": [
+        "architecture",
+        "migration",
+        "operator-controls",
+        "persistent-scheduling",
+        "provider-integration",
+        "provider-translation",
+        "recovery",
+        "release-evidence",
+        "reliability",
+        "reliability-operations",
+        "security-supply-chain",
+        "template-generation"
+      ],
+      "evidence": [
+        "absence",
+        "configuration",
+        "conflicts",
+        "effects",
+        "operating-system",
+        "prerequisites",
+        "runtime",
+        "selection"
+      ],
+      "providers": [
+        "durable-jobs:quartz",
+        "relational-persistence:postgresql"
+      ],
+      "matrix": {
+        "preset": "modular-monolith",
+        "runtime": "net10.0",
+        "operatingSystem": "linux"
+      }
+    },
+    "selection": {
+      "preset": "modular-monolith",
+      "capabilities": [
+        "relational-persistence",
+        "durable-jobs"
+      ],
+      "providers": [
+        {
+          "capability": "relational-persistence",
+          "provider": "postgresql"
+        },
+        {
+          "capability": "durable-jobs",
+          "provider": "quartz"
+        }
+      ]
+    },
+    "verification": {
+      "selection": "passed",
+      "absence": "passed",
+      "evidenceDigest": "sha256:f808d143792ea2c0b477a16200b4480cd4a725249eb20d64dec19888070fa1d4"
+    },
+    "supportClaims": []
+  },
+  "invalidSelections": [
+    {
+      "id": "missing-prerequisite",
+      "expectedCode": "missing-prerequisite",
+      "selection": {
+        "preset": "modular-monolith",
+        "capabilities": [
+          "durable-jobs"
+        ],
+        "providers": [
+          {
+            "capability": "durable-jobs",
+            "id": "quartz"
+          }
+        ],
+        "runtime": "net10.0",
+        "operatingSystem": "linux",
+        "configuration": [
+          "ConnectionStrings:Quartz"
+        ]
+      }
+    },
+    {
+      "id": "missing-configuration",
+      "expectedCode": "missing-configuration",
+      "selection": {
+        "preset": "modular-monolith",
+        "capabilities": [
+          "relational-persistence",
+          "durable-jobs"
+        ],
+        "providers": [
+          {
+            "capability": "relational-persistence",
+            "id": "postgresql"
+          },
+          {
+            "capability": "durable-jobs",
+            "id": "quartz"
+          }
+        ],
+        "runtime": "net10.0",
+        "operatingSystem": "linux",
+        "configuration": [
+          "ConnectionStrings:Database"
+        ]
+      }
+    },
+    {
+      "id": "unsupported-runtime",
+      "expectedCode": "unsupported-coordinate",
+      "selection": {
+        "preset": "modular-monolith",
+        "capabilities": [
+          "relational-persistence"
+        ],
+        "providers": [
+          {
+            "capability": "relational-persistence",
+            "id": "postgresql"
+          }
+        ],
+        "runtime": "net9.0",
+        "operatingSystem": "linux",
+        "configuration": [
+          "ConnectionStrings:Database"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-relational-provider",
+      "expectedCode": "conflicting-providers",
+      "selection": {
+        "preset": "modular-monolith",
+        "capabilities": [
+          "relational-persistence"
+        ],
+        "providers": [
+          {
+            "capability": "relational-persistence",
+            "id": "postgresql"
+          },
+          {
+            "capability": "relational-persistence",
+            "id": "sqlserver"
+          }
+        ],
+        "runtime": "net10.0",
+        "operatingSystem": "linux",
+        "configuration": [
+          "ConnectionStrings:Database"
+        ]
+      }
+    }
+  ]
+}
