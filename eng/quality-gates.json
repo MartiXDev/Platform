@@ -108,6 +108,19 @@
       "purpose": "The named Modular Monolith Generated Solution has explicit executable, module, Contracts, and consolidated test boundaries."
     },
     {
+      "id": "bootstrap.full-stack",
+      "family": "template-generation",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Full Stack Generated Solution proves one UI provider and the provider-neutral UI Capability Contract without product behavior."
+    },
+    {
       "id": "bootstrap.host-baseline",
       "family": "security-observability",
       "owner": "platform-maintainers",

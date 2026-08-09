@@ -1,0 +1,210 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.1.0-preview.1",
+  "platformContractVersion": "0.1.0-preview.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "MartiX.FullStackTestApp",
+    "product": "MartiX.FullStackTestApp Full Stack",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "full-stack",
+  "capabilities": [
+    {
+      "id": "host.security",
+      "state": "selected"
+    },
+    {
+      "id": "host.authorization",
+      "state": "selected"
+    },
+    {
+      "id": "host.observability",
+      "state": "selected"
+    },
+    {
+      "id": "host.health-readiness",
+      "state": "selected"
+    },
+    {
+      "id": "host.overload-resilience",
+      "state": "selected"
+    },
+    {
+      "id": "kernel.result-error",
+      "state": "selected"
+    },
+    {
+      "id": "aspnetcore.failure-adapter",
+      "state": "selected"
+    },
+    {
+      "id": "analyzers.contract-diagnostics",
+      "state": "selected"
+    },
+    {
+      "id": "api.explicit-composition",
+      "state": "selected"
+    },
+    {
+      "id": "api.openapi",
+      "state": "selected"
+    },
+    {
+      "id": "api.safe-failure",
+      "state": "selected"
+    },
+    {
+      "id": "api.versioned-contract",
+      "state": "selected"
+    },
+    {
+      "id": "api.generated-client",
+      "state": "selected"
+    },
+    {
+      "id": "api.lifecycle",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.business-modules",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.contracts-only-graph",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.explicit-composition",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.one-shot-migrator",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.relational-persistence",
+      "state": "selected"
+    },
+    {
+      "id": "modular-monolith.reliable-integration-events",
+      "state": "selected"
+    },
+    {
+      "id": "application-ui",
+      "state": "selected"
+    },
+    {
+      "id": "ui.design-contract",
+      "state": "selected"
+    },
+    {
+      "id": "ui.generated-client",
+      "state": "selected"
+    },
+    {
+      "id": "ui.problem-details",
+      "state": "selected"
+    },
+    {
+      "id": "ui.secure-session",
+      "state": "selected"
+    },
+    {
+      "id": "ui.authorization-states",
+      "state": "selected"
+    },
+    {
+      "id": "ui.accessibility",
+      "state": "selected"
+    },
+    {
+      "id": "ui.localization",
+      "state": "selected"
+    },
+    {
+      "id": "ui.theme",
+      "state": "selected"
+    },
+    {
+      "id": "ui.browser-evidence",
+      "state": "selected"
+    },
+    {
+      "id": "ui.build-evidence",
+      "state": "selected"
+    },
+    {
+      "id": "ui.security-evidence",
+      "state": "selected"
+    },
+    {
+      "id": "ui.deployment-evidence",
+      "state": "selected"
+    },
+    {
+      "id": "ui.observability",
+      "state": "selected"
+    }
+  ],
+  "providers": [
+    {
+      "id": "postgresql",
+      "capability": "relational-persistence",
+      "state": "selected"
+    },
+    {
+      "id": "react",
+      "capability": "application-ui",
+      "state": "selected"
+    }
+  ],
+  "authentication": {
+    "profile": "none",
+    "provider": "none",
+    "flow": "anonymous",
+    "state": "selected"
+  },
+  "ui": {
+    "provider": "react",
+    "contractVersion": "1.0.0",
+    "renderingProfile": "application",
+    "defaultCulture": "en-US",
+    "sessionOwner": "server-bff",
+    "themes": [
+      "light",
+      "dark",
+      "system"
+    ]
+  },
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  },
+  "modules": [
+    {
+      "name": "Orders",
+      "project": "src/MartiX.FullStackTestApp.Orders",
+      "contractsNamespace": "MartiX.FullStackTestApp.Orders.Contracts",
+      "dependencies": []
+    }
+  ]
+}

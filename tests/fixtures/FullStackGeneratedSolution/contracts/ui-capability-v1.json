@@ -1,0 +1,63 @@
+{
+  "contractVersion": "1.0.0",
+  "role": "application-ui",
+  "provider": "provider-neutral",
+  "transport": {
+    "source": "contracts/openapi-v1.json",
+    "generatedClients": [
+      "typescript",
+      "csharp"
+    ],
+    "problemDetails": "rfc-9457",
+    "credentials": "server-owned-session"
+  },
+  "session": {
+    "owner": "server-bff",
+    "browserPersistence": "session-cookie-only",
+    "states": [
+      "anonymous",
+      "authenticated",
+      "denied",
+      "expired"
+    ]
+  },
+  "states": [
+    "loading",
+    "empty",
+    "validation",
+    "denied",
+    "error",
+    "offline",
+    "reconnecting",
+    "stale"
+  ],
+  "accessibility": {
+    "standard": "WCAG-2.2-AA",
+    "markup": "semantic-html",
+    "keyboard": true,
+    "reducedMotion": true,
+    "forcedColors": true,
+    "rtl": true
+  },
+  "localization": {
+    "defaultCulture": "en-US",
+    "identifierPolicy": "stable-semantic-keys",
+    "protocolInvariant": true
+  },
+  "theme": {
+    "default": "system",
+    "modes": [
+      "light",
+      "dark",
+      "system"
+    ],
+    "tokens": "semantic"
+  },
+  "evidence": [
+    "browser",
+    "build",
+    "security",
+    "deployment",
+    "observability"
+  ]
+}

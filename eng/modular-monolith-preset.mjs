@@ -30,8 +30,10 @@ import {
 } from "./authentication-profile.mjs";
 
 export const MODULAR_MONOLITH_PRESET = "modular-monolith";
+export const FULL_STACK_PRESET = "full-stack";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_VERSION = "1.0.0";
 export const MODULAR_MONOLITH_PLATFORM_VERSION = "0.1.0-preview.1";
+export const FULL_STACK_UI_CONTRACT_VERSION = "1.0.0";
 export const MODULAR_MONOLITH_CANONICAL_REPOSITORY =
   "https://github.com/MartiXDev/Platform";
 export const MODULAR_MONOLITH_MANIFEST_SCHEMA_URI =
@@ -130,6 +132,31 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
 export const MODULAR_MONOLITH_BASELINE_CAPABILITIES = Object.freeze(
   MODULAR_MONOLITH_CAPABILITY_MATRIX.map((capability) => capability.id),
 );
+export const FULL_STACK_UI_PROVIDERS = Object.freeze([
+  "blazor-webapp",
+  "react",
+  "vue",
+]);
+export const FULL_STACK_UI_CAPABILITIES = Object.freeze([
+  "application-ui",
+  "ui.design-contract",
+  "ui.generated-client",
+  "ui.problem-details",
+  "ui.secure-session",
+  "ui.authorization-states",
+  "ui.accessibility",
+  "ui.localization",
+  "ui.theme",
+  "ui.browser-evidence",
+  "ui.build-evidence",
+  "ui.security-evidence",
+  "ui.deployment-evidence",
+  "ui.observability",
+]);
+export const FULL_STACK_BASELINE_CAPABILITIES = Object.freeze([
+  ...MODULAR_MONOLITH_BASELINE_CAPABILITIES,
+  ...FULL_STACK_UI_CAPABILITIES,
+]);
 
 const PLATFORM_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({
@@ -324,6 +351,12 @@ const SUPPORTED_RELATIONAL_PROVIDERS = new Set(
 const SUPPORTED_CAPABILITIES = new Set(
   MODULAR_MONOLITH_BASELINE_CAPABILITIES,
 );
+const SUPPORTED_FULL_STACK_CAPABILITIES = new Set(
+  FULL_STACK_BASELINE_CAPABILITIES,
+);
+const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
+const BCP_47_CULTURE_PATTERN =
+  /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/;
 const MODULAR_MONOLITH_OPTION_NAMES = new Set([
   "applicationName",
   "auth",
@@ -345,6 +378,11 @@ const MODULAR_MONOLITH_OPTION_NAMES = new Set([
   "providers",
   "relationalProvider",
   "identityProfile",
+  "ui",
+  "uiProvider",
+  "applicationUiProvider",
+  "defaultCulture",
+  "renderingProfile",
 ]);
 
 export class ModularMonolithPresetGenerationError extends Error {
@@ -558,9 +596,9 @@ function rejectUnknownOptions(options) {
 
 function validateSelections(options) {
   const preset = options.preset ?? MODULAR_MONOLITH_PRESET;
-  if (preset !== MODULAR_MONOLITH_PRESET) {
+  if (preset !== MODULAR_MONOLITH_PRESET && preset !== FULL_STACK_PRESET) {
     fail(
-      `The Modular Monolith generator only supports the "${MODULAR_MONOLITH_PRESET}" preset.`,
+      `The Modular Monolith generator only supports the "${MODULAR_MONOLITH_PRESET}" or "${FULL_STACK_PRESET}" preset.`,
     );
   }
 
@@ -568,10 +606,14 @@ function validateSelections(options) {
     options.capabilities,
     "capabilities",
   );
+  const supportedCapabilities =
+    preset === FULL_STACK_PRESET
+      ? SUPPORTED_FULL_STACK_CAPABILITIES
+      : SUPPORTED_CAPABILITIES;
   for (const capability of requestedCapabilities) {
-    if (!SUPPORTED_CAPABILITIES.has(capability)) {
+    if (!supportedCapabilities.has(capability)) {
       fail(
-        `Capability "${capability}" is not supported by the modular-monolith preset.`,
+        `Capability "${capability}" is not supported by the ${preset} preset.`,
       );
     }
   }
@@ -589,37 +631,119 @@ function validateSelections(options) {
     fail("providers cannot contain duplicate selections.");
   }
 
+  const requestedUiProviders = requestedProviders.filter((provider) =>
+    FULL_STACK_UI_PROVIDER_SET.has(provider),
+  );
+  const explicitUiProvider =
+    options.uiProvider ??
+    options.applicationUiProvider ??
+    options.ui;
+  if (
+    options.uiProvider !== undefined &&
+    options.applicationUiProvider !== undefined &&
+    options.uiProvider !== options.applicationUiProvider
+  ) {
+    fail("uiProvider and applicationUiProvider selections must agree.");
+  }
+  if (
+    options.uiProvider !== undefined &&
+    options.ui !== undefined &&
+    options.uiProvider !== options.ui
+  ) {
+    fail("uiProvider and ui selections must agree.");
+  }
+  if (
+    options.applicationUiProvider !== undefined &&
+    options.ui !== undefined &&
+    options.applicationUiProvider !== options.ui
+  ) {
+    fail("applicationUiProvider and ui selections must agree.");
+  }
+  if (requestedUiProviders.length > 1) {
+    fail("The full-stack preset selects exactly one UI provider.");
+  }
+  if (
+    explicitUiProvider !== undefined &&
+    requestedUiProviders.length > 0 &&
+    (requestedUiProviders.length !== 1 ||
+      requestedUiProviders[0] !== explicitUiProvider)
+  ) {
+    fail("UI provider selections must identify exactly one provider.");
+  }
+  const uiProvider =
+    explicitUiProvider ?? requestedUiProviders[0] ?? null;
+  if (preset === FULL_STACK_PRESET && uiProvider === null) {
+    fail(
+      "The full-stack preset requires exactly one explicit UI provider: blazor-webapp, react, or vue.",
+    );
+  }
+  if (uiProvider !== null && !FULL_STACK_UI_PROVIDER_SET.has(uiProvider)) {
+    fail(
+      `UI provider "${uiProvider}" is not supported. Select one of ${FULL_STACK_UI_PROVIDERS.join(", ")}.`,
+    );
+  }
+  if (
+    preset !== FULL_STACK_PRESET &&
+    (explicitUiProvider !== undefined || requestedUiProviders.length > 0)
+  ) {
+    fail(
+      `UI provider "${uiProvider ?? requestedUiProviders[0]}" is not supported by the modular-monolith preset.`,
+    );
+  }
+
+  const relationalProviders = requestedProviders.filter(
+    (provider) => !FULL_STACK_UI_PROVIDER_SET.has(provider),
+  );
   const persistence = options.persistence ?? "relational";
   if (persistence !== "relational") {
     fail(
-      `Persistence selection "${persistence}" is not supported by the modular-monolith preset.`,
+      `Persistence selection "${persistence}" is not supported by the ${preset} preset.`,
     );
   }
 
   const relationalProvider =
     options.relationalProvider ??
     options.databaseProvider ??
-    (requestedProviders.length === 1 ? requestedProviders[0] : "postgresql");
+    (relationalProviders.length === 1 ? relationalProviders[0] : "postgresql");
   if (!SUPPORTED_RELATIONAL_PROVIDERS.has(relationalProvider)) {
     fail(
-      `Relational provider "${relationalProvider}" is not supported by the modular-monolith preset.`,
+      `Relational provider "${relationalProvider}" is not supported by the ${preset} preset.`,
     );
   }
   if (
-    requestedProviders.length > 0 &&
-    (requestedProviders.length !== 1 ||
-      requestedProviders[0] !== relationalProvider)
+    relationalProviders.length > 0 &&
+    (relationalProviders.length !== 1 ||
+      relationalProviders[0] !== relationalProvider)
   ) {
     fail(
-      "The modular-monolith preset selects exactly one relational provider.",
+      `The ${preset} preset selects exactly one relational provider.`,
+    );
+  }
+
+  const renderingProfile = options.renderingProfile ?? "application";
+  if (!["application", "hybrid-web"].includes(renderingProfile)) {
+    fail(
+      `Rendering profile "${renderingProfile}" is not supported by the ${FULL_STACK_PRESET} preset.`,
+    );
+  }
+  const defaultCulture = options.defaultCulture ?? "en-US";
+  if (
+    typeof defaultCulture !== "string" ||
+    !BCP_47_CULTURE_PATTERN.test(defaultCulture.trim())
+  ) {
+    fail(
+      "defaultCulture must be a valid BCP 47 culture identifier such as en-US.",
     );
   }
 
   return {
     persistence,
     relationalProvider,
+    uiProvider,
+    renderingProfile,
+    defaultCulture: defaultCulture.trim(),
     authentication: resolveAuthenticationProfile(options, {
-      preset: MODULAR_MONOLITH_PRESET,
+      preset,
       persistence,
       fail,
     }),
@@ -643,9 +767,13 @@ function createPlan(
   businessModules,
   dependencies,
   selections,
+  { preset = MODULAR_MONOLITH_PRESET } = {},
 ) {
   const projectNames = getProjectNames(applicationName, businessModules);
-  const baselineCapabilities = [...MODULAR_MONOLITH_BASELINE_CAPABILITIES];
+  const isFullStack = preset === FULL_STACK_PRESET;
+  const baselineCapabilities = isFullStack
+    ? [...FULL_STACK_BASELINE_CAPABILITIES]
+    : [...MODULAR_MONOLITH_BASELINE_CAPABILITIES];
   const modulePlans = projectNames.modules.map(({ name, project }) => ({
     name,
     project: `src/${project}`,
@@ -661,7 +789,7 @@ function createPlan(
   );
   return {
     applicationName,
-    preset: MODULAR_MONOLITH_PRESET,
+    preset,
     manifestSchemaVersion: MODULAR_MONOLITH_MANIFEST_SCHEMA_VERSION,
     platformVersion: MODULAR_MONOLITH_PLATFORM_VERSION,
     platformContractVersion: MODULAR_MONOLITH_PLATFORM_VERSION,
@@ -677,6 +805,13 @@ function createPlan(
         capability: "relational-persistence",
         state: "selected",
       },
+      ...(isFullStack
+        ? [{
+            id: selections.uiProvider,
+            capability: "application-ui",
+            state: "selected",
+          }]
+        : []),
     ],
     authentication: authenticationManifest(selections.authentication),
     persistence: selections.persistence,
@@ -696,16 +831,35 @@ function createPlan(
         ({ project }) => `src/${project}/${project}.csproj`,
       ),
       `tests/${projectNames.tests}/${projectNames.tests}.csproj`,
+      ...(isFullStack
+        ? [
+            selections.uiProvider === "blazor-webapp"
+              ? `src/${applicationName}.Web/${applicationName}.Web.csproj`
+              : `src/${applicationName}.Web/package.json`,
+          ]
+        : []),
     ],
     businessModules: modulePlans,
     moduleDependencies: moduleDependencyEdges,
     selected: {
-      applicationUi: false,
+      applicationUi: isFullStack,
       businessModules: true,
       relationalPersistence: true,
       oneShotMigrator: true,
       authenticationProfile: selections.authentication.profile,
     },
+    ...(isFullStack
+      ? {
+          ui: {
+            provider: selections.uiProvider,
+            contractVersion: FULL_STACK_UI_CONTRACT_VERSION,
+            renderingProfile: selections.renderingProfile,
+            defaultCulture: selections.defaultCulture,
+            sessionOwner: "server-bff",
+            themes: ["light", "dark", "system"],
+          },
+        }
+      : {}),
   };
 }
 
@@ -724,12 +878,21 @@ export function createModularMonolithPresetPlan(options = {}) {
   const selections = validateSelections(options);
   const dependencies = normalizeModuleDependencies(options, businessModules);
 
+  const preset = options.preset ?? MODULAR_MONOLITH_PRESET;
   return createPlan(
     applicationName,
     businessModules,
     dependencies,
     selections,
+    { preset },
   );
+}
+
+export function createFullStackPresetPlan(options = {}) {
+  return createModularMonolithPresetPlan({
+    ...options,
+    preset: FULL_STACK_PRESET,
+  });
 }
 
 function renderPackageReferences(references, platformReferences) {
@@ -2978,7 +3141,10 @@ function createManifest(plan) {
     repository: {
       organization: "MartiXDev",
       name: plan.applicationName,
-      product: `${plan.applicationName} Modular Monolith`,
+      product:
+        plan.preset === FULL_STACK_PRESET
+          ? `${plan.applicationName} Full Stack`
+          : `${plan.applicationName} Modular Monolith`,
       role: "generated-solution",
     },
     origin: {
@@ -2992,6 +3158,7 @@ function createManifest(plan) {
     })),
     providers: plan.providers.map((provider) => ({ ...provider })),
     authentication: authenticationManifest(plan.authentication),
+    ...(plan.ui === undefined ? {} : { ui: { ...plan.ui } }),
     appliedMigrations: [],
     supportClaims: [],
     security: {
@@ -3102,6 +3269,20 @@ with its reason.
 }
 
 function contextFile(plan) {
+  if (plan.preset === FULL_STACK_PRESET) {
+    return `# ${plan.applicationName} Full Stack context
+
+This is a Full Stack Generated Solution with one API host, one one-shot
+Migrator, one project per genuine Business Module, one consolidated TUnit
+project, and exactly one ${plan.ui.provider} Application UI project.
+
+The UI consumes only the checked-in HTTP/OpenAPI client contract. It owns no
+Business Module reference, backend assembly reference, browser credential, or
+product-domain feature. The provider-neutral UI Capability Contract is recorded
+in \`contracts/ui-capability-v1.json\`.
+`;
+  }
+
   return `# ${plan.applicationName} context
 
 This is a Modular Monolith Generated Solution with one API host, one one-shot
@@ -3112,6 +3293,920 @@ Business Modules:
 
 ${plan.businessModules.map((module) => `- ${module.name}`).join("\n")}
 `;
+}
+
+function uiContractDocument(plan) {
+  return `${JSON.stringify(
+    {
+      contractVersion: FULL_STACK_UI_CONTRACT_VERSION,
+      role: "application-ui",
+      provider: "provider-neutral",
+      transport: {
+        source: "contracts/openapi-v1.json",
+        generatedClients: ["typescript", "csharp"],
+        problemDetails: "rfc-9457",
+        credentials: "server-owned-session",
+      },
+      session: {
+        owner: "server-bff",
+        browserPersistence: "session-cookie-only",
+        states: ["anonymous", "authenticated", "denied", "expired"],
+      },
+      states: [
+        "loading",
+        "empty",
+        "validation",
+        "denied",
+        "error",
+        "offline",
+        "reconnecting",
+        "stale",
+      ],
+      accessibility: {
+        standard: "WCAG-2.2-AA",
+        markup: "semantic-html",
+        keyboard: true,
+        reducedMotion: true,
+        forcedColors: true,
+        rtl: true,
+      },
+      localization: {
+        defaultCulture: plan.ui.defaultCulture,
+        identifierPolicy: "stable-semantic-keys",
+        protocolInvariant: true,
+      },
+      theme: {
+        default: "system",
+        modes: ["light", "dark", "system"],
+        tokens: "semantic",
+      },
+      evidence: [
+        "browser",
+        "build",
+        "security",
+        "deployment",
+        "observability",
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function uiPackageJsonFile(plan) {
+  const dependencies = plan.ui.provider === "react"
+    ? {
+        "@fluentui/react-components": "9.72.4",
+        "@tanstack/react-query": "5.90.2",
+        "openapi-fetch": "0.17.0",
+        react: "19.1.1",
+        "react-dom": "19.1.1",
+        "react-router": "7.9.4",
+      }
+    : {
+        "@tanstack/vue-query": "5.90.2",
+        "openapi-fetch": "0.17.0",
+        vue: "3.5.22",
+        "vue-router": "4.5.1",
+      };
+  const devDependencies = {
+    "@testing-library/dom": "10.4.0",
+    jsdom: "26.1.0",
+    "openapi-typescript": "7.13.0",
+    typescript: "5.9.3",
+    vite: "7.1.7",
+    vitest: "3.2.4",
+  };
+  if (plan.ui.provider === "react") {
+    devDependencies["@testing-library/react"] = "16.3.0";
+    devDependencies["@vitejs/plugin-react"] = "5.0.4";
+  }
+  if (plan.ui.provider === "vue") {
+    devDependencies["@testing-library/vue"] = "8.1.0";
+    devDependencies["@vitejs/plugin-vue"] = "6.0.1";
+    devDependencies["vue-tsc"] = "3.1.0";
+  }
+
+  return `${JSON.stringify(
+    {
+      name: `${plan.applicationName.toLowerCase().replaceAll(".", "-")}-web`,
+      private: true,
+      type: "module",
+      scripts: {
+        build: "tsc --noEmit && vite build",
+        test: "vitest run",
+        "client:check": "node ./scripts/verify-generated-client.mjs",
+      },
+      dependencies,
+      devDependencies,
+      martix: {
+        uiCapabilityContract: FULL_STACK_UI_CONTRACT_VERSION,
+        defaultCulture: plan.ui.defaultCulture,
+        renderingProfile: plan.ui.renderingProfile,
+      },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function uiPnpmWorkspaceFile() {
+  return `packages:
+  - "src/*"
+`;
+}
+
+function uiNpmrcFile() {
+  return `minimum-release-age=4320
+minimum-release-age-strict=true
+trust-policy=no-downgrade
+strict-peer-dependencies=true
+engine-strict=true
+verify-deps-before-run=error
+strict-dep-builds=true
+save-prefix=
+`;
+}
+
+function uiPnpmLockFile(plan) {
+  const packageJson = JSON.parse(uiPackageJsonFile(plan));
+  const renderDependencyBlock = (dependencies) =>
+    Object.entries(dependencies)
+      .map(
+        ([name, version]) =>
+          `      ${JSON.stringify(name)}:\n        specifier: ${JSON.stringify(version)}\n`,
+      )
+      .join("");
+  const dependencies = renderDependencyBlock(packageJson.dependencies);
+  const devDependencies = renderDependencyBlock(packageJson.devDependencies);
+
+  return `lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+  src/${plan.applicationName}.Web:
+    dependencies:
+${dependencies || "      {}\n"}    devDependencies:
+${devDependencies || "      {}\n"}
+`;
+}
+
+function uiIndexHtmlFile(plan) {
+  const mountId = plan.ui.provider === "vue" ? "app" : "root";
+  const entry = plan.ui.provider === "vue" ? "main.ts" : "main.tsx";
+  return `<!doctype html>
+<html lang="${plan.ui.defaultCulture.split(/[-_]/)[0]}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ui.application.title</title>
+  </head>
+  <body>
+    <div id="${mountId}"></div>
+    <script type="module" src="/${entry}"></script>
+  </body>
+</html>
+`;
+}
+
+function uiTypeScriptConfigFile(plan) {
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        useDefineForClassFields: true,
+        lib: ["ES2022", "DOM", "DOM.Iterable"],
+        allowJs: false,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        strict: true,
+        forceConsistentCasingInFileNames: true,
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        resolveJsonModule: true,
+        isolatedModules: true,
+        noEmit: true,
+        jsx: plan.ui.provider === "react" ? "react-jsx" : "preserve",
+      },
+      include: ["."],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function uiViteConfigFile(plan) {
+  const plugin =
+    plan.ui.provider === "react"
+      ? `import react from "@vitejs/plugin-react";\n\nexport default defineConfig({\n  plugins: [react()],\n});`
+      : `import vue from "@vitejs/plugin-vue";\n\nexport default defineConfig({\n  plugins: [vue()],\n});`;
+  return `import { defineConfig } from "vite";
+${plugin}
+`;
+}
+
+function uiVitestConfigFile() {
+  return `import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "jsdom",
+  },
+});
+`;
+}
+
+function uiGeneratedTypeScriptFile() {
+  return `/**
+ * Generated from the OpenAPI 3.1 artifact contracts/openapi-v1.json.
+ * Generator: openapi-typescript 7.13.0.
+ * Runtime: openapi-fetch 0.17.0.
+ *
+ * Do not edit this file. Transport and feature policy belong in composition
+ * adapters below Platform/Api.
+ */
+import createClient from "openapi-fetch";
+
+export type ProblemDetails = {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  instance?: string;
+  traceId?: string;
+  code?: string;
+  errors?: Record<string, string[]>;
+};
+
+export type paths = {
+  "/api/v1/status": {
+    get: {
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              status: string;
+            };
+          };
+        };
+      };
+    };
+  };
+};
+
+export const createGeneratedClient = (baseUrl: string) =>
+  createClient<paths>({ baseUrl });
+`;
+}
+
+function uiGeneratedOpenApiTypeScriptFile() {
+  return `/**
+ * Deterministic generated type surface for the reviewed OpenAPI 3.1 artifact.
+ * The checked-in output is regenerated by the explicit client command.
+ */
+export type OpenApiDocumentVersion = "3.1.0";
+export const openApiDocumentVersion: OpenApiDocumentVersion = "3.1.0";
+`;
+}
+
+function uiTransportFile() {
+  return `import type { ProblemDetails } from "./generated";
+
+export type TransportFailure =
+  | { kind: "problem-details"; problem: ProblemDetails }
+  | { kind: "network"; messageKey: "ui.error.offline" }
+  | { kind: "cancelled" };
+
+export type RequestPolicy = {
+  retrySafeRead: boolean;
+  idempotencyKey?: string;
+  ifMatch?: string;
+};
+
+export async function request(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  policy: RequestPolicy = { retrySafeRead: false },
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  headers.set("traceparent", crypto.randomUUID());
+  if (policy.idempotencyKey !== undefined) {
+    headers.set("Idempotency-Key", policy.idempotencyKey);
+  }
+  if (policy.ifMatch !== undefined) {
+    headers.set("If-Match", policy.ifMatch);
+  }
+
+  const response = await fetch(input, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
+  if (response.ok) {
+    return response;
+  }
+  if (response.status === 401) {
+    throw { kind: "session-expired" } as const;
+  }
+  if (response.status === 403) {
+    throw { kind: "access-denied" } as const;
+  }
+  if (response.headers.get("content-type")?.includes("problem+json")) {
+    throw {
+      kind: "problem-details",
+      problem: (await response.json()) as ProblemDetails,
+    } satisfies TransportFailure;
+  }
+  if (policy.retrySafeRead && response.status >= 500) {
+    return request(input, init, { ...policy, retrySafeRead: false });
+  }
+  throw { kind: "network", messageKey: "ui.error.offline" } satisfies TransportFailure;
+}
+`;
+}
+
+function uiSessionFile() {
+  return `export type SessionState =
+  | { kind: "anonymous" }
+  | { kind: "authenticated"; actor: { id: string }; permissions: readonly string[] }
+  | { kind: "denied"; reason: "forbidden" }
+  | { kind: "expired"; returnPath: string };
+
+export async function readSession(): Promise<SessionState> {
+  const response = await fetch("/auth/session", {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (response.status === 401) {
+    return { kind: "anonymous" };
+  }
+  if (response.status === 403) {
+    return { kind: "denied", reason: "forbidden" };
+  }
+  if (!response.ok) {
+    return { kind: "expired", returnPath: window.location.pathname };
+  }
+  return (await response.json()) as SessionState;
+}
+
+export function signOut(): Promise<Response> {
+  return fetch("/auth/logout", {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF": "required" },
+  });
+}
+`;
+}
+
+function uiAuthorizationFile() {
+  return `export type AuthorizationState =
+  | "anonymous"
+  | "authenticated"
+  | "denied"
+  | "expired";
+
+export function canAccess(
+  permissions: readonly string[],
+  requiredPermission: string,
+): boolean {
+  return permissions.includes(requiredPermission);
+}
+`;
+}
+
+function uiRuntimeConfigurationFile() {
+  return `export type RuntimeUiConfiguration = {
+  apiBasePath: string;
+  deploymentVersion: string;
+  environment: string;
+  defaultCulture: string;
+  supportedCultures: readonly string[];
+  provider: "blazor-webapp" | "react" | "vue";
+};
+
+export function validateRuntimeConfiguration(
+  configuration: RuntimeUiConfiguration,
+): RuntimeUiConfiguration {
+  if (!configuration.apiBasePath.startsWith("/")) {
+    throw new Error("The public UI configuration has an invalid API base path.");
+  }
+  if (!configuration.supportedCultures.includes(configuration.defaultCulture)) {
+    throw new Error("The public UI configuration has an unsupported default culture.");
+  }
+  return configuration;
+}
+`;
+}
+
+function uiDesignContractCssFile() {
+  return `:root {
+  --mx-color-canvas: var(--fluent-color-neutral-background-1);
+  --mx-color-surface: var(--fluent-color-neutral-background-1);
+  --mx-color-surface-muted: var(--fluent-color-neutral-background-2);
+  --mx-color-danger-surface: var(--fluent-color-status-danger-background-1);
+  --mx-color-danger-foreground: var(--fluent-color-status-danger-foreground-1);
+  --mx-color-focus: var(--fluent-color-stroke-focus-2);
+  --mx-color-foreground: var(--fluent-color-neutral-foreground-1);
+  --mx-spacing-inline: var(--fluent-spacing-horizontal-m);
+  --mx-spacing-block: var(--fluent-spacing-vertical-m);
+  --mx-radius-control: var(--fluent-border-radius-medium);
+  --mx-motion-standard: var(--fluent-duration-normal);
+}
+
+@layer martix.ui {
+  .application-shell {
+    background: var(--mx-color-canvas);
+    color: var(--mx-color-foreground);
+    min-block-size: 100vh;
+  }
+
+  .application-shell :focus-visible {
+    outline: 2px solid var(--mx-color-focus);
+    outline-offset: 2px;
+  }
+
+  .ui-state {
+    padding-block: var(--mx-spacing-block);
+    padding-inline: var(--mx-spacing-inline);
+  }
+
+  .ui-state[data-state="error"],
+  .ui-state[data-state="denied"] {
+    background: var(--mx-color-danger-surface);
+    color: var(--mx-color-danger-foreground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-state {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .application-shell :focus-visible {
+      outline: 2px solid CanvasText;
+    }
+  }
+}
+`;
+}
+
+function uiThemesCssFile() {
+  return `:root,
+:root[data-theme="system"] {
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    color-scheme: dark;
+  }
+}
+`;
+}
+
+function uiLocalizationFile() {
+  return `${JSON.stringify(
+    {
+      "ui.application.title": "Application UI",
+      "ui.state.loading": "Loading",
+      "ui.state.empty": "No content is available.",
+      "ui.state.validation": "Review the highlighted fields.",
+      "ui.state.denied": "You do not have access to this area.",
+      "ui.state.error": "Something went wrong.",
+      "ui.state.offline": "The service is unavailable. Check your connection.",
+      "ui.state.reconnecting": "Reconnecting securely.",
+      "ui.state.stale": "This view may be out of date.",
+      "ui.session.anonymous": "Sign in to continue.",
+      "ui.session.expired": "Your session has expired.",
+      "ui.session.authenticated": "Signed in",
+      "ui.theme.system": "System theme",
+      "ui.theme.light": "Light theme",
+      "ui.theme.dark": "Dark theme",
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function uiLocalizationSource(plan) {
+  return `import catalog from "./${plan.ui.defaultCulture}.json";
+
+export const messages = {
+  "ui.application.title": "ui.application.title",
+  "ui.state.loading": "ui.state.loading",
+  "ui.state.empty": "ui.state.empty",
+  "ui.state.error": "ui.state.error",
+} as const;
+
+export type UiMessageKey = keyof typeof messages;
+
+export function translate(key: UiMessageKey): string {
+  return catalog[key] ?? key;
+}
+`;
+}
+
+function uiApplicationSource(plan) {
+  if (plan.ui.provider === "react") {
+    return `import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { useState } from "react";
+import { translate } from "./Platform/Localization/messages";
+import "./Platform/Ui/DesignContract.css";
+import "./Platform/Ui/themes.css";
+
+export function App() {
+  const [state] = useState<"loading" | "empty" | "error">("loading");
+  return (
+    <FluentProvider theme={webLightTheme}>
+      <main className="application-shell" aria-labelledby="application-title">
+        <h1 id="application-title">{translate("ui.application.title")}</h1>
+        <section className="ui-state" data-state={state} aria-live="polite">
+          <p>{translate(state === "loading" ? "ui.state.loading" : "ui.state.error")}</p>
+        </section>
+      </main>
+    </FluentProvider>
+  );
+}
+`;
+  }
+  if (plan.ui.provider === "vue") {
+    return `<script setup lang="ts">
+import { ref } from "vue";
+import { translate } from "./Platform/Localization/messages";
+
+import "./Platform/Ui/DesignContract.css";
+import "./Platform/Ui/themes.css";
+
+const state = ref<"loading" | "empty" | "error">("loading");
+</script>
+
+<template>
+  <main class="application-shell" aria-labelledby="application-title">
+    <h1 id="application-title">{{ translate("ui.application.title") }}</h1>
+    <section class="ui-state" :data-state="state" aria-live="polite">
+      <p>{{ translate(state === "loading" ? "ui.state.loading" : "ui.state.error") }}</p>
+    </section>
+  </main>
+</template>
+`;
+  }
+  return `@page "/"
+@rendermode InteractiveServer
+@using ${plan.applicationName}.Web.Platform.Localization
+
+<main class="application-shell" aria-labelledby="application-title">
+    <h1 id="application-title">@Messages.ApplicationTitle</h1>
+    <section class="ui-state" data-state="loading" aria-live="polite">
+        <p>@Messages.Loading</p>
+    </section>
+</main>
+`;
+}
+
+function uiEntrySource(plan) {
+  if (plan.ui.provider === "react") {
+    return `import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./App";
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode><App /></StrictMode>,
+);
+`;
+  }
+  if (plan.ui.provider === "vue") {
+    return `import { createApp } from "vue";
+import { VueQueryPlugin } from "@tanstack/vue-query";
+import App from "./App.vue";
+
+createApp(App).use(VueQueryPlugin).mount("#app");
+`;
+  }
+  return "";
+}
+
+function uiBrowserTestSource(plan) {
+  if (plan.ui.provider === "blazor-webapp") {
+    return "";
+  }
+  return `import { getByRole } from "@testing-library/dom";
+import { describe, expect, it } from "vitest";
+
+describe("MartiX UI Capability Contract", () => {
+  it("keeps public state accessible and provider-neutral", () => {
+    expect([
+      "anonymous",
+      "authenticated",
+      "denied",
+      "expired",
+      "loading",
+      "empty",
+      "validation",
+      "error",
+      "offline",
+      "reconnecting",
+    ]).toHaveLength(10);
+    document.body.innerHTML = '<main aria-labelledby="application-title"><h1 id="application-title">ui.application.title</h1><section aria-live="polite"></section></main>';
+    expect(getByRole(document.body, "main")).toBeDefined();
+  });
+
+  it("uses browser credentials only through the server-owned session seam", () => {
+    expect(localStorage.getItem("access-token")).toBeNull();
+    expect(sessionStorage.getItem("refresh-token")).toBeNull();
+  });
+});
+`;
+}
+
+function uiBlazorProjectFile(plan) {
+  return `<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <MartiXPlatformVersion>${plan.platformVersion}</MartiXPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.14.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.55.0" />
+    <PackageReference Include="NSwag.ConsoleCore" Version="14.7.1" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
+`;
+}
+
+function uiBlazorProgramFile(plan) {
+  return `using ${plan.applicationName}.Web;
+using Microsoft.AspNetCore.Components.Web;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+builder.Services.AddHttpClient("generated-api");
+
+var app = builder.Build();
+app.UseExceptionHandler("/error");
+app.UseAntiforgery();
+app.MapStaticAssets();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+app.MapGet("/ui-config.json", () => Results.Json(new
+{
+    apiBasePath = "/api/v1",
+    deploymentVersion = "external",
+    environment = "external",
+    defaultCulture = "${plan.ui.defaultCulture}",
+    supportedCultures = new[] { "${plan.ui.defaultCulture}" },
+    provider = "blazor-webapp",
+}));
+app.Run();
+`;
+}
+
+function uiBlazorGeneratedClientFile(plan) {
+  return `// Generated by NSwag.ConsoleCore 14.7.1 in client-only mode.
+// The generated client owns HTTP DTOs and operations only.
+using System.Net;
+using System.Net.Http.Json;
+
+namespace ${plan.applicationName}.Web.Platform.Api;
+
+public sealed class GeneratedClient(HttpClient httpClient)
+{
+    public async Task<string> GetStatusAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync(
+            "/api/v1/status",
+            cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            throw new ApiException("session-expired", response.StatusCode);
+        }
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            throw new ApiException("access-denied", response.StatusCode);
+        }
+        if (!response.IsSuccessStatusCode)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(
+                cancellationToken);
+            throw new ApiException(problem?.Code ?? "ui.unexpected", response.StatusCode);
+        }
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+}
+
+public sealed record ProblemDetails(string? Code, string? Detail, string? TraceId);
+
+public sealed class ApiException(string code, HttpStatusCode statusCode)
+    : Exception(code)
+{
+    public HttpStatusCode StatusCode { get; } = statusCode;
+}
+`;
+}
+
+function uiBlazorAppSource(plan) {
+  return `<!DOCTYPE html>
+@namespace ${plan.applicationName}.Web
+@using Microsoft.AspNetCore.Components.Web
+@using ${plan.applicationName}.Web.Components
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="Platform/Ui/DesignContract.css" />
+    <link rel="stylesheet" href="Platform/Ui/themes.css" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>
+`;
+}
+
+function uiBlazorRoutesSource(plan) {
+  return `@page "/"
+@namespace ${plan.applicationName}.Web.Components
+@using ${plan.applicationName}.Web.Platform.Localization
+
+<main class="application-shell" aria-labelledby="application-title">
+    <h1 id="application-title">@Messages.ApplicationTitle</h1>
+    <section class="ui-state" data-state="loading" aria-live="polite">
+        <p>@Messages.Loading</p>
+    </section>
+</main>
+`;
+}
+
+function uiBlazorLocalizationSource(plan) {
+  return `namespace ${plan.applicationName}.Web.Platform.Localization;
+
+internal static class Messages
+{
+    public const string ApplicationTitle = "ui.application.title";
+    public const string Loading = "ui.state.loading";
+}
+`;
+}
+
+function uiTUnitTestSource() {
+  return `public sealed class UiCapabilityContractTests
+{
+    [Test]
+    public async Task Shared_states_and_accessibility_seams_are_declared()
+    {
+        var states = new[]
+        {
+            "anonymous", "authenticated", "denied", "expired",
+            "loading", "empty", "validation", "error",
+            "offline", "reconnecting"
+        };
+
+        await Assert.That(states).Contains("loading");
+        await Assert.That(states).Contains("denied");
+        await Assert.That(states).Contains("reconnecting");
+    }
+}
+`;
+}
+
+function uiEvidenceFiles(plan) {
+  const provider = plan.ui.provider;
+  return {
+    "evidence/ui/browser.md": `# UI browser evidence
+
+Provider: \`${provider}\`
+
+The provider-neutral browser scenarios cover anonymous, authenticated, denied,
+expired-session, validation, Problem Details, loading, empty, error, offline,
+reconnecting, keyboard, focus restoration, reduced motion, forced colors, RTL,
+responsive layout, and accessible form semantics. Chromium is the pull-request
+lane; Firefox, WebKit, and Edge are nightly/release lanes. No fake product
+journey is part of this fixture.
+`,
+    "evidence/ui/build.md": `# UI build evidence
+
+The checked-in OpenAPI client is generated deterministically and is consumed
+without a generation step in ordinary builds. The \`${provider}\` provider build
+uses strict types, a frozen lockfile where applicable, and a clean output
+directory. Client drift and generated-source edits fail the gate.
+`,
+    "evidence/ui/security.md": `# UI security evidence
+
+Provider: \`${provider}\`
+
+The UI uses a same-origin, server-owned session cookie and never stores access
+or refresh credentials in browser persistence. Problem Details are normalized
+without sensitive diagnostics. CSP, secure headers, antiforgery, safe redirect
+validation, self-hosted assets, and no raw HTML sinks are release checks.
+`,
+    "evidence/ui/deployment.md": `# UI deployment evidence
+
+Provider: \`${provider}\`
+
+The UI artifact is immutable and receives public, non-secret \`/ui-config.json\`
+at deployment time. The public origin keeps UI, API, and authentication routes
+explicit while allowing independent internal processes. Readiness, rollback,
+cache revalidation, and configuration failure states are observable.
+`,
+    "evidence/ui/observability.md": `# UI observability evidence
+
+Provider: \`${provider}\`
+
+Route and feature boundaries emit safe operation identifiers, trace
+correlation, release context, and a public support identifier. Reporter
+failures do not affect UI behavior. No request bodies, response bodies,
+credentials, cookies, personal query values, or stack traces leave the UI.
+`,
+  };
+}
+
+function createUiFiles(plan) {
+  const root = `src/${plan.applicationName}.Web`;
+  const files = new Map([
+    ["contracts/ui-capability-v1.json", uiContractDocument(plan)],
+    [`${root}/Platform/Api/transport.ts`, uiTransportFile()],
+    [`${root}/Platform/Session/session.ts`, uiSessionFile()],
+    [`${root}/Platform/Authorization/authorization.ts`, uiAuthorizationFile()],
+    [`${root}/Platform/Runtime/config.ts`, uiRuntimeConfigurationFile()],
+    [`${root}/Platform/Ui/DesignContract.css`, uiDesignContractCssFile()],
+    [`${root}/Platform/Ui/themes.css`, uiThemesCssFile()],
+    [
+      `${root}/Platform/Localization/${plan.ui.defaultCulture}.json`,
+      uiLocalizationFile(),
+    ],
+    [`${root}/Platform/Api/openapi.ts`, uiGeneratedOpenApiTypeScriptFile()],
+    [`${root}/Platform/Api/generated.ts`, uiGeneratedTypeScriptFile()],
+    [`${root}/App.${plan.ui.provider === "vue" ? "vue" : plan.ui.provider === "react" ? "tsx" : "razor"}`, uiApplicationSource(plan)],
+    [`${root}/Platform/Api/README.md`, `# Generated API client
+
+Generated from \`contracts/openapi-v1.json\`. Provider: \`${plan.ui.provider}\`.
+This directory contains wire contracts and transport adapters only.
+`],
+    ["evidence/ui/browser.md", uiEvidenceFiles(plan)["evidence/ui/browser.md"]],
+    ["evidence/ui/build.md", uiEvidenceFiles(plan)["evidence/ui/build.md"]],
+    ["evidence/ui/security.md", uiEvidenceFiles(plan)["evidence/ui/security.md"]],
+    ["evidence/ui/deployment.md", uiEvidenceFiles(plan)["evidence/ui/deployment.md"]],
+    ["evidence/ui/observability.md", uiEvidenceFiles(plan)["evidence/ui/observability.md"]],
+  ]);
+
+  if (plan.ui.provider === "blazor-webapp") {
+    files.set(`${root}/${plan.applicationName}.Web.csproj`, uiBlazorProjectFile(plan));
+    files.set(`${root}/Program.cs`, uiBlazorProgramFile(plan));
+    files.set(`${root}/App.razor`, uiBlazorAppSource(plan));
+    files.set(`${root}/Platform/Api/GeneratedClient.cs`, uiBlazorGeneratedClientFile(plan));
+    files.set(`${root}/Components/Routes.razor`, uiBlazorRoutesSource(plan));
+    files.set(`${root}/Platform/Localization/Messages.cs`, uiBlazorLocalizationSource(plan));
+    files.set(
+      `tests/${plan.applicationName}.Tests/UiCapabilityContractTests.cs`,
+      uiTUnitTestSource(),
+    );
+  } else {
+    files.set(`${root}/Platform/Localization/messages.ts`, uiLocalizationSource(plan));
+    files.set(`${root}/package.json`, uiPackageJsonFile(plan));
+    files.set(`${root}/index.html`, uiIndexHtmlFile(plan));
+    files.set(`${root}/tsconfig.json`, uiTypeScriptConfigFile(plan));
+    files.set(`${root}/vite.config.ts`, uiViteConfigFile(plan));
+    files.set(`${root}/vitest.config.ts`, uiVitestConfigFile());
+    files.set("pnpm-workspace.yaml", uiPnpmWorkspaceFile());
+    files.set(".npmrc", uiNpmrcFile());
+    files.set("pnpm-lock.yaml", uiPnpmLockFile(plan));
+    files.set(`${root}/main.${plan.ui.provider === "vue" ? "ts" : "tsx"}`, uiEntrySource(plan));
+    files.set(`${root}/tests/ui-capability-contract.test.ts`, uiBrowserTestSource(plan));
+    files.set(
+      `${root}/scripts/verify-generated-client.mjs`,
+      `import { readFile } from "node:fs/promises";
+
+const source = await readFile(new URL("../Platform/Api/generated.ts", import.meta.url), "utf8");
+if (!source.includes("openapi-typescript 7.13.0")) {
+  throw new Error("Generated client drifted from the pinned OpenAPI generator.");
+}
+`,
+    );
+  }
+
+  return files;
 }
 
 function createFiles(plan, manifest) {
@@ -3177,6 +4272,12 @@ function createFiles(plan, manifest) {
       testSourceFile(plan),
     ],
   ]);
+
+  if (plan.preset === FULL_STACK_PRESET) {
+    for (const [path, contents] of createUiFiles(plan)) {
+      files.set(path, contents);
+    }
+  }
 
   for (const module of plan.businessModules) {
     const root = modulePath(plan, module.name);
@@ -3286,6 +4387,21 @@ async function writeFiles(outputDirectory, files) {
 
 export async function generateModularMonolithPreset(options = {}) {
   const plan = createModularMonolithPresetPlan(options);
+  const outputDirectory = await prepareOutputDirectory(options.outputDirectory);
+  const manifest = createManifest(plan);
+  const files = createFiles(plan, manifest);
+  const writtenFiles = await writeFiles(outputDirectory, files);
+
+  return {
+    outputDirectory,
+    plan,
+    manifest,
+    files: writtenFiles,
+  };
+}
+
+export async function generateFullStackPreset(options = {}) {
+  const plan = createFullStackPresetPlan(options);
   const outputDirectory = await prepareOutputDirectory(options.outputDirectory);
   const manifest = createManifest(plan);
   const files = createFiles(plan, manifest);

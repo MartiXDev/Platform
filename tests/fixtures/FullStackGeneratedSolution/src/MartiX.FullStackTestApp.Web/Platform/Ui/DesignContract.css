@@ -1,0 +1,49 @@
+:root {
+  --mx-color-canvas: var(--fluent-color-neutral-background-1);
+  --mx-color-surface: var(--fluent-color-neutral-background-1);
+  --mx-color-surface-muted: var(--fluent-color-neutral-background-2);
+  --mx-color-danger-surface: var(--fluent-color-status-danger-background-1);
+  --mx-color-danger-foreground: var(--fluent-color-status-danger-foreground-1);
+  --mx-color-focus: var(--fluent-color-stroke-focus-2);
+  --mx-color-foreground: var(--fluent-color-neutral-foreground-1);
+  --mx-spacing-inline: var(--fluent-spacing-horizontal-m);
+  --mx-spacing-block: var(--fluent-spacing-vertical-m);
+  --mx-radius-control: var(--fluent-border-radius-medium);
+  --mx-motion-standard: var(--fluent-duration-normal);
+}
+
+@layer martix.ui {
+  .application-shell {
+    background: var(--mx-color-canvas);
+    color: var(--mx-color-foreground);
+    min-block-size: 100vh;
+  }
+
+  .application-shell :focus-visible {
+    outline: 2px solid var(--mx-color-focus);
+    outline-offset: 2px;
+  }
+
+  .ui-state {
+    padding-block: var(--mx-spacing-block);
+    padding-inline: var(--mx-spacing-inline);
+  }
+
+  .ui-state[data-state="error"],
+  .ui-state[data-state="denied"] {
+    background: var(--mx-color-danger-surface);
+    color: var(--mx-color-danger-foreground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-state {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .application-shell :focus-visible {
+      outline: 2px solid CanvasText;
+    }
+  }
+}

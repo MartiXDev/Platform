@@ -9,6 +9,10 @@ import {
   createModularMonolithPresetPlan,
   generateModularMonolithPreset,
 } from "./modular-monolith-preset.mjs";
+import {
+  createFullStackPresetPlan,
+  generateFullStackPreset,
+} from "./full-stack-preset.mjs";
 import { runModularMonolithCli } from "./generate-modular-monolith.mjs";
 
 const PRESET_HANDLERS = new Map([
@@ -24,6 +28,13 @@ const PRESET_HANDLERS = new Map([
     {
       createPlan: createModularMonolithPresetPlan,
       generate: generateModularMonolithPreset,
+    },
+  ],
+  [
+    "full-stack",
+    {
+      createPlan: createFullStackPresetPlan,
+      generate: generateFullStackPreset,
     },
   ],
 ]);
@@ -65,7 +76,7 @@ export async function runTemplateCli(
   argumentsList = process.argv.slice(2),
 ) {
   const preset = readPreset(argumentsList);
-  if (preset === "modular-monolith") {
+  if (preset === "modular-monolith" || preset === "full-stack") {
     return runModularMonolithCli(argumentsList);
   }
   return runApiPresetCli(argumentsList);

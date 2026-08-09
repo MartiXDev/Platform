@@ -10,7 +10,7 @@
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
 [`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
 and [`martix.platform.json`](../../martix.platform.json).
-They define four cadences and five required bootstrap gates while keeping
+They define four cadences and eight required bootstrap gates while keeping
 `supportClaims` empty:
 
 - `fast`
@@ -95,6 +95,13 @@ Target evidence includes:
 - performance and Native AOT only for exact declared combinations; and
 - immutable release evidence, provenance, SBOM, signatures, and publication
   receipts.
+
+The `bootstrap.full-stack` gate uses the named
+`FullStackGeneratedSolution` fixture as a non-product acceptance seam. It
+requires exactly one selected Blazor Web App, React, or Vue provider and checks
+the shared client, failure, session, authorization, accessibility,
+localization, theme, browser, build, security, deployment, and observability
+contracts.
 
 Generated solution tests use TUnit on Microsoft.Testing.Platform with isolated
 real resources and parallel execution by default. The current Kernel consumer

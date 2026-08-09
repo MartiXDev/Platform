@@ -103,6 +103,17 @@ function parseCliArguments(argumentsList) {
       case "--relational-provider":
         options.relationalProvider = value;
         break;
+      case "--ui":
+      case "--ui-provider":
+      case "--application-ui-provider":
+        options.uiProvider = value;
+        break;
+      case "--default-culture":
+        options.defaultCulture = value;
+        break;
+      case "--rendering-profile":
+        options.renderingProfile = value;
+        break;
       case "--persistence":
         options.persistence = value;
         break;
@@ -145,6 +156,8 @@ export async function runModularMonolithCli(
         "       [--module-dependency <Consumer>:<Provider>[,<Provider>...]]",
         "       [--relational-provider postgresql|sqlserver] [--dry-run]",
         "       [--authentication-profile <profile>]",
+        "       [--preset full-stack --ui-provider blazor-webapp|react|vue]",
+        "       [--default-culture <BCP-47>] [--rendering-profile application|hybrid-web]",
       ].join("\n"),
     );
     return;

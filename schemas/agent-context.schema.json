@@ -161,6 +161,59 @@
           "items": {
             "$ref": "#/$defs/provider"
           }
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "contractVersion",
+        "renderingProfile",
+        "defaultCulture",
+        "sessionOwner",
+        "themes"
+      ],
+      "properties": {
+        "provider": {
+          "enum": [
+            "blazor-webapp",
+            "react",
+            "vue"
+          ]
+        },
+        "contractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "renderingProfile": {
+          "enum": [
+            "application",
+            "hybrid-web"
+          ]
+        },
+        "defaultCulture": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionOwner": {
+          "const": "server-bff"
+        },
+        "themes": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "light",
+              "dark",
+              "system"
+            ]
+          }
         }
       }
     },

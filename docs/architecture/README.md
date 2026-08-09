@@ -40,6 +40,10 @@ Repository Bootstrap establishes this minimum structure:
   generation seam, and `eng/verify-api.mjs` verifies its packed consumer.
 - `tests/fixtures/RepositoryBootstrapGeneratedSolution/` is the temporary named
   Generated Solution acceptance seam.
+- `tests/fixtures/FullStackGeneratedSolution/` is the named, non-product
+  conformance seam for the provider-neutral UI Capability Contract; the
+  `bootstrap.full-stack` gate verifies its selected provider, isolated client,
+  accessibility states, localization/theme seams, and UI evidence.
 - The API Preset generator emits an application-owned solution with an explicit
   composition root, baseline Capability Manifest, and no persistence or
   unselected provider residue.

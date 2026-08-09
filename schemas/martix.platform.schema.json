@@ -78,6 +78,9 @@
     "authentication": {
       "$ref": "#/$defs/authentication"
     },
+    "ui": {
+      "$ref": "#/$defs/ui"
+    },
     "appliedMigrations": {
       "type": "array",
       "items": {
@@ -242,6 +245,56 @@
         },
         "state": {
           "const": "selected"
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "contractVersion",
+        "renderingProfile",
+        "defaultCulture",
+        "sessionOwner",
+        "themes"
+      ],
+      "properties": {
+        "provider": {
+          "enum": [
+            "blazor-webapp",
+            "react",
+            "vue"
+          ]
+        },
+        "contractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "renderingProfile": {
+          "enum": [
+            "application",
+            "hybrid-web"
+          ]
+        },
+        "defaultCulture": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$"
+        },
+        "sessionOwner": {
+          "const": "server-bff"
+        },
+        "themes": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "light",
+              "dark",
+              "system"
+            ]
+          }
         }
       }
     },

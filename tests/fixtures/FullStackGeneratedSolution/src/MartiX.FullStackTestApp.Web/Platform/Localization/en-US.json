@@ -1,0 +1,17 @@
+{
+  "ui.application.title": "Application UI",
+  "ui.state.loading": "Loading",
+  "ui.state.empty": "No content is available.",
+  "ui.state.validation": "Review the highlighted fields.",
+  "ui.state.denied": "You do not have access to this area.",
+  "ui.state.error": "Something went wrong.",
+  "ui.state.offline": "The service is unavailable. Check your connection.",
+  "ui.state.reconnecting": "Reconnecting securely.",
+  "ui.state.stale": "This view may be out of date.",
+  "ui.session.anonymous": "Sign in to continue.",
+  "ui.session.expired": "Your session has expired.",
+  "ui.session.authenticated": "Signed in",
+  "ui.theme.system": "System theme",
+  "ui.theme.light": "Light theme",
+  "ui.theme.dark": "Dark theme"
+}

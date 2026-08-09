@@ -1,0 +1,184 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MartiX.FullStackTestApp Modular Monolith HTTP Contract",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/orders/status": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Read Orders status",
+        "operationId": "Orders_StatusV1",
+        "responses": {
+          "200": {
+            "description": "The Orders status.",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersStatusResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request failed unexpectedly.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 500
+          }
+        },
+        "x-client": {
+          "methodName": "GetOrdersStatusAsync",
+          "returnType": "OrdersStatusResponse"
+        }
+      }
+    },
+    "/api/v1/orders/status/permissioned": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Read Orders status with application permission",
+        "operationId": "Orders_PermissionedStatusV1",
+        "responses": {
+          "200": {
+            "description": "The Orders status.",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersStatusResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The actor lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 403
+          },
+          "500": {
+            "description": "The request failed unexpectedly.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "x-status": 500
+          }
+        },
+        "x-client": {
+          "methodName": "GetOrdersPermissionedStatusAsync",
+          "returnType": "OrdersStatusResponse"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ProblemDetails": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "code",
+          "traceId",
+          "errors"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri-reference"
+          },
+          "code": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrdersStatusResponse": {
+        "type": "object",
+        "required": [
+          "module",
+          "dependencies"
+        ],
+        "properties": {
+          "module": {
+            "type": "string"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -213,6 +213,29 @@ implementations share one behavioral UI contract for accessibility,
 localization readiness, theme readiness, identity/session behavior, and
 browser evidence.
 
+### Shared UI Capability Contract
+
+The Full Stack Preset records one `ui` manifest object and exactly one selected
+`application-ui` provider. The provider-neutral contract is emitted as
+`contracts/ui-capability-v1.json`; it does not contain product journeys or
+business-module DTOs. Every provider exposes the same seams:
+
+- checked-in OpenAPI clients and RFC 9457 Problem Details;
+- server-owned BFF sessions with anonymous, authenticated, denied, and expired
+  states, without browser access or refresh-token persistence;
+- authorization state mapping and explicit loading, empty, validation, error,
+  offline, reconnecting, and stale-data states;
+- semantic HTML, keyboard and focus behavior, reduced motion, forced colors,
+  RTL, and responsive accessibility evidence;
+- invariant localization keys and semantic Fluent-style design tokens for
+  light, dark, and system themes.
+
+`evidence/ui/` records browser, build, security, deployment, and observability
+checks for the selected provider. React and Vue use the isolated TypeScript
+client profile; Blazor uses the isolated C# client profile. The UI project has
+no backend project reference or in-process Business Module access. API and
+Modular Monolith Presets remain UI-free.
+
 ## Deployment boundary
 
 Process and OCI artifacts are equal immutable Deployment Profiles built from

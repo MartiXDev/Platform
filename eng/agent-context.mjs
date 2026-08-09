@@ -15,6 +15,8 @@ import {
 } from "./modular-monolith-alpha.mjs";
 import {
   MODULAR_MONOLITH_BASELINE_CAPABILITIES,
+  FULL_STACK_BASELINE_CAPABILITIES,
+  FULL_STACK_UI_PROVIDERS,
 } from "./modular-monolith-preset.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -106,10 +108,15 @@ const SUPPORTED_REPOSITORY_ROLES = new Set([
 const CAPABILITIES_BY_PRESET = new Map([
   ["api", new Set(API_BASELINE_CAPABILITIES)],
   ["modular-monolith", new Set(MODULAR_MONOLITH_BASELINE_CAPABILITIES)],
+  ["full-stack", new Set(FULL_STACK_BASELINE_CAPABILITIES)],
 ]);
 const PROVIDERS_BY_PRESET = new Map([
   ["api", new Set()],
   ["modular-monolith", new Set(MODULAR_MONOLITH_ALPHA_PROVIDERS)],
+  [
+    "full-stack",
+    new Set(["postgresql", "sqlserver", ...FULL_STACK_UI_PROVIDERS]),
+  ],
 ]);
 
 export class AgentContextError extends Error {
@@ -554,6 +561,7 @@ function compositionRecord(manifest) {
         state: String(provider.state ?? "unknown"),
       };
     }),
+    ...(manifest.ui === undefined ? {} : { ui: { ...manifest.ui } }),
   };
 }
 

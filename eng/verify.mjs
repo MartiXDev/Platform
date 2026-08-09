@@ -25,6 +25,8 @@ const GENERATED_SOLUTION_ROOT = `tests/fixtures/${GENERATED_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_SOLUTION_NAME = "ModularMonolithGeneratedSolution";
 const MODULAR_MONOLITH_SOLUTION_ROOT =
   `tests/fixtures/${MODULAR_MONOLITH_SOLUTION_NAME}`;
+const FULL_STACK_SOLUTION_NAME = "FullStackGeneratedSolution";
+const FULL_STACK_SOLUTION_ROOT = `tests/fixtures/${FULL_STACK_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -40,6 +42,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.governance",
   "bootstrap.generated-solution",
   "bootstrap.modular-monolith",
+  "bootstrap.full-stack",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -64,7 +67,59 @@ const MANIFEST_REQUIRED_PROPERTIES = [
 const MANIFEST_ALLOWED_PROPERTIES = [
   ...MANIFEST_REQUIRED_PROPERTIES,
   "authentication",
+  "ui",
   "modules",
+];
+const FULL_STACK_UI_PROVIDERS = new Set([
+  "blazor-webapp",
+  "react",
+  "vue",
+]);
+const FULL_STACK_UI_CAPABILITIES = [
+  "application-ui",
+  "ui.design-contract",
+  "ui.generated-client",
+  "ui.problem-details",
+  "ui.secure-session",
+  "ui.authorization-states",
+  "ui.accessibility",
+  "ui.localization",
+  "ui.theme",
+  "ui.browser-evidence",
+  "ui.build-evidence",
+  "ui.security-evidence",
+  "ui.deployment-evidence",
+  "ui.observability",
+];
+const FULL_STACK_UI_INPUTS = [
+  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/browser.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/build.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/deployment.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/observability.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/security.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.tsx`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/generated.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/openapi.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/transport.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Authorization/authorization.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/en-US.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/messages.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Runtime/config.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Session/session.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/DesignContract.css`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/themes.css`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/index.html`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.tsx`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/package.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/scripts/verify-generated-client.mjs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tsconfig.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tests/ui-capability-contract.test.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vite.config.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vitest.config.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/.npmrc`,
+  `${FULL_STACK_SOLUTION_ROOT}/pnpm-lock.yaml`,
+  `${FULL_STACK_SOLUTION_ROOT}/pnpm-workspace.yaml`,
 ];
 const AUTHENTICATION_PROFILES = new Map([
   ["none", ["none", "anonymous"]],
@@ -136,6 +191,37 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/src/MartiX.TemplateTestApp.Billing/Infrastructure/Persistence/Migrations/BillingDbContextModelSnapshot.cs`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/MartiX.TemplateTestApp.Tests.csproj`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/tests/MartiX.TemplateTestApp.Tests/ModularMonolithCompositionTests.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/README.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/AGENTS.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/CONTEXT.md`,
+  `${FULL_STACK_SOLUTION_ROOT}/MartiX.FullStackTestApp.slnx`,
+  `${FULL_STACK_SOLUTION_ROOT}/martix.platform.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/contracts/openapi-v1.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/contracts/ui-capability-v1.json`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Api/MartiX.FullStackTestApp.Api.csproj`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Api/Program.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Api/Infrastructure/Host/HostSecurity.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Client/MartiX.FullStackTestApp.Client.csproj`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Client/MartiX.FullStackTestApp.Client.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Migrator/MartiX.FullStackTestApp.Migrator.csproj`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Migrator/Program.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/MartiX.FullStackTestApp.Orders.csproj`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/OrdersModule.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Contracts/ModuleContracts/IOrdersStatus.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Contracts/IntegrationEvents/OrdersIntegrationEvents.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Domain/OrdersAggregate.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Features/Status/OrdersStatus.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Infrastructure/Persistence/OrdersDbContext.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Infrastructure/Persistence/OrdersPersistenceModel.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Infrastructure/IntegrationEvents/OrdersReliableEvents.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Infrastructure/Persistence/Migrations/20260101000000_InitialOrders.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Orders/Infrastructure/Persistence/Migrations/OrdersDbContextModelSnapshot.cs`,
+  `${FULL_STACK_SOLUTION_ROOT}/tests/MartiX.FullStackTestApp.Tests/MartiX.FullStackTestApp.Tests.csproj`,
+  `${FULL_STACK_SOLUTION_ROOT}/tests/MartiX.FullStackTestApp.Tests/ModularMonolithCompositionTests.cs`,
+  ...FULL_STACK_UI_INPUTS,
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -349,11 +435,21 @@ function validateManifest(manifest, expectedKind, path) {
     validateAuthenticationManifest(manifest.authentication, `${path}.authentication`);
   }
 
-  if (manifest.preset === "modular-monolith") {
+  if (
+    manifest.preset === "modular-monolith" ||
+    manifest.preset === "full-stack"
+  ) {
     validateModularMonolithManifest(manifest, path);
   } else if (Object.hasOwn(manifest, "modules")) {
     fail(
       `Invalid bootstrap value at ${path}.modules: modules require the modular-monolith preset.`,
+    );
+  }
+  if (manifest.preset === "full-stack") {
+    validateFullStackManifest(manifest, path);
+  } else if (Object.hasOwn(manifest, "ui")) {
+    fail(
+      `Invalid bootstrap value at ${path}.ui: ui requires the full-stack preset.`,
     );
   }
 
@@ -424,6 +520,83 @@ function validateManifest(manifest, expectedKind, path) {
     fail(
       `Bootstrap manifest verification cadences must be ${CADENCES.join(", ")}.`,
     );
+  }
+}
+
+function validateFullStackManifest(manifest, path) {
+  requireRecord(manifest.ui, `${path}.ui`);
+  rejectUnknownProperties(
+    manifest.ui,
+    [
+      "provider",
+      "contractVersion",
+      "renderingProfile",
+      "defaultCulture",
+      "sessionOwner",
+      "themes",
+    ],
+    `${path}.ui`,
+  );
+  requireString(manifest.ui.provider, `${path}.ui.provider`);
+  if (!FULL_STACK_UI_PROVIDERS.has(manifest.ui.provider)) {
+    fail(
+      `Invalid Full Stack UI provider at ${path}.ui.provider: ${manifest.ui.provider}.`,
+    );
+  }
+  requireString(manifest.ui.contractVersion, `${path}.ui.contractVersion`);
+  requireString(
+    manifest.ui.renderingProfile,
+    `${path}.ui.renderingProfile`,
+  );
+  if (!["application", "hybrid-web"].includes(manifest.ui.renderingProfile)) {
+    fail(
+      `Invalid Full Stack rendering profile at ${path}.ui.renderingProfile.`,
+    );
+  }
+  requireString(manifest.ui.defaultCulture, `${path}.ui.defaultCulture`);
+  if (
+    !/^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/.test(
+      manifest.ui.defaultCulture,
+    )
+  ) {
+    fail(`Invalid BCP 47 default culture at ${path}.ui.defaultCulture.`);
+  }
+  if (manifest.ui.sessionOwner !== "server-bff") {
+    fail(
+      `Full Stack UI sessions must be owned by the server BFF at ${path}.ui.sessionOwner.`,
+    );
+  }
+  requireArray(manifest.ui.themes, `${path}.ui.themes`);
+  if (
+    JSON.stringify(manifest.ui.themes) !==
+    JSON.stringify(["light", "dark", "system"])
+  ) {
+    fail(
+      `Full Stack UI themes must be light, dark, and system at ${path}.ui.themes.`,
+    );
+  }
+
+  const uiProviders = manifest.providers.filter(
+    (provider) => provider?.capability === "application-ui",
+  );
+  if (
+    uiProviders.length !== 1 ||
+    uiProviders[0].state !== "selected" ||
+    uiProviders[0].id !== manifest.ui.provider
+  ) {
+    fail(
+      "Full Stack manifest must select exactly one application UI provider matching ui.provider.",
+    );
+  }
+  for (const capability of FULL_STACK_UI_CAPABILITIES) {
+    const selected = manifest.capabilities.find(
+      (candidate) => candidate?.id === capability,
+    );
+    if (selected?.state !== "selected") {
+      fail(
+        `Full Stack manifest must select the ${capability} capability.`,
+      );
+    }
   }
 }
 
@@ -539,6 +712,59 @@ function modularMonolithExpectedFiles(manifest) {
       `${project}/Infrastructure/IntegrationEvents/${module.name}ReliableEvents.cs`,
       `${project}/Infrastructure/Persistence/Migrations/20260101000000_Initial${module.name}.cs`,
       `${project}/Infrastructure/Persistence/Migrations/${module.name}DbContextModelSnapshot.cs`,
+    );
+  }
+
+  return files.sort();
+}
+
+function fullStackExpectedFiles(manifest) {
+  const applicationName = manifest.repository.name;
+  const root = `src/${applicationName}.Web`;
+  const files = [
+    ...modularMonolithExpectedFiles(manifest),
+    "contracts/ui-capability-v1.json",
+    "evidence/ui/browser.md",
+    "evidence/ui/build.md",
+    "evidence/ui/deployment.md",
+    "evidence/ui/observability.md",
+    "evidence/ui/security.md",
+    `${root}/Platform/Api/README.md`,
+    `${root}/Platform/Api/generated.ts`,
+    `${root}/Platform/Api/openapi.ts`,
+    `${root}/Platform/Api/transport.ts`,
+    `${root}/Platform/Authorization/authorization.ts`,
+    `${root}/Platform/Localization/${manifest.ui.defaultCulture}.json`,
+    `${root}/Platform/Runtime/config.ts`,
+    `${root}/Platform/Session/session.ts`,
+    `${root}/Platform/Ui/DesignContract.css`,
+    `${root}/Platform/Ui/themes.css`,
+    `${root}/${manifest.ui.provider === "vue" ? "App.vue" : manifest.ui.provider === "react" ? "App.tsx" : "App.razor"}`,
+  ];
+
+  if (manifest.ui.provider === "blazor-webapp") {
+    files.push(
+      `${root}/${applicationName}.Web.csproj`,
+      `${root}/Components/Routes.razor`,
+      `${root}/Platform/Api/GeneratedClient.cs`,
+      `${root}/Platform/Localization/Messages.cs`,
+      `${root}/Program.cs`,
+      `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
+    );
+  } else {
+    files.push(
+      `${root}/Platform/Localization/messages.ts`,
+      `${root}/main.${manifest.ui.provider === "vue" ? "ts" : "tsx"}`,
+      `${root}/index.html`,
+      `${root}/package.json`,
+      `${root}/scripts/verify-generated-client.mjs`,
+      `${root}/tsconfig.json`,
+      `${root}/tests/ui-capability-contract.test.ts`,
+      `${root}/vite.config.ts`,
+      `${root}/vitest.config.ts`,
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      ".npmrc",
     );
   }
 
@@ -1455,6 +1681,204 @@ async function validateModularMonolithSolution(rootDir, manifest) {
   await validateModularMonolithComposition(solutionRoot, actualFiles, manifest);
 }
 
+async function validateFullStackSolution(rootDir, manifest) {
+  const solutionRoot = resolve(rootDir, FULL_STACK_SOLUTION_ROOT);
+  const actualFiles = await listFiles(solutionRoot, {
+    ignoredDirectories: ["bin", "obj", "node_modules"],
+  });
+  const expectedFiles = fullStackExpectedFiles(manifest);
+  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
+    const missing = expectedFiles.filter((file) => !actualFiles.includes(file));
+    const extra = actualFiles.filter((file) => !expectedFiles.includes(file));
+    fail(
+      `Full Stack Generated Solution inventory mismatch; missing: ${
+        missing.join(", ") || "none"
+      }; extra: ${extra.join(", ") || "none"}.`,
+    );
+  }
+
+  await validateModularMonolithComposition(solutionRoot, actualFiles, manifest);
+
+  const applicationName = manifest.repository.name;
+  const uiRoot = `src/${applicationName}.Web`;
+  const readSolutionFile = (relativePath) =>
+    readFile(resolve(solutionRoot, relativePath), "utf8");
+  const uiContract = JSON.parse(
+    await readSolutionFile("contracts/ui-capability-v1.json"),
+  );
+  if (
+    uiContract.contractVersion !== manifest.ui.contractVersion ||
+    uiContract.provider !== "provider-neutral" ||
+    uiContract.role !== "application-ui" ||
+    uiContract.transport?.source !== "contracts/openapi-v1.json" ||
+    uiContract.transport?.problemDetails !== "rfc-9457" ||
+    uiContract.transport?.credentials !== "server-owned-session" ||
+    uiContract.session?.owner !== "server-bff" ||
+    uiContract.session?.browserPersistence !== "session-cookie-only" ||
+    JSON.stringify(uiContract.session?.states) !==
+      JSON.stringify(["anonymous", "authenticated", "denied", "expired"]) ||
+    ![
+      "loading",
+      "empty",
+      "validation",
+      "denied",
+      "error",
+      "offline",
+      "reconnecting",
+      "stale",
+    ].every((state) => uiContract.states?.includes(state)) ||
+    uiContract.accessibility?.standard !== "WCAG-2.2-AA" ||
+    uiContract.accessibility?.markup !== "semantic-html" ||
+    uiContract.accessibility?.keyboard !== true ||
+    uiContract.accessibility?.reducedMotion !== true ||
+    uiContract.accessibility?.forcedColors !== true ||
+    uiContract.accessibility?.rtl !== true ||
+    uiContract.localization?.defaultCulture !== manifest.ui.defaultCulture ||
+    uiContract.localization?.identifierPolicy !== "stable-semantic-keys" ||
+    uiContract.localization?.protocolInvariant !== true ||
+    uiContract.theme?.tokens !== "semantic" ||
+    JSON.stringify(uiContract.theme?.modes) !==
+      JSON.stringify(["light", "dark", "system"]) ||
+    JSON.stringify(uiContract.evidence) !==
+      JSON.stringify([
+        "browser",
+        "build",
+        "security",
+        "deployment",
+        "observability",
+      ])
+  ) {
+    fail(
+      "Full Stack UI Capability Contract does not match the provider-neutral contract.",
+    );
+  }
+
+  const uiFiles = actualFiles.filter(
+    (file) => file.startsWith(`${uiRoot}/`) && !file.endsWith(".csproj"),
+  );
+  const uiSource = (
+    await Promise.all(uiFiles.map((file) => readSolutionFile(file)))
+  ).join("\n");
+  const forbiddenBackendReference = new RegExp(
+    `(?:ProjectReference|${escapeRegExp(applicationName)}\\.Api|${manifest.modules
+      .map((module) => escapeRegExp(module.name))
+      .join("|")})`,
+    "i",
+  );
+  if (forbiddenBackendReference.test(uiSource)) {
+    fail(
+      "Full Stack UI must consume only HTTP/OpenAPI and must not reference backend or Business Module implementation.",
+    );
+  }
+
+  const transportSource = await readSolutionFile(
+    `${uiRoot}/Platform/Api/transport.ts`,
+  );
+  const sessionSource = await readSolutionFile(
+    `${uiRoot}/Platform/Session/session.ts`,
+  );
+  const authorizationSource = await readSolutionFile(
+    `${uiRoot}/Platform/Authorization/authorization.ts`,
+  );
+  const designSource = await readSolutionFile(
+    `${uiRoot}/Platform/Ui/DesignContract.css`,
+  );
+  const themeSource = await readSolutionFile(`${uiRoot}/Platform/Ui/themes.css`);
+  const localizationSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? await readSolutionFile(`${uiRoot}/Platform/Localization/Messages.cs`)
+      : await readSolutionFile(`${uiRoot}/Platform/Localization/messages.ts`);
+  const generatedClientSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? await readSolutionFile(`${uiRoot}/Platform/Api/GeneratedClient.cs`)
+      : await readSolutionFile(`${uiRoot}/Platform/Api/generated.ts`);
+  const browserTestSource =
+    manifest.ui.provider === "blazor-webapp"
+      ? await readSolutionFile(
+          `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
+        )
+      : await readSolutionFile(`${uiRoot}/tests/ui-capability-contract.test.ts`);
+
+  if (
+    !transportSource.includes('credentials: "include"') ||
+    !transportSource.includes("ProblemDetails") ||
+    !transportSource.includes("If-Match") ||
+    !transportSource.includes("Idempotency-Key") ||
+    !transportSource.includes("traceparent") ||
+    !sessionSource.includes("credentials: \"include\"") ||
+    !authorizationSource.includes("anonymous") ||
+    !authorizationSource.includes("authenticated") ||
+    !authorizationSource.includes("denied") ||
+    !authorizationSource.includes("expired") ||
+    !localizationSource.includes("ui.application.title") ||
+    !localizationSource.includes("ui.state.loading") ||
+    !designSource.includes("--mx-color-focus") ||
+    !designSource.includes("--mx-color-danger-surface") ||
+    /#[0-9a-f]{3,8}\b/i.test(designSource) ||
+    /tailwind/i.test(designSource) ||
+    !themeSource.includes('data-theme="system"') ||
+    !themeSource.includes('data-theme="light"') ||
+    !themeSource.includes('data-theme="dark"') ||
+    !generatedClientSource.includes("ProblemDetails") ||
+    !browserTestSource.includes("loading") ||
+    !browserTestSource.includes("offline") ||
+    !browserTestSource.includes("denied") ||
+    !browserTestSource.includes("reconnect") ||
+    (manifest.ui.provider !== "blazor-webapp" &&
+      !browserTestSource.includes("getByRole"))
+  ) {
+    fail(
+      "Full Stack UI sources must expose transport, session, authorization, accessibility, localization, theme, and browser contract evidence.",
+    );
+  }
+
+  for (const evidenceName of [
+    "browser",
+    "build",
+    "security",
+    "deployment",
+    "observability",
+  ]) {
+    const evidence = await readSolutionFile(`evidence/ui/${evidenceName}.md`);
+    if (
+      !evidence.includes("# UI") ||
+      !evidence.toLowerCase().includes(manifest.ui.provider) ||
+      /(?:orders|billing|weather|todo)/i.test(evidence)
+    ) {
+      fail(
+        `Full Stack ${evidenceName} evidence must be provider-specific infrastructure evidence without product behavior.`,
+      );
+    }
+  }
+
+  if (manifest.ui.provider !== "blazor-webapp") {
+    const packageJson = JSON.parse(
+      await readSolutionFile(`${uiRoot}/package.json`),
+    );
+    if (
+      packageJson.dependencies?.["openapi-fetch"] !== "0.17.0" ||
+      packageJson.devDependencies?.["openapi-typescript"] !== "7.13.0" ||
+      packageJson.devDependencies?.["@testing-library/dom"] === undefined
+    ) {
+      fail(
+        "Full Stack TypeScript UI must pin the reviewed OpenAPI and accessibility test profiles.",
+      );
+    }
+  } else {
+    const project = await readSolutionFile(
+      `${uiRoot}/${applicationName}.Web.csproj`,
+    );
+    if (
+      !project.includes('NSwag.ConsoleCore" Version="14.7.1"') ||
+      project.includes("ProjectReference")
+    ) {
+      fail(
+        "Full Stack Blazor UI must use the isolated NSwag client profile without backend project references.",
+      );
+    }
+  }
+}
+
 export function validateQualityGatePolicy(policy) {
   requireRecord(policy, "eng/quality-gates.json");
   requireString(policy.policyVersion, "eng/quality-gates.json.policyVersion");
@@ -1632,6 +2056,9 @@ export async function verifyBootstrap({
   const modularMonolithManifest = parseJson(
     `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
   );
+  const fullStackManifest = parseJson(
+    `${FULL_STACK_SOLUTION_ROOT}/martix.platform.json`,
+  );
 
   validateManifestSchema(manifestSchema);
   requireRecord(agentContextSchema, "schemas/agent-context.schema.json");
@@ -1688,6 +2115,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${MODULAR_MONOLITH_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    fullStackManifest,
+    "generated-solution",
+    `${FULL_STACK_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    fullStackManifest,
+    manifestSchema,
+    `${FULL_STACK_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -1696,6 +2133,7 @@ export async function verifyBootstrap({
   validateQualityGatePolicy(qualityPolicy);
   validateGovernanceDocuments(documents);
   await validateModularMonolithSolution(root, modularMonolithManifest);
+  await validateFullStackSolution(root, fullStackManifest);
   const agentReadiness = await verifyAgentReadiness({
     rootDir: root,
     platformRoot: root,
@@ -1719,6 +2157,7 @@ export async function verifyBootstrap({
     gates,
     generatedSolution: GENERATED_SOLUTION_NAME,
     modularMonolithSolution: MODULAR_MONOLITH_SOLUTION_NAME,
+    fullStackSolution: FULL_STACK_SOLUTION_NAME,
     agentReadiness,
   };
 }
