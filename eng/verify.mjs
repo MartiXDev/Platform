@@ -726,8 +726,9 @@ function fullStackBrowserEntryFileName(provider) {
 function fullStackExpectedFiles(manifest) {
   const applicationName = manifest.repository.name;
   const root = `src/${applicationName}.Web`;
+  const isBlazorProvider = manifest.ui.provider === "blazor-webapp";
   const uiAssetRoot =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? `${root}/wwwroot/Platform/Ui`
       : `${root}/Platform/Ui`;
   const files = [
@@ -745,7 +746,7 @@ function fullStackExpectedFiles(manifest) {
     `${root}/${fullStackApplicationFileName(manifest.ui.provider)}`,
   ];
 
-  if (manifest.ui.provider === "blazor-webapp") {
+  if (isBlazorProvider) {
     files.push(
       `${root}/${applicationName}.Web.csproj`,
       `${root}/Components/Routes.razor`,
@@ -801,91 +802,102 @@ function generatedTypeScriptPathBlock(source, path) {
   return nextPath === -1 ? remainder : remainder.slice(0, nextPath);
 }
 
-function generatedClientCoversHttpOperations(source, provider, contract) {
-  return listOpenApiOperations(contract).every(({ method, operation, path }) => {
-    if (provider === "blazor-webapp") {
-      const methodName = operation["x-client"]?.methodName;
-      if (typeof methodName !== "string") {
-        return false;
-      }
-      const httpMethod = `HttpMethod.${
-        method[0].toUpperCase() + method.slice(1)
-      }`;
-      const methodNameStart = source.indexOf(` ${methodName}(`);
-      const methodStart =
-        methodNameStart === -1
-          ? -1
-          : source.lastIndexOf("    public ", methodNameStart);
-      const memberEnds =
-        methodStart === -1
-          ? []
-          : [
-              source.indexOf("\n    public ", methodStart + 1),
-              source.indexOf("\n    private ", methodStart + 1),
-            ].filter((index) => index !== -1);
-      const methodEnd = memberEnds.length === 0
-        ? -1
-        : Math.min(...memberEnds);
-      const methodSource = source.slice(
-        methodStart,
-        methodEnd === -1 ? undefined : methodEnd,
-      );
-      if (
-        methodStart === -1 ||
-        !methodSource.includes(httpMethod) ||
-        !methodSource.includes(`"${path}"`) ||
-        !methodSource.includes("CancellationToken cancellationToken") ||
-        !methodSource.includes("apiTransport.SendAsync") ||
-        !methodSource.includes("response.IsSuccessStatusCode") ||
-        !methodSource.includes("CreateApiExceptionAsync") ||
-        !source.includes("ProblemDetails")
-      ) {
-        return false;
-      }
+function generatedBlazorClientMethodSource(source, methodName) {
+  const methodNameStart = source.indexOf(` ${methodName}(`);
+  if (methodNameStart === -1) {
+    return null;
+  }
 
-      const client = operation["x-client"] ?? {};
-      const parameterNames = [
-        ...(operation.parameters ?? [])
-          .filter(({ in: location }) =>
-            ["path", "query", "header"].includes(location),
-          )
-          .map(({ name }) => name),
-        ...(client.pathParameters ?? []).map(({ name }) => name),
-        ...(client.queryParameters ?? []).map(({ name }) => name),
-        ...(client.headers ?? []).map(({ name }) => name),
-      ];
-      if (
-        parameterNames.some(
-          (name) =>
-            !methodSource.includes(`("${name}",`) &&
-            !methodSource.includes(`"${name}"`),
-        )
-      ) {
-        return false;
-      }
-      if (operation.requestBody !== undefined) {
-        if (
-          typeof client.bodyType !== "string" ||
-          !methodSource.includes(client.bodyType) ||
-          !methodSource.includes("JsonContent.Create")
-        ) {
-          return false;
-        }
-      }
+  const methodStart = source.lastIndexOf("    public ", methodNameStart);
+  if (methodStart === -1) {
+    return null;
+  }
 
-      const expectedReturnType = client.returnType;
-      const returnSignature =
-        expectedReturnType === null
-          ? `Task ${methodName}(`
-          : `Task<${expectedReturnType}> ${methodName}(`;
-      return methodSource.includes(returnSignature);
+  const memberEnds = [
+    source.indexOf("\n    public ", methodStart + 1),
+    source.indexOf("\n    private ", methodStart + 1),
+  ].filter((index) => index !== -1);
+  const methodEnd =
+    memberEnds.length === 0 ? undefined : Math.min(...memberEnds);
+  return source.slice(methodStart, methodEnd);
+}
+
+function generatedBlazorClientCoversOperation(source, method, operation, path) {
+  const methodName = operation["x-client"]?.methodName;
+  if (typeof methodName !== "string") {
+    return false;
+  }
+
+  const methodSource = generatedBlazorClientMethodSource(source, methodName);
+  if (methodSource === null) {
+    return false;
+  }
+
+  const httpMethod = `HttpMethod.${
+    method[0].toUpperCase() + method.slice(1)
+  }`;
+  if (
+    !methodSource.includes(httpMethod) ||
+    !methodSource.includes(`"${path}"`) ||
+    !methodSource.includes("CancellationToken cancellationToken") ||
+    !methodSource.includes("apiTransport.SendAsync") ||
+    !methodSource.includes("response.IsSuccessStatusCode") ||
+    !methodSource.includes("CreateApiExceptionAsync") ||
+    !source.includes("ProblemDetails")
+  ) {
+    return false;
+  }
+
+  const client = operation["x-client"] ?? {};
+  const parameterNames = [
+    ...(operation.parameters ?? [])
+      .filter(({ in: location }) =>
+        ["path", "query", "header"].includes(location),
+      )
+      .map(({ name }) => name),
+    ...(client.pathParameters ?? []).map(({ name }) => name),
+    ...(client.queryParameters ?? []).map(({ name }) => name),
+    ...(client.headers ?? []).map(({ name }) => name),
+  ];
+  if (
+    parameterNames.some(
+      (name) =>
+        !methodSource.includes(`("${name}",`) &&
+        !methodSource.includes(`"${name}"`),
+    )
+  ) {
+    return false;
+  }
+
+  if (operation.requestBody !== undefined) {
+    if (
+      typeof client.bodyType !== "string" ||
+      !methodSource.includes(client.bodyType) ||
+      !methodSource.includes("JsonContent.Create")
+    ) {
+      return false;
     }
+  }
 
-    const pathBlock = generatedTypeScriptPathBlock(source, path);
-    return (
-      pathBlock !== null &&
-      pathBlock.includes(`\n    ${method}:`)
+  const expectedReturnType = client.returnType;
+  const returnSignature =
+    expectedReturnType === null
+      ? `Task ${methodName}(`
+      : `Task<${expectedReturnType}> ${methodName}(`;
+  return methodSource.includes(returnSignature);
+}
+
+function generatedClientCoversHttpOperations(source, provider, contract) {
+  const operations = listOpenApiOperations(contract);
+  if (provider === "blazor-webapp") {
+    return operations.every(({ method, operation, path }) =>
+      generatedBlazorClientCoversOperation(source, method, operation, path),
     );
+  }
+
+  return operations.every(({ method, path }) => {
+    const pathBlock = generatedTypeScriptPathBlock(source, path);
+    return pathBlock !== null && pathBlock.includes(`\n    ${method}:`);
   });
 }
 
@@ -1366,21 +1378,26 @@ async function validateModularMonolithComposition(
 
   const testProjectPath = `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`;
   const testProject = await readSolutionFile(testProjectPath);
+  const testProjectReferences = [
+    `../../src/${applicationName}.Api/${applicationName}.Api.csproj`,
+    `../../src/${applicationName}.Client/${applicationName}.Client.csproj`,
+    `../../src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
+    ...modules.map(
+      (module) =>
+        `../../${module.project}/${moduleProjectNames.get(module.name)}.csproj`,
+    ),
+  ];
+  if (
+    manifest.preset === "full-stack" &&
+    manifest.ui?.provider === "blazor-webapp"
+  ) {
+    testProjectReferences.push(
+      `../../src/${applicationName}.Web/${applicationName}.Web.csproj`,
+    );
+  }
   validateProjectReferences(
     testProject,
-    [
-      `../../src/${applicationName}.Api/${applicationName}.Api.csproj`,
-      `../../src/${applicationName}.Client/${applicationName}.Client.csproj`,
-      `../../src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`,
-      ...modules.map(
-        (module) =>
-          `../../${module.project}/${moduleProjectNames.get(module.name)}.csproj`,
-      ),
-      ...(manifest.preset === "full-stack" &&
-      manifest.ui?.provider === "blazor-webapp"
-        ? [`../../src/${applicationName}.Web/${applicationName}.Web.csproj`]
-        : []),
-    ],
+    testProjectReferences,
     testProjectPath,
   );
   validateExecutableProject(
@@ -1819,6 +1836,7 @@ async function validateFullStackSolution(rootDir, manifest) {
 
   const applicationName = manifest.repository.name;
   const uiRoot = `src/${applicationName}.Web`;
+  const isBlazorProvider = manifest.ui.provider === "blazor-webapp";
   const readSolutionFile = (relativePath) =>
     readFile(resolve(solutionRoot, relativePath), "utf8");
   const uiContract = JSON.parse(
@@ -1911,22 +1929,22 @@ async function validateFullStackSolution(rootDir, manifest) {
   }
 
   const transportSource = await readSolutionFile(
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? `${uiRoot}/Platform/Api/Transport.cs`
       : `${uiRoot}/Platform/Api/transport.ts`,
   );
   const sessionSource = await readSolutionFile(
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? `${uiRoot}/Platform/Session/Session.cs`
       : `${uiRoot}/Platform/Session/session.ts`,
   );
   const authorizationSource = await readSolutionFile(
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? `${uiRoot}/Platform/Authorization/Authorization.cs`
       : `${uiRoot}/Platform/Authorization/authorization.ts`,
   );
   const uiAssetRoot =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? `${uiRoot}/wwwroot/Platform/Ui`
       : `${uiRoot}/Platform/Ui`;
   const designSource = await readSolutionFile(
@@ -1934,11 +1952,11 @@ async function validateFullStackSolution(rootDir, manifest) {
   );
   const themeSource = await readSolutionFile(`${uiAssetRoot}/themes.css`);
   const localizationSource =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? await readSolutionFile(`${uiRoot}/Platform/Localization/Messages.cs`)
       : await readSolutionFile(`${uiRoot}/Platform/Localization/messages.ts`);
   const generatedClientSource =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? await readSolutionFile(`${uiRoot}/Platform/Api/GeneratedClient.cs`)
       : await readSolutionFile(`${uiRoot}/Platform/Api/generated.ts`);
   if (
@@ -1953,15 +1971,16 @@ async function validateFullStackSolution(rootDir, manifest) {
     );
   }
   const browserTestSource =
-    manifest.ui.provider === "blazor-webapp"
+    isBlazorProvider
       ? await readSolutionFile(
           `tests/${applicationName}.Tests/UiCapabilityContractTests.cs`,
         )
       : await readSolutionFile(`${uiRoot}/tests/ui-capability-contract.test.ts`);
 
-  const blazorProvider = manifest.ui.provider === "blazor-webapp";
-  const transportContractValid = blazorProvider
-    ? transportSource.includes("HttpClient") &&
+  let transportContractValid;
+  if (isBlazorProvider) {
+    transportContractValid =
+      transportSource.includes("HttpClient") &&
       transportSource.includes("If-Match") &&
       transportSource.includes("Idempotency-Key") &&
       transportSource.includes("traceparent") &&
@@ -1970,19 +1989,26 @@ async function validateFullStackSolution(rootDir, manifest) {
       transportSource.includes("ResponseHeadersRead") &&
       transportSource.includes("HttpRequestException") &&
       transportSource.includes("CloneSafeReadRequest") &&
-      generatedClientSource.includes("apiTransport.SendAsync")
-    : transportSource.includes('credentials: "include"') &&
+      generatedClientSource.includes("apiTransport.SendAsync");
+  } else {
+    transportContractValid =
+      transportSource.includes('credentials: "include"') &&
       transportSource.includes("ProblemDetails") &&
       transportSource.includes("If-Match") &&
       transportSource.includes("Idempotency-Key") &&
       transportSource.includes("traceparent");
-  const sessionContractValid = blazorProvider
-    ? sessionSource.includes("AuthenticationStateProvider") &&
+  }
+  let sessionContractValid;
+  if (isBlazorProvider) {
+    sessionContractValid =
+      sessionSource.includes("AuthenticationStateProvider") &&
       sessionSource.includes("server") &&
       sessionSource.includes("Publish") &&
       sessionSource.includes("IHttpContextAccessor") &&
-      !sessionSource.includes("localStorage")
-    : sessionSource.includes('credentials: "include"');
+      !sessionSource.includes("localStorage");
+  } else {
+    sessionContractValid = sessionSource.includes('credentials: "include"');
+  }
   const authorizationContractValid =
     /anonymous/i.test(authorizationSource) &&
     /authenticated/i.test(authorizationSource) &&
@@ -2006,9 +2032,9 @@ async function validateFullStackSolution(rootDir, manifest) {
     !browserTestSource.includes("offline") ||
     !browserTestSource.includes("denied") ||
     !browserTestSource.includes("reconnect") ||
-    (manifest.ui.provider !== "blazor-webapp" &&
+    (!isBlazorProvider &&
       !browserTestSource.includes("getByRole")) ||
-    (blazorProvider &&
+    (isBlazorProvider &&
       (!browserTestSource.includes("BunitContext") ||
        !browserTestSource.includes("IPage") ||
        !uiSource.includes("AuthorizeView")))
@@ -2037,7 +2063,7 @@ async function validateFullStackSolution(rootDir, manifest) {
     }
   }
 
-  if (manifest.ui.provider !== "blazor-webapp") {
+  if (!isBlazorProvider) {
     const packageJson = JSON.parse(
       await readSolutionFile(`${uiRoot}/package.json`),
     );
