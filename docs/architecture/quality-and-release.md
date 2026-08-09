@@ -1,16 +1,19 @@
 # Quality and release architecture
 
 > Status: **Approved target with implemented bootstrap, Beta integration,
-> Experimental alpha, Release Candidate evidence, and Stable promotion evidence**.
+> Experimental alpha, Release Candidate evidence, Stable promotion evidence,
+> and canonical cutover evidence**.
 > The current repository
 > exposes bootstrap gates, a claim-free Beta integration profile, the
-> claim-free Modular Monolith alpha profile, and a digest-bound Release
-> Candidate plus Stable promotion profiles; none is a Supported Capability claim.
+> claim-free Modular Monolith alpha profile, and digest-bound Release Candidate,
+> Stable promotion, and canonical cutover profiles; none is a Supported
+> Capability claim.
 
 ## Current bootstrap evidence
 
 The current machine-readable authorities are [`eng/quality-gates.json`](../../eng/quality-gates.json),
 [`eng/verify.mjs`](../../eng/verify.mjs), [`eng/stable-promotion.mjs`](../../eng/stable-promotion.mjs),
+[`eng/canonical-cutover.mjs`](../../eng/canonical-cutover.mjs),
 [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
 [`eng/deployment-manifest.mjs`](../../eng/deployment-manifest.mjs), and
 [`martix.platform.json`](../../martix.platform.json).
@@ -32,6 +35,7 @@ npm run verify:fastendpoints
 npm run verify:beta-integration
 npm run verify:release-candidate
 npm run verify:stable-promotion
+npm run verify:canonical-cutover
 ```
 
 The `modular-monolith-alpha` profile is release-candidate-only and requires
@@ -224,6 +228,18 @@ establishes `1.0.0` as the first Major Floor baseline with no predecessor,
 provider, deployment, migration, or Supported Capability claim. The support
 model retains the current Active major and the immediately previous Maintenance
 major only after the applicable evidence exists.
+
+The `canonical-cutover` profile uses the named
+`CanonicalCutoverGeneratedSolution` fixture and
+[`canonical-cutover.schema.json`](../../schemas/canonical-cutover.schema.json).
+It verifies public package/template installation, Generated Solution smoke
+evidence, immutable `1.0.0` documentation, and a one-way digest-preserving
+Marketplace Skill copy against the promoted Stable bytes. It identifies
+`MartiXDev/Platform` as the sole actively maintained Canonical Knowledge and
+distribution source, records exact archival banners for `MartiXDev/WebApi` and
+`MartiXDev/dotnet-templates`, preserves predecessor history, and rejects
+compatibility contracts, migration contracts, bridge packages, and duplicate
+editable documentation or Skill sources.
 
 ## Canonical knowledge and documentation
 

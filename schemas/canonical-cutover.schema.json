@@ -1,0 +1,849 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/canonical-cutover.schema.json",
+  "title": "MartiX Platform canonical cutover evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "kind",
+    "solution",
+    "cutoverId",
+    "cutoverRelease",
+    "cutoverDate",
+    "stableVersion",
+    "platformContractVersion",
+    "maturity",
+    "source",
+    "canonicalSource",
+    "promotedStable",
+    "stableArtifacts",
+    "installations",
+    "smokeTests",
+    "documentation",
+    "marketplaceSkill",
+    "predecessors",
+    "editableSources",
+    "migration",
+    "verification",
+    "cutoverGate",
+    "evidence",
+    "supportClaims",
+    "evidenceDigest"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://github.com/MartiXDev/Platform/schemas/canonical-cutover.schema.json"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "canonical-cutover-evidence"
+    },
+    "solution": {
+      "const": "CanonicalCutoverGeneratedSolution"
+    },
+    "cutoverId": {
+      "type": "string",
+      "pattern": "^canonical-cutover-1\\.0\\.0-[0-9a-f]{16}$"
+    },
+    "cutoverRelease": {
+      "const": "1.0.0"
+    },
+    "cutoverDate": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "stableVersion": {
+      "const": "1.0.0"
+    },
+    "platformContractVersion": {
+      "const": "1.0.0"
+    },
+    "maturity": {
+      "const": "stable"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "canonicalSource": {
+      "$ref": "#/$defs/canonicalSource"
+    },
+    "promotedStable": {
+      "$ref": "#/$defs/promotedStable"
+    },
+    "stableArtifacts": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "$ref": "#/$defs/stableArtifact"
+      }
+    },
+    "installations": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/installation"
+      }
+    },
+    "smokeTests": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/smokeTest"
+      }
+    },
+    "documentation": {
+      "$ref": "#/$defs/documentation"
+    },
+    "marketplaceSkill": {
+      "$ref": "#/$defs/marketplaceSkill"
+    },
+    "predecessors": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/predecessor"
+      }
+    },
+    "editableSources": {
+      "$ref": "#/$defs/editableSources"
+    },
+    "migration": {
+      "$ref": "#/$defs/migration"
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    },
+    "cutoverGate": {
+      "$ref": "#/$defs/cutoverGate"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "evidenceDigest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "clean",
+        "reviewed",
+        "reviewEvidence"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "clean": {
+          "const": true
+        },
+        "reviewed": {
+          "const": true
+        },
+        "reviewEvidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        }
+      }
+    },
+    "canonicalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "url",
+        "role",
+        "activelyMaintained",
+        "soleKnowledgeSource",
+        "soleDistributionSource"
+      ],
+      "properties": {
+        "repository": {
+          "const": "MartiXDev/Platform"
+        },
+        "url": {
+          "const": "https://github.com/MartiXDev/Platform"
+        },
+        "role": {
+          "const": "sole-actively-maintained-canonical-source"
+        },
+        "activelyMaintained": {
+          "const": true
+        },
+        "soleKnowledgeSource": {
+          "const": true
+        },
+        "soleDistributionSource": {
+          "const": true
+        }
+      }
+    },
+    "promotedStable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promotionId",
+        "stableVersion",
+        "platformContractVersion",
+        "evidenceDigest",
+        "artifactSetDigest",
+        "artifactIds",
+        "exactBytes",
+        "rebuilt"
+      ],
+      "properties": {
+        "promotionId": {
+          "type": "string",
+          "pattern": "^stable-1\\.0\\.0-[0-9a-f]{16}$"
+        },
+        "stableVersion": {
+          "const": "1.0.0"
+        },
+        "platformContractVersion": {
+          "const": "1.0.0"
+        },
+        "evidenceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "artifactSetDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "artifactIds": {
+          "type": "array",
+          "minItems": 13,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "exactBytes": {
+          "const": true
+        },
+        "rebuilt": {
+          "const": false
+        }
+      }
+    },
+    "stableArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "promotedDigest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promotedDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "artifactDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactId",
+        "digest"
+      ],
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "destination",
+        "version",
+        "artifactIds",
+        "artifactDigests",
+        "public",
+        "status",
+        "exactBytes",
+        "rebuilt",
+        "evidencePaths",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "runtime-packages",
+            "template-package",
+            "dotnet-tool",
+            "versioned-documentation",
+            "marketplace-skill"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "destination": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "const": "1.0.0"
+        },
+        "artifactIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "artifactDigests": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/artifactDigest"
+          }
+        },
+        "public": {
+          "const": true
+        },
+        "status": {
+          "const": "passed"
+        },
+        "exactBytes": {
+          "const": true
+        },
+        "rebuilt": {
+          "const": false
+        },
+        "evidencePaths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "smokeTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "solution",
+        "root",
+        "command",
+        "inputDigest",
+        "status",
+        "exactBytes",
+        "evidencePaths",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "api-preset",
+            "modular-monolith-preset",
+            "full-stack-preset"
+          ]
+        },
+        "solution": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "status": {
+          "const": "passed"
+        },
+        "exactBytes": {
+          "const": true
+        },
+        "evidencePaths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "documentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "paths",
+        "immutable",
+        "contentDigests",
+        "digest"
+      ],
+      "properties": {
+        "version": {
+          "const": "1.0.0"
+        },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "immutable": {
+          "const": true
+        },
+        "contentDigests": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/contentDigest"
+          }
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "contentDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "digest"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "marketplaceSkill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceRepository",
+        "sourcePath",
+        "destinationRepository",
+        "destinationPath",
+        "direction",
+        "sourceDigest",
+        "destinationDigest",
+        "status",
+        "reverseSync",
+        "evidencePaths"
+      ],
+      "properties": {
+        "sourceRepository": {
+          "const": "MartiXDev/Platform"
+        },
+        "sourcePath": {
+          "const": "skills/martix-platform/"
+        },
+        "destinationRepository": {
+          "const": "martix/skills"
+        },
+        "destinationPath": {
+          "const": "skills/martix-platform/"
+        },
+        "direction": {
+          "const": "platform-to-marketplace"
+        },
+        "sourceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "destinationDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "status": {
+          "const": "passed"
+        },
+        "reverseSync": {
+          "const": false
+        },
+        "evidencePaths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        }
+      }
+    },
+    "predecessor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "url",
+        "status",
+        "banner",
+        "archive",
+        "sourcePreserved",
+        "bridgePackages",
+        "digest"
+      ],
+      "properties": {
+        "repository": {
+          "enum": [
+            "MartiXDev/WebApi",
+            "MartiXDev/dotnet-templates"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "status": {
+          "const": "archived-unsupported"
+        },
+        "banner": {
+          "$ref": "#/$defs/banner"
+        },
+        "archive": {
+          "$ref": "#/$defs/archive"
+        },
+        "sourcePreserved": {
+          "const": true
+        },
+        "bridgePackages": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "banner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "release",
+        "date",
+        "canonicalRepository",
+        "compatibilityContract",
+        "migrationContract"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "release": {
+          "const": "1.0.0"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "canonicalRepository": {
+          "const": "https://github.com/MartiXDev/Platform"
+        },
+        "compatibilityContract": {
+          "const": false
+        },
+        "migrationContract": {
+          "const": false
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readOnly",
+        "historyUnchanged",
+        "tagsUnchanged",
+        "issuesUnchanged",
+        "releasesUnchanged",
+        "sourceUnchanged",
+        "historicalWayfinderSnapshotsUnchanged",
+        "finalSnapshotTag",
+        "finalSnapshotPreserved"
+      ],
+      "properties": {
+        "readOnly": {
+          "const": true
+        },
+        "historyUnchanged": {
+          "const": true
+        },
+        "tagsUnchanged": {
+          "const": true
+        },
+        "issuesUnchanged": {
+          "const": true
+        },
+        "releasesUnchanged": {
+          "const": true
+        },
+        "sourceUnchanged": {
+          "const": true
+        },
+        "historicalWayfinderSnapshotsUnchanged": {
+          "const": true
+        },
+        "finalSnapshotTag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "finalSnapshotPreserved": {
+          "const": true
+        }
+      }
+    },
+    "editableSources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "documentation",
+        "skill"
+      ],
+      "properties": {
+        "documentation": {
+          "$ref": "#/$defs/editableSource"
+        },
+        "skill": {
+          "$ref": "#/$defs/editableSource"
+        }
+      }
+    },
+    "editableSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "canonicalPath",
+        "alternatePaths"
+      ],
+      "properties": {
+        "count": {
+          "const": 1
+        },
+        "canonicalPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "alternatePaths": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compatibilityContract",
+        "migrationContract",
+        "bridgePackages",
+        "fallbackEvidencePreserved",
+        "sourceHistoriesPreserved"
+      ],
+      "properties": {
+        "compatibilityContract": {
+          "const": "none"
+        },
+        "migrationContract": {
+          "const": "none"
+        },
+        "bridgePackages": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "fallbackEvidencePreserved": {
+          "const": true
+        },
+        "sourceHistoriesPreserved": {
+          "const": true
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cadence",
+        "policyVersion",
+        "entrypoint",
+        "command",
+        "failClosed",
+        "requiredGates",
+        "notApplicable",
+        "notSelected"
+      ],
+      "properties": {
+        "cadence": {
+          "const": "release-candidate"
+        },
+        "policyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entrypoint": {
+          "const": "eng/verify.mjs"
+        },
+        "command": {
+          "const": "npm run verify:canonical-cutover"
+        },
+        "failClosed": {
+          "const": true
+        },
+        "requiredGates": {
+          "type": "array",
+          "minItems": 27,
+          "maxItems": 27,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notApplicable": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "notSelected": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "cutoverGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "outcome",
+        "inputDigest",
+        "evidenceDigest",
+        "attempts"
+      ],
+      "properties": {
+        "id": {
+          "const": "canonical.cutover"
+        },
+        "outcome": {
+          "const": "passed"
+        },
+        "inputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidenceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "attempts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/gateAttempt"
+          }
+        }
+      }
+    },
+    "gateAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "outcome"
+      ],
+      "properties": {
+        "number": {
+          "const": 1
+        },
+        "outcome": {
+          "const": "passed"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paths",
+        "immutable",
+        "digest"
+      ],
+      "properties": {
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "immutable": {
+          "const": true
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

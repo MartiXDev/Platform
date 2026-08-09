@@ -91,6 +91,19 @@
         "stable.promotion"
       ],
       "command": "npm run verify:stable-promotion"
+    },
+    {
+      "id": "canonical-cutover",
+      "maturity": "stable",
+      "preset": "platform",
+      "providers": [],
+      "cadences": [
+        "release-candidate"
+      ],
+      "gates": [
+        "canonical.cutover"
+      ],
+      "command": "npm run verify:canonical-cutover"
     }
   ],
   "gates": [
@@ -404,6 +417,16 @@
         "release-candidate"
       ],
       "purpose": "The accepted Release Candidate is promoted to Stable 1.0.0 only when every synchronized artifact retains its exact digest, authoritative publication receipts are complete, and the first major-floor baseline is recorded without new support claims."
+    },
+    {
+      "id": "canonical.cutover",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "release-candidate"
+      ],
+      "purpose": "The promoted Stable bytes pass public installation and Generated Solution smoke evidence before Platform becomes the sole canonical source and predecessors are archived without bridge packages."
     }
   ]
 }

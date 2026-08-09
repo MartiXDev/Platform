@@ -1,0 +1,506 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/canonical-cutover.schema.json",
+  "schemaVersion": "1.0.0",
+  "kind": "canonical-cutover-evidence",
+  "solution": "CanonicalCutoverGeneratedSolution",
+  "cutoverId": "canonical-cutover-1.0.0-6831e489f4180c04",
+  "cutoverRelease": "1.0.0",
+  "cutoverDate": "2026-08-09",
+  "stableVersion": "1.0.0",
+  "platformContractVersion": "1.0.0",
+  "maturity": "stable",
+  "source": {
+    "commit": "57f33b98bc9767491656eda31f8e7bc4e126beae",
+    "clean": true,
+    "reviewed": true,
+    "reviewEvidence": [
+      "docs/wayfinder/martix-platform/migration-roadmap.md",
+      "docs/wayfinder/martix-platform/tickets/115-agent-guidance.md",
+      "docs/wayfinder/martix-platform/tickets/122-repository-distribution-topology.md"
+    ]
+  },
+  "canonicalSource": {
+    "repository": "MartiXDev/Platform",
+    "url": "https://github.com/MartiXDev/Platform",
+    "role": "sole-actively-maintained-canonical-source",
+    "activelyMaintained": true,
+    "soleKnowledgeSource": true,
+    "soleDistributionSource": true
+  },
+  "promotedStable": {
+    "promotionId": "stable-1.0.0-bf6c2af7800a51a4",
+    "stableVersion": "1.0.0",
+    "platformContractVersion": "1.0.0",
+    "evidenceDigest": "sha256:0f83655fda3340fc6302098161746ffe92216a316b217fecc2bdff7c4ce41e7c",
+    "artifactSetDigest": "sha256:723351694a284009d0c1b1b0e98d1119278b85d9d7be07d4bb31b77c72739ee2",
+    "artifactIds": [
+      "release-docs",
+      "release-evidence",
+      "MartiX.Verification.Client",
+      "platform-migration",
+      "ghcr.io/martixdev/platform",
+      "MartiX.Platform",
+      "MartiX.Platform.Analyzers",
+      "MartiX.Platform.AspNetCore",
+      "MartiX.Platform.AspNetCore.FastEndpoints",
+      "MartiX.Platform.EntityFrameworkCore",
+      "MartiX.Platform.IntegrationEvents.RabbitMq",
+      "martix-platform-process",
+      "martix-platform.provenance",
+      "martix-platform.sbom",
+      "martix.platform.schema",
+      "martix-platform",
+      "martix-app",
+      "MartiX.Platform.Tool"
+    ],
+    "exactBytes": true,
+    "rebuilt": false
+  },
+  "stableArtifacts": [
+    {
+      "id": "release-docs",
+      "promotedDigest": "sha256:87b7774f515d6bc57e54139f16b4799f5fc6e0635e83e0669bc5671d5bbde48c"
+    },
+    {
+      "id": "release-evidence",
+      "promotedDigest": "sha256:2066681f591e8ba1bdf9772e24a8136e76c30fbc95ec8662bbeff93e49c3a1b4"
+    },
+    {
+      "id": "MartiX.Verification.Client",
+      "promotedDigest": "sha256:be43ba896dba1a365979cb4e0cf190ae1edaef6cf52f20bb6b32674683da629f"
+    },
+    {
+      "id": "platform-migration",
+      "promotedDigest": "sha256:f8f6f6e1f6cc1bb580c30a455d7b39212706efcedca255ddcfc20b1c9e98cd25"
+    },
+    {
+      "id": "ghcr.io/martixdev/platform",
+      "promotedDigest": "sha256:6a1049353f41975d324c3ce41f057a1e1dae55b9803da47d4822914ae2a50d8d"
+    },
+    {
+      "id": "MartiX.Platform",
+      "promotedDigest": "sha256:01af6bfb1167c157d0ff108ee9cbe81e58d64cbd0a7b3347873ee53390ac97a6"
+    },
+    {
+      "id": "MartiX.Platform.Analyzers",
+      "promotedDigest": "sha256:5b8f2eb711f04d85cac685b9e2d3f5039fbec83823a0165f7981d4d683801955"
+    },
+    {
+      "id": "MartiX.Platform.AspNetCore",
+      "promotedDigest": "sha256:394bdbd9b6e0eb5b676dab6bf0bbcd479db564643c8a950deee9e96e050716f0"
+    },
+    {
+      "id": "MartiX.Platform.AspNetCore.FastEndpoints",
+      "promotedDigest": "sha256:3d07460505eeb275752964221738f54caa65c5a53f3c01c04543c189f6828ad4"
+    },
+    {
+      "id": "MartiX.Platform.EntityFrameworkCore",
+      "promotedDigest": "sha256:e4ecbcb5906ff72a225bbc7490215f0f7f8f70046b7d28cbd20c2478cb9c138e"
+    },
+    {
+      "id": "MartiX.Platform.IntegrationEvents.RabbitMq",
+      "promotedDigest": "sha256:6b77f18ecaf2c178bc232b023de73e1b997b8e0732777c09624d57b8e4dc3b7a"
+    },
+    {
+      "id": "martix-platform-process",
+      "promotedDigest": "sha256:cb8696b97a0bcbe8a8717352dfbd7ba51152fef85b1b278bc4689ef94bd09f2e"
+    },
+    {
+      "id": "martix-platform.provenance",
+      "promotedDigest": "sha256:a695b0a8d223f8feed91bc7749c5e1a041e92efee372cd3fda0a86318cd34bab"
+    },
+    {
+      "id": "martix-platform.sbom",
+      "promotedDigest": "sha256:a8346a5d6237111d792d9d90624c58887bbe043f309390cecfde4e7194d2ff68"
+    },
+    {
+      "id": "martix.platform.schema",
+      "promotedDigest": "sha256:fcd060192987f5e5ba1e51b5e676c08a2504757b4a77c0046dc3632fd7740c83"
+    },
+    {
+      "id": "martix-platform",
+      "promotedDigest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462"
+    },
+    {
+      "id": "martix-app",
+      "promotedDigest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f"
+    },
+    {
+      "id": "MartiX.Platform.Tool",
+      "promotedDigest": "sha256:cab1944ef49ef0f6273da35c505c57106c13e28a2069bd889cd75a8d06b404e7"
+    }
+  ],
+  "installations": [
+    {
+      "id": "dotnet-tool",
+      "kind": "tool",
+      "destination": "nuget.org",
+      "version": "1.0.0",
+      "artifactIds": [
+        "MartiX.Platform.Tool"
+      ],
+      "artifactDigests": [
+        {
+          "artifactId": "MartiX.Platform.Tool",
+          "digest": "sha256:cab1944ef49ef0f6273da35c505c57106c13e28a2069bd889cd75a8d06b404e7"
+        }
+      ],
+      "public": true,
+      "status": "passed",
+      "exactBytes": true,
+      "rebuilt": false,
+      "evidencePaths": [
+        "docs/releases/1.0.0/canonical-cutover.md"
+      ],
+      "digest": "sha256:ba01b33bcce84013cf26cd000d13d1e47760fbb7747197ab94f09110753c54ed"
+    },
+    {
+      "id": "marketplace-skill",
+      "kind": "skill",
+      "destination": "martix/skills",
+      "version": "1.0.0",
+      "artifactIds": [
+        "martix-platform"
+      ],
+      "artifactDigests": [
+        {
+          "artifactId": "martix-platform",
+          "digest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462"
+        }
+      ],
+      "public": true,
+      "status": "passed",
+      "exactBytes": true,
+      "rebuilt": false,
+      "evidencePaths": [
+        "docs/releases/1.0.0/canonical-cutover.md",
+        "skills/martix-platform/SKILL.md"
+      ],
+      "digest": "sha256:7900e959efaf89859c8f2e1128de3a88f6d01b98ca194fadc653fde9352d23ef"
+    },
+    {
+      "id": "runtime-packages",
+      "kind": "package",
+      "destination": "nuget.org",
+      "version": "1.0.0",
+      "artifactIds": [
+        "MartiX.Platform",
+        "MartiX.Platform.Analyzers",
+        "MartiX.Platform.AspNetCore",
+        "MartiX.Platform.AspNetCore.FastEndpoints",
+        "MartiX.Platform.EntityFrameworkCore",
+        "MartiX.Platform.IntegrationEvents.RabbitMq"
+      ],
+      "artifactDigests": [
+        {
+          "artifactId": "MartiX.Platform",
+          "digest": "sha256:01af6bfb1167c157d0ff108ee9cbe81e58d64cbd0a7b3347873ee53390ac97a6"
+        },
+        {
+          "artifactId": "MartiX.Platform.Analyzers",
+          "digest": "sha256:5b8f2eb711f04d85cac685b9e2d3f5039fbec83823a0165f7981d4d683801955"
+        },
+        {
+          "artifactId": "MartiX.Platform.AspNetCore",
+          "digest": "sha256:394bdbd9b6e0eb5b676dab6bf0bbcd479db564643c8a950deee9e96e050716f0"
+        },
+        {
+          "artifactId": "MartiX.Platform.AspNetCore.FastEndpoints",
+          "digest": "sha256:3d07460505eeb275752964221738f54caa65c5a53f3c01c04543c189f6828ad4"
+        },
+        {
+          "artifactId": "MartiX.Platform.EntityFrameworkCore",
+          "digest": "sha256:e4ecbcb5906ff72a225bbc7490215f0f7f8f70046b7d28cbd20c2478cb9c138e"
+        },
+        {
+          "artifactId": "MartiX.Platform.IntegrationEvents.RabbitMq",
+          "digest": "sha256:6b77f18ecaf2c178bc232b023de73e1b997b8e0732777c09624d57b8e4dc3b7a"
+        }
+      ],
+      "public": true,
+      "status": "passed",
+      "exactBytes": true,
+      "rebuilt": false,
+      "evidencePaths": [
+        "docs/releases/1.0.0/canonical-cutover.md"
+      ],
+      "digest": "sha256:30ad1a6292854ff53f4920b089189c75d7e70a9e070168cc55d8218f5370b25f"
+    },
+    {
+      "id": "template-package",
+      "kind": "template",
+      "destination": "nuget.org",
+      "version": "1.0.0",
+      "artifactIds": [
+        "martix-app"
+      ],
+      "artifactDigests": [
+        {
+          "artifactId": "martix-app",
+          "digest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f"
+        }
+      ],
+      "public": true,
+      "status": "passed",
+      "exactBytes": true,
+      "rebuilt": false,
+      "evidencePaths": [
+        "docs/releases/1.0.0/canonical-cutover.md"
+      ],
+      "digest": "sha256:b91b11f61fe76ce31ce74147ec1792cb4745fdbeb2339270a58d13054e50536d"
+    },
+    {
+      "id": "versioned-documentation",
+      "kind": "documentation",
+      "destination": "github-pages",
+      "version": "1.0.0",
+      "artifactIds": [
+        "release-docs"
+      ],
+      "artifactDigests": [
+        {
+          "artifactId": "release-docs",
+          "digest": "sha256:87b7774f515d6bc57e54139f16b4799f5fc6e0635e83e0669bc5671d5bbde48c"
+        }
+      ],
+      "public": true,
+      "status": "passed",
+      "exactBytes": true,
+      "rebuilt": false,
+      "evidencePaths": [
+        "docs/releases/1.0.0/README.md",
+        "docs/releases/1.0.0/canonical-cutover.md"
+      ],
+      "digest": "sha256:3a2d33dd3c80f67c86a06ff34ba1b92ef3134c776738b04b1323e7c553457c64"
+    }
+  ],
+  "smokeTests": [
+    {
+      "id": "api-preset",
+      "solution": "RepositoryBootstrapGeneratedSolution",
+      "root": "tests/fixtures/RepositoryBootstrapGeneratedSolution",
+      "command": "npm run generate:api",
+      "inputDigest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f",
+      "status": "passed",
+      "exactBytes": true,
+      "evidencePaths": [
+        "tests/fixtures/RepositoryBootstrapGeneratedSolution/README.md",
+        "tests/fixtures/RepositoryBootstrapGeneratedSolution/martix.platform.json"
+      ],
+      "digest": "sha256:d4c7e1cab14749ac963d15685539b4ae13f825cb2cb3d17ac4b5e7582bef18f1"
+    },
+    {
+      "id": "full-stack-preset",
+      "solution": "FullStackGeneratedSolution",
+      "root": "tests/fixtures/FullStackGeneratedSolution",
+      "command": "npm run generate:app -- --preset full-stack",
+      "inputDigest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f",
+      "status": "passed",
+      "exactBytes": true,
+      "evidencePaths": [
+        "tests/fixtures/FullStackGeneratedSolution/README.md",
+        "tests/fixtures/FullStackGeneratedSolution/martix.platform.json"
+      ],
+      "digest": "sha256:58e23cb4801ef5a364d05918e2e318bf575cf854668ea401c72d9082af386676"
+    },
+    {
+      "id": "modular-monolith-preset",
+      "solution": "ModularMonolithGeneratedSolution",
+      "root": "tests/fixtures/ModularMonolithGeneratedSolution",
+      "command": "npm run generate:modular-monolith",
+      "inputDigest": "sha256:9f0dccf506b1d4af160c74970c114009492bb413888ad2c68873e9722deabe3f",
+      "status": "passed",
+      "exactBytes": true,
+      "evidencePaths": [
+        "tests/fixtures/ModularMonolithGeneratedSolution/README.md",
+        "tests/fixtures/ModularMonolithGeneratedSolution/martix.platform.json"
+      ],
+      "digest": "sha256:c3da649331af35971eb783a4ce31cdb9e05dc654044ab0408cb4a47a03d4b36e"
+    }
+  ],
+  "documentation": {
+    "version": "1.0.0",
+    "paths": [
+      "docs/releases/1.0.0/README.md",
+      "docs/releases/1.0.0/canonical-cutover.md"
+    ],
+    "immutable": true,
+    "contentDigests": [
+      {
+        "path": "docs/releases/1.0.0/canonical-cutover.md",
+        "digest": "sha256:c40acce2b6744bcc119769fffc03ec18082672d0ad4240e16589e410593c7830"
+      },
+      {
+        "path": "docs/releases/1.0.0/README.md",
+        "digest": "sha256:9561b6e7660819199fbb2a4f8c265b4ef1f4b9fceaa07266575e1a72be963aee"
+      }
+    ],
+    "digest": "sha256:2f9032de9fd4ca801417b2a45f56d5a3352df0567c546a8c7ba7cefd4f17a2de"
+  },
+  "marketplaceSkill": {
+    "sourceRepository": "MartiXDev/Platform",
+    "sourcePath": "skills/martix-platform/",
+    "destinationRepository": "martix/skills",
+    "destinationPath": "skills/martix-platform/",
+    "direction": "platform-to-marketplace",
+    "sourceDigest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462",
+    "destinationDigest": "sha256:770024090b3d86cd7533f12ece755cdac78ff4bd1385f89aa07cc3df07167462",
+    "status": "passed",
+    "reverseSync": false,
+    "evidencePaths": [
+      "docs/releases/1.0.0/canonical-cutover.md",
+      "skills/martix-platform/SKILL.md"
+    ]
+  },
+  "predecessors": [
+    {
+      "repository": "MartiXDev/dotnet-templates",
+      "url": "https://github.com/MartiXDev/dotnet-templates",
+      "status": "archived-unsupported",
+      "banner": {
+        "text": "Archived / Unsupported as of MartiX Platform 1.0.0 (2026-08-09). Canonical source: https://github.com/MartiXDev/Platform. No compatibility or migration contract is provided.",
+        "release": "1.0.0",
+        "date": "2026-08-09",
+        "canonicalRepository": "https://github.com/MartiXDev/Platform",
+        "compatibilityContract": false,
+        "migrationContract": false
+      },
+      "archive": {
+        "readOnly": true,
+        "historyUnchanged": true,
+        "tagsUnchanged": true,
+        "issuesUnchanged": true,
+        "releasesUnchanged": true,
+        "sourceUnchanged": true,
+        "historicalWayfinderSnapshotsUnchanged": true,
+        "finalSnapshotTag": "martix-platform-cutover-1.0.0",
+        "finalSnapshotPreserved": true
+      },
+      "sourcePreserved": true,
+      "bridgePackages": [],
+      "digest": "sha256:9068a2357e954d4f63b51e32aaa54981ce93d58858f6a253f82266c1fb026de4"
+    },
+    {
+      "repository": "MartiXDev/WebApi",
+      "url": "https://github.com/MartiXDev/WebApi",
+      "status": "archived-unsupported",
+      "banner": {
+        "text": "Archived / Unsupported as of MartiX Platform 1.0.0 (2026-08-09). Canonical source: https://github.com/MartiXDev/Platform. No compatibility or migration contract is provided.",
+        "release": "1.0.0",
+        "date": "2026-08-09",
+        "canonicalRepository": "https://github.com/MartiXDev/Platform",
+        "compatibilityContract": false,
+        "migrationContract": false
+      },
+      "archive": {
+        "readOnly": true,
+        "historyUnchanged": true,
+        "tagsUnchanged": true,
+        "issuesUnchanged": true,
+        "releasesUnchanged": true,
+        "sourceUnchanged": true,
+        "historicalWayfinderSnapshotsUnchanged": true,
+        "finalSnapshotTag": "martix-platform-cutover-1.0.0",
+        "finalSnapshotPreserved": true
+      },
+      "sourcePreserved": true,
+      "bridgePackages": [],
+      "digest": "sha256:f69c60e3501342f89fa4c9420379a8a9ee8799ff2897c5eb4953d9426cdae9c9"
+    }
+  ],
+  "editableSources": {
+    "documentation": {
+      "count": 1,
+      "canonicalPath": "docs/architecture/",
+      "alternatePaths": []
+    },
+    "skill": {
+      "count": 1,
+      "canonicalPath": "skills/martix-platform/",
+      "alternatePaths": []
+    }
+  },
+  "migration": {
+    "compatibilityContract": "none",
+    "migrationContract": "none",
+    "bridgePackages": [],
+    "fallbackEvidencePreserved": true,
+    "sourceHistoriesPreserved": true
+  },
+  "verification": {
+    "cadence": "release-candidate",
+    "policyVersion": "0.0.0-bootstrap",
+    "entrypoint": "eng/verify.mjs",
+    "command": "npm run verify:canonical-cutover",
+    "failClosed": true,
+    "requiredGates": [
+      "bootstrap.manifest",
+      "bootstrap.governance",
+      "bootstrap.generated-solution",
+      "bootstrap.modular-monolith",
+      "bootstrap.full-stack",
+      "bootstrap.provider-admission",
+      "bootstrap.deployment-manifest",
+      "bootstrap.portable-host-conformance",
+      "bootstrap.local-orchestration",
+      "bootstrap.otlp-export",
+      "bootstrap.feature-management",
+      "bootstrap.mailkit-smtp",
+      "bootstrap.valkey-distributed-cache",
+      "bootstrap.quartz-durable-jobs",
+      "bootstrap.host-baseline",
+      "bootstrap.secret-free",
+      "bootstrap.agent-readiness",
+      "modular-monolith.generated-solution",
+      "modular-monolith.architecture",
+      "modular-monolith.provider-integration",
+      "modular-monolith.migration",
+      "modular-monolith.reliability",
+      "modular-monolith.release-evidence",
+      "beta.integration",
+      "release-candidate.evidence",
+      "stable.promotion",
+      "canonical.cutover"
+    ],
+    "notApplicable": [],
+    "notSelected": []
+  },
+  "cutoverGate": {
+    "id": "canonical.cutover",
+    "outcome": "passed",
+    "inputDigest": "sha256:a5b9d60ba04dc53b6fadfbb22de06a2bcb0f3a075d990573d4731613761041ca",
+    "evidenceDigest": "sha256:303d1c7e8cfe5651760124f8661fb6e5f208c7295d27774633d5173853677b72",
+    "attempts": [
+      {
+        "number": 1,
+        "outcome": "passed"
+      }
+    ]
+  },
+  "evidence": {
+    "paths": [
+      "docs/wayfinder/martix-platform/migration-roadmap.md",
+      "docs/wayfinder/martix-platform/tickets/115-agent-guidance.md",
+      "docs/wayfinder/martix-platform/tickets/122-repository-distribution-topology.md",
+      "docs/releases/1.0.0/README.md",
+      "docs/releases/1.0.0/canonical-cutover.md",
+      "schemas/canonical-cutover.schema.json",
+      "tests/fixtures/CanonicalCutoverGeneratedSolution/README.md",
+      "tests/fixtures/CanonicalCutoverGeneratedSolution/martix.platform.json",
+      "tests/fixtures/StablePromotionGeneratedSolution/README.md",
+      "tests/fixtures/StablePromotionGeneratedSolution/martix.platform.json",
+      "tests/fixtures/StablePromotionGeneratedSolution/stable-promotion.json",
+      "tests/fixtures/RepositoryBootstrapGeneratedSolution/README.md",
+      "tests/fixtures/RepositoryBootstrapGeneratedSolution/martix.platform.json",
+      "tests/fixtures/ModularMonolithGeneratedSolution/README.md",
+      "tests/fixtures/ModularMonolithGeneratedSolution/martix.platform.json",
+      "tests/fixtures/FullStackGeneratedSolution/README.md",
+      "tests/fixtures/FullStackGeneratedSolution/martix.platform.json",
+      "skills/martix-platform/SKILL.md"
+    ],
+    "immutable": true,
+    "digest": "sha256:28104041c2aeb53d2b67149265c4d53186da03f95d93df9f2389184f2048f00a"
+  },
+  "supportClaims": [],
+  "evidenceDigest": "sha256:d830e5b0b85fcc0c60be21d964771d86ab6e4b03e5cb9312175139dd2d5ae445"
+}

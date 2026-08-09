@@ -98,13 +98,22 @@ import {
 import {
   STABLE_PROMOTION_CADENCES,
   STABLE_PROMOTION_GATE_ID,
-  STABLE_PROMOTION_REQUIRED_GATES,
   STABLE_PROMOTION_SOLUTION_NAME,
   STABLE_PROMOTION_SOLUTION_ROOT,
   STABLE_PROMOTION_VERIFICATION_COMMAND,
   StablePromotionError,
   verifyStablePromotionFixture,
 } from "./stable-promotion.mjs";
+import {
+  CANONICAL_CUTOVER_CADENCES,
+  CANONICAL_CUTOVER_GATE_ID,
+  CANONICAL_CUTOVER_REQUIRED_GATES,
+  CANONICAL_CUTOVER_SOLUTION_NAME,
+  CANONICAL_CUTOVER_SOLUTION_ROOT,
+  CANONICAL_CUTOVER_VERIFICATION_COMMAND,
+  CanonicalCutoverError,
+  verifyCanonicalCutoverFixture,
+} from "./canonical-cutover.mjs";
 
 const CADENCES = [
   "fast",
@@ -227,6 +236,7 @@ const MODULAR_MONOLITH_ALPHA_PROFILE_ID = "modular-monolith-alpha";
 const BETA_INTEGRATION_PROFILE_ID = "beta-integration";
 const RELEASE_CANDIDATE_PROFILE_ID = RELEASE_CANDIDATE_CADENCE;
 const STABLE_PROMOTION_PROFILE_ID = "stable-promotion";
+const CANONICAL_CUTOVER_PROFILE_ID = "canonical-cutover";
 const BETA_INTEGRATION_GATE_IDS = Object.freeze(["beta.integration"]);
 const MANIFEST_REQUIRED_PROPERTIES = [
   "$schema",
@@ -292,6 +302,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   "schemas/beta-integration.schema.json",
   "schemas/release-candidate.schema.json",
   "schemas/stable-promotion.schema.json",
+  "schemas/canonical-cutover.schema.json",
   "eng/agent-context.mjs",
   "eng/agent-readiness.mjs",
   "skills/martix-platform/SKILL.md",
@@ -319,6 +330,9 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${STABLE_PROMOTION_SOLUTION_ROOT}/README.md`,
   `${STABLE_PROMOTION_SOLUTION_ROOT}/martix.platform.json`,
   `${STABLE_PROMOTION_SOLUTION_ROOT}/stable-promotion.json`,
+  `${CANONICAL_CUTOVER_SOLUTION_ROOT}/README.md`,
+  `${CANONICAL_CUTOVER_SOLUTION_ROOT}/martix.platform.json`,
+  `${CANONICAL_CUTOVER_SOLUTION_ROOT}/canonical-cutover.json`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/README.md`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/AGENTS.md`,
   `${MODULAR_MONOLITH_SOLUTION_ROOT}/CONTEXT.md`,
@@ -2784,6 +2798,16 @@ export function validateQualityGatePolicy(policy) {
     command: STABLE_PROMOTION_VERIFICATION_COMMAND,
     description: "Stable promotion evidence matrix",
   });
+  const canonicalCutoverProfile = requireQualityProfile(policy.profiles, {
+    id: CANONICAL_CUTOVER_PROFILE_ID,
+    maturity: "stable",
+    preset: "platform",
+    providers: [],
+    cadences: CANONICAL_CUTOVER_CADENCES,
+    gates: [CANONICAL_CUTOVER_GATE_ID],
+    command: CANONICAL_CUTOVER_VERIFICATION_COMMAND,
+    description: "Canonical cutover evidence matrix",
+  });
 
   requireArray(policy.cadences, "eng/quality-gates.json.cadences");
   const declaredCadences = policy.cadences.map((cadence) => cadence?.id);
@@ -2806,7 +2830,8 @@ export function validateQualityGatePolicy(policy) {
       !MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) &&
       !BETA_INTEGRATION_GATE_IDS.includes(gate.id) &&
       !RELEASE_CANDIDATE_GATE_IDS.includes(gate.id) &&
-      gate.id !== STABLE_PROMOTION_GATE_ID
+      gate.id !== STABLE_PROMOTION_GATE_ID &&
+      gate.id !== CANONICAL_CUTOVER_GATE_ID
     ) {
       fail(`Unsupported bootstrap quality gate: ${gate.id}`);
     }
@@ -2843,6 +2868,7 @@ export function validateQualityGatePolicy(policy) {
   for (const requiredGate of [
     RELEASE_CANDIDATE_GATE_ID,
     STABLE_PROMOTION_GATE_ID,
+    CANONICAL_CUTOVER_GATE_ID,
   ]) {
     if (!gateIds.has(requiredGate)) {
       fail(`Missing required Release Candidate quality gate: ${requiredGate}`);
@@ -2883,6 +2909,15 @@ export function validateQualityGatePolicy(policy) {
           `Stable promotion gate ${gate.id} must run on release-candidate.`,
         );
       }
+    } else if (gate.id === CANONICAL_CUTOVER_GATE_ID) {
+      if (
+        JSON.stringify(gate.cadences) !==
+        JSON.stringify(CANONICAL_CUTOVER_CADENCES)
+      ) {
+        fail(
+          `Canonical cutover gate ${gate.id} must run on release-candidate.`,
+        );
+      }
     } else if (
       JSON.stringify(gate.cadences) !==
       JSON.stringify(RELEASE_CANDIDATE_CADENCES)
@@ -2920,6 +2955,13 @@ export function validateQualityGatePolicy(policy) {
     requiredGateIds: [STABLE_PROMOTION_GATE_ID],
     gateIds,
     gateLabel: "Stable promotion",
+  });
+  validateProfileGateSelection({
+    profile: canonicalCutoverProfile,
+    profileId: CANONICAL_CUTOVER_PROFILE_ID,
+    requiredGateIds: [CANONICAL_CUTOVER_GATE_ID],
+    gateIds,
+    gateLabel: "Canonical cutover",
   });
 }
 
@@ -4490,6 +4532,9 @@ export async function verifyBootstrap({
   const stablePromotionSchema = parseJson(
     "schemas/stable-promotion.schema.json",
   );
+  const canonicalCutoverSchema = parseJson(
+    "schemas/canonical-cutover.schema.json",
+  );
   const betaIntegrationManifest = parseJson(
     `${BETA_INTEGRATION_SOLUTION_ROOT}/martix.platform.json`,
   );
@@ -4507,6 +4552,12 @@ export async function verifyBootstrap({
   );
   const stablePromotionFixture = parseJson(
     `${STABLE_PROMOTION_SOLUTION_ROOT}/stable-promotion.json`,
+  );
+  const canonicalCutoverManifest = parseJson(
+    `${CANONICAL_CUTOVER_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const canonicalCutoverFixture = parseJson(
+    `${CANONICAL_CUTOVER_SOLUTION_ROOT}/canonical-cutover.json`,
   );
   const generatedManifest = parseJson(
     `${GENERATED_SOLUTION_ROOT}/martix.platform.json`,
@@ -4767,6 +4818,21 @@ export async function verifyBootstrap({
     stablePromotionSchema,
     `${STABLE_PROMOTION_SOLUTION_ROOT}/stable-promotion.json`,
   );
+  validateManifest(
+    canonicalCutoverManifest,
+    "generated-solution",
+    `${CANONICAL_CUTOVER_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    canonicalCutoverManifest,
+    manifestSchema,
+    `${CANONICAL_CUTOVER_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    canonicalCutoverFixture,
+    canonicalCutoverSchema,
+    `${CANONICAL_CUTOVER_SOLUTION_ROOT}/canonical-cutover.json`,
+  );
   validateQualityGatePolicy(qualityPolicy);
   validateGovernanceDocuments(documents);
   await validateModularMonolithSolution(root, modularMonolithManifest);
@@ -4854,6 +4920,18 @@ export async function verifyBootstrap({
           releaseCandidateSchema,
         })
       : null;
+  const canonicalCutover =
+    isReleaseCandidate
+      ? await verifyCanonicalCutoverFixture({
+          rootDir: root,
+          fixture: canonicalCutoverFixture,
+          manifest: canonicalCutoverManifest,
+          schema: canonicalCutoverSchema,
+          stablePromotion: stablePromotionFixture,
+          stablePromotionSchema,
+          stablePromotionManifest,
+        })
+      : null;
 
   const gates = qualityPolicy.gates
     .filter(
@@ -4863,15 +4941,16 @@ export async function verifyBootstrap({
             (MODULAR_MONOLITH_ALPHA_GATE_IDS.includes(gate.id) ||
               BETA_INTEGRATION_GATE_IDS.includes(gate.id) ||
               gate.id === RELEASE_CANDIDATE_GATE_ID ||
-              gate.id === STABLE_PROMOTION_GATE_ID))) &&
+              gate.id === STABLE_PROMOTION_GATE_ID ||
+              gate.id === CANONICAL_CUTOVER_GATE_ID))) &&
         gate.cadences.includes(cadence),
     )
     .map((gate) => gate.id);
   if (isReleaseCandidate) {
     gates.sort(
       (left, right) =>
-        STABLE_PROMOTION_REQUIRED_GATES.indexOf(left) -
-        STABLE_PROMOTION_REQUIRED_GATES.indexOf(right),
+        CANONICAL_CUTOVER_REQUIRED_GATES.indexOf(left) -
+        CANONICAL_CUTOVER_REQUIRED_GATES.indexOf(right),
     );
   }
 
@@ -4880,10 +4959,10 @@ export async function verifyBootstrap({
   }
   if (
     isReleaseCandidate &&
-    JSON.stringify(gates) !== JSON.stringify(STABLE_PROMOTION_REQUIRED_GATES)
+    JSON.stringify(gates) !== JSON.stringify(CANONICAL_CUTOVER_REQUIRED_GATES)
   ) {
     fail(
-      "Release Candidate cadence must execute the complete Release Candidate and Stable promotion gate list.",
+      "Release Candidate cadence must execute the complete Release Candidate, Stable promotion, and canonical cutover gate list.",
     );
   }
 
@@ -4925,6 +5004,9 @@ export async function verifyBootstrap({
     stablePromotionSolution:
       isReleaseCandidate ? STABLE_PROMOTION_SOLUTION_NAME : null,
     stablePromotion,
+    canonicalCutoverSolution:
+      isReleaseCandidate ? CANONICAL_CUTOVER_SOLUTION_NAME : null,
+    canonicalCutover,
   };
 }
 
@@ -4944,7 +5026,8 @@ if (invokedFile === import.meta.url) {
       error instanceof BootstrapVerificationError ||
       error instanceof BetaIntegrationError ||
       error instanceof ReleaseCandidateError ||
-      error instanceof StablePromotionError
+      error instanceof StablePromotionError ||
+      error instanceof CanonicalCutoverError
     ) {
       console.error(`Verification failed: ${error.message}`);
     } else {
