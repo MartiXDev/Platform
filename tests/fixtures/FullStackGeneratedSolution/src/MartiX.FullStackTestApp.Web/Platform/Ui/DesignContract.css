@@ -1,15 +1,15 @@
 :root {
-  --mx-color-canvas: var(--fluent-color-neutral-background-1);
-  --mx-color-surface: var(--fluent-color-neutral-background-1);
-  --mx-color-surface-muted: var(--fluent-color-neutral-background-2);
-  --mx-color-danger-surface: var(--fluent-color-status-danger-background-1);
-  --mx-color-danger-foreground: var(--fluent-color-status-danger-foreground-1);
-  --mx-color-focus: var(--fluent-color-stroke-focus-2);
-  --mx-color-foreground: var(--fluent-color-neutral-foreground-1);
-  --mx-spacing-inline: var(--fluent-spacing-horizontal-m);
-  --mx-spacing-block: var(--fluent-spacing-vertical-m);
-  --mx-radius-control: var(--fluent-border-radius-medium);
-  --mx-motion-standard: var(--fluent-duration-normal);
+  --mx-color-canvas: var(--mx-provider-color-canvas, Canvas);
+  --mx-color-surface: var(--mx-provider-color-surface, Canvas);
+  --mx-color-surface-muted: var(--mx-provider-color-surface-muted, Canvas);
+  --mx-color-danger-surface: var(--mx-provider-color-danger-surface, Canvas);
+  --mx-color-danger-foreground: var(--mx-provider-color-danger-foreground, CanvasText);
+  --mx-color-focus: var(--mx-provider-color-focus, Highlight);
+  --mx-color-foreground: var(--mx-provider-color-foreground, CanvasText);
+  --mx-spacing-inline: var(--mx-provider-spacing-inline, 1rem);
+  --mx-spacing-block: var(--mx-provider-spacing-block, 1rem);
+  --mx-radius-control: var(--mx-provider-radius-control, 0.25rem);
+  --mx-motion-standard: var(--mx-provider-motion-standard, 160ms);
 }
 
 @layer martix.ui {

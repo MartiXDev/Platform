@@ -8,30 +8,68 @@
  */
 import createClient from "openapi-fetch";
 
-export type ProblemDetails = {
-  type?: string;
-  title?: string;
-  status?: number;
-  detail?: string;
-  instance?: string;
-  traceId?: string;
-  code?: string;
-  errors?: Record<string, string[]>;
+export type components = {
+  schemas: {
+    "ProblemDetails": {
+      type: string;
+      title: string;
+      status: number;
+      detail: string;
+      instance?: string | null;
+      code: string;
+      traceId: string;
+      errors: Array<{
+        code: string;
+        message: string;
+        target?: string | null;
+      }>;
+    };
+    "OrdersStatusResponse": {
+      module: string;
+      dependencies: Array<string>;
+    };
+  };
 };
 
+export type ProblemDetails = components["schemas"]["ProblemDetails"];
+
 export type paths = {
-  "/api/v1/status": {
+  "/api/v1/orders/status": {
     get: {
-      responses: {
-        200: {
-          content: {
-            "application/json": {
-              status: string;
+        responses: {
+          "200": {
+            content: {
+              "application/json": components["schemas"]["OrdersStatusResponse"];
+            };
+          };
+          "500": {
+            content: {
+              "application/problem+json": components["schemas"]["ProblemDetails"];
             };
           };
         };
       };
-    };
+  };
+  "/api/v1/orders/status/permissioned": {
+    get: {
+        responses: {
+          "200": {
+            content: {
+              "application/json": components["schemas"]["OrdersStatusResponse"];
+            };
+          };
+          "403": {
+            content: {
+              "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+          };
+          "500": {
+            content: {
+              "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+          };
+        };
+      };
   };
 };
 

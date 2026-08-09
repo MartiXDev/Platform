@@ -50,6 +50,16 @@ function modularMonolithFixturePath(rootDir, ...segments) {
   );
 }
 
+function fullStackFixturePath(rootDir, ...segments) {
+  return join(
+    rootDir,
+    "tests",
+    "fixtures",
+    "FullStackGeneratedSolution",
+    ...segments,
+  );
+}
+
 test("fast cadence verifies the repository bootstrap contract", async () => {
   const result = await verifyBootstrap({
     cadence: "fast",
@@ -82,6 +92,54 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.generated-solution"));
   assert.equal(result.modularMonolithSolution, "ModularMonolithGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
+});
+
+test("Full Stack verification rejects UI contract version drift", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const manifestPath = fullStackFixturePath(
+      temporaryRoot,
+      "martix.platform.json",
+    );
+    const contractPath = fullStackFixturePath(
+      temporaryRoot,
+      "contracts",
+      "ui-capability-v1.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const contract = JSON.parse(await readFile(contractPath, "utf8"));
+    manifest.ui.contractVersion = "0.9.0";
+    contract.contractVersion = "0.9.0";
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    await writeFile(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Invalid Full Stack UI contract version/,
+    );
+  });
+});
+
+test("Full Stack verification rejects a client that omits an HTTP method", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const clientPath = fullStackFixturePath(
+      temporaryRoot,
+      "src",
+      "MartiX.FullStackTestApp.Web",
+      "Platform",
+      "Api",
+      "generated.ts",
+    );
+    const client = await readFile(clientPath, "utf8");
+    await writeFile(
+      clientPath,
+      client.replace("    get: {", "    post: {"),
+    );
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /generated UI client must expose every operation/,
+    );
+  });
 });
 
 test("modular monolith verification rejects cross-module implementation references", async () => {

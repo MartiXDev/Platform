@@ -101,7 +101,10 @@ The `bootstrap.full-stack` gate uses the named
 requires exactly one selected Blazor Web App, React, or Vue provider and checks
 the shared client, failure, session, authorization, accessibility,
 localization, theme, browser, build, security, deployment, and observability
-contracts.
+contracts. The selected UI client is derived from the same OpenAPI artifact as
+the standalone client, and the gate rejects missing operations or drifted UI
+contract metadata; shared styling remains a provider-neutral semantic-token
+seam.
 
 Generated solution tests use TUnit on Microsoft.Testing.Platform with isolated
 real resources and parallel execution by default. The current Kernel consumer

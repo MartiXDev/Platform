@@ -177,6 +177,18 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
       ),
       "utf8",
     );
+    const localizationSource = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Portal.Web",
+        "Platform",
+        "Localization",
+        "messages.ts",
+      ),
+      "utf8",
+    );
     const uiTest = await readFile(
       join(
         root,
@@ -196,6 +208,8 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.match(lockfile, /"openapi-typescript":/);
     assert.match(generatedClient, /openapi-typescript/);
     assert.match(generatedClient, /OpenAPI/);
+    assert.match(generatedClient, /"\/api\/v1\/orders\/status"/);
+    assert.match(generatedClient, /OrdersStatusResponse/);
     assert.match(transport, /credentials:\s*"include"/);
     assert.match(transport, /ProblemDetails/);
     assert.match(transport, /If-Match|ETag/);
@@ -204,6 +218,11 @@ test("Full Stack generation emits a provider-neutral UI contract and no product 
     assert.match(designContract, /--mx-color-focus/);
     assert.match(designContract, /--mx-color-danger-surface/);
     assert.doesNotMatch(designContract, /#[0-9a-f]{3,8}\b/i);
+    assert.doesNotMatch(designContract, /fluent/i);
+    assert.match(localizationSource, /ui\.state\.empty/);
+    assert.match(localizationSource, /ui\.state\.denied/);
+    assert.match(localizationSource, /ui\.theme\.dark/);
+    assert.match(localizationSource, /ui\.error\.offline/);
     assert.match(uiTest, /loading|empty|denied|offline|reconnect/i);
     assert.match(uiTest, /getByRole/);
     assert.doesNotMatch(uiTest, /Orders|Todo|Weather|fake product/i);
@@ -243,11 +262,29 @@ test("Blazor Full Stack uses the isolated C# client profile", async () => {
       ),
       "utf8",
     );
+    const localization = await readFile(
+      join(
+        root,
+        "generated",
+        "src",
+        "MartiX.Portal.Web",
+        "Platform",
+        "Localization",
+        "Messages.cs",
+      ),
+      "utf8",
+    );
 
     assert.ok(result.files.includes("src/MartiX.Portal.Web/MartiX.Portal.Web.csproj"));
     assert.match(webProject, /NSwag\.ConsoleCore.*14\.7\.1/);
     assert.match(client, /HttpClient/);
     assert.match(client, /CancellationToken/);
+    assert.match(client, /GetOrdersStatusAsync/);
+    assert.match(client, /\/api\/v1\/orders\/status/);
+    assert.match(client, /HttpMethod\.Get/);
+    assert.match(localization, /ui\.state\.denied/);
+    assert.match(localization, /ui\.theme\.dark/);
+    assert.match(localization, /ui\.error\.offline/);
     assert.match(client, /ProblemDetails|ApiException/);
     assert.doesNotMatch(webProject, /ProjectReference/);
     assert.doesNotMatch(client, /MartiX\.Portal\.(Api|Orders)/);
