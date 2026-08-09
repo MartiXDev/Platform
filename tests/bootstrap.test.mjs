@@ -134,8 +134,8 @@ test("the named Provider Admission fixture proves selection, absence, and invali
   const result = await validateProviderAdmissionFixture(fixture, manifest);
 
   assert.equal(result.status, "passed");
-  assert.equal(result.providerCount, 2);
-  assert.equal(result.invalidSelectionCount, 4);
+  assert.equal(result.providerCount, 3);
+  assert.equal(result.invalidSelectionCount, 5);
   assert.equal(
     result.matrixCoordinate,
     "operatingSystem=linux|preset=modular-monolith|runtime=net10.0",

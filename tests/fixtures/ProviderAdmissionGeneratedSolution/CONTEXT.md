@@ -7,4 +7,6 @@ quality profile for the selected runtime and operating-system coordinate.
 
 Unselected providers must leave no package, configuration, registration,
 worker, health-check, telemetry, container, or deployment residue. The fixture
-records a passed fail-closed outcome without making a Supported claim.
+records a passed fail-closed outcome without making a Supported claim. Azure
+Blob remains Experimental until the exact Azurite and live-Azure profiles agree
+on the provider-independent object-storage contract.

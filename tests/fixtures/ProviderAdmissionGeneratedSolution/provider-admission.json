@@ -3,7 +3,8 @@
     "preset": "modular-monolith",
     "capabilities": [
       "relational-persistence",
-      "durable-jobs"
+      "durable-jobs",
+      "object-storage"
     ],
     "providers": [
       {
@@ -13,52 +14,69 @@
       {
         "capability": "durable-jobs",
         "id": "quartz"
+      },
+      {
+        "capability": "object-storage",
+        "id": "azure-blob"
       }
     ],
     "runtime": "net10.0",
     "operatingSystem": "linux",
     "configuration": [
       "ConnectionStrings:Database",
-      "ConnectionStrings:Quartz"
+      "ConnectionStrings:Quartz",
+      "Azure:BlobServiceUri",
+      "ObjectStorage:Container"
     ]
   },
   "observed": {
     "packages": [
       {
-        "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
-        "version": "10.0.0"
-      },
-      {
         "id": "Quartz",
         "version": "3.18.2"
+      },
+      {
+        "id": "Azure.Storage.Blobs",
+        "version": "12.29.1"
+      },
+      {
+        "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
+        "version": "10.0.0"
       }
     ],
     "configuration": [
-      "ConnectionStrings:Database",
       "ConnectionStrings:Quartz",
-      "Quartz:SchedulerName"
+      "Quartz:SchedulerName",
+      "Azure:BlobServiceUri",
+      "ObjectStorage:Container",
+      "ConnectionStrings:Database"
     ],
     "registrations": [
-      "EntityFrameworkCore:PostgreSQL",
-      "Quartz:Scheduler"
+      "Quartz:Scheduler",
+      "ObjectStorage:AzureBlob",
+      "EntityFrameworkCore:PostgreSQL"
     ],
     "workers": [
       "QuartzHostedService"
     ],
     "healthChecks": [
-      "relational-database",
-      "durable-jobs"
+      "durable-jobs",
+      "object-storage",
+      "relational-database"
     ],
     "telemetry": [
-      "relational-database",
-      "durable-jobs"
+      "durable-jobs",
+      "object-storage",
+      "relational-database"
     ],
     "containers": [
+      "azurite:3.35.0",
       "postgresql:17"
     ],
     "deployment": [
-      "relational-database",
-      "durable-jobs-schema"
+      "durable-jobs-schema",
+      "object-storage",
+      "relational-database"
     ]
   },
   "evidence": {
@@ -71,6 +89,11 @@
       {
         "capability": "durable-jobs",
         "id": "quartz",
+        "state": "selected"
+      },
+      {
+        "capability": "object-storage",
+        "id": "azure-blob",
         "state": "selected"
       },
       {
@@ -96,16 +119,24 @@
     "conflicts": [],
     "configuration": {
       "requiredKeys": [
+        "Azure:BlobServiceUri",
         "ConnectionStrings:Database",
-        "ConnectionStrings:Quartz"
+        "ConnectionStrings:Quartz",
+        "ObjectStorage:Container"
       ],
       "selectedKeys": [
+        "Azure:BlobServiceUri",
         "ConnectionStrings:Database",
-        "ConnectionStrings:Quartz"
+        "ConnectionStrings:Quartz",
+        "ObjectStorage:Container"
       ]
     },
     "effects": {
       "packages": [
+        {
+          "id": "Azure.Storage.Blobs",
+          "version": "12.29.1"
+        },
         {
           "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
           "version": "10.0.0"
@@ -116,12 +147,15 @@
         }
       ],
       "configuration": [
+        "Azure:BlobServiceUri",
         "ConnectionStrings:Database",
         "ConnectionStrings:Quartz",
+        "ObjectStorage:Container",
         "Quartz:SchedulerName"
       ],
       "registrations": [
         "EntityFrameworkCore:PostgreSQL",
+        "ObjectStorage:AzureBlob",
         "Quartz:Scheduler"
       ],
       "workers": [
@@ -129,17 +163,21 @@
       ],
       "healthChecks": [
         "durable-jobs",
+        "object-storage",
         "relational-database"
       ],
       "telemetry": [
         "durable-jobs",
+        "object-storage",
         "relational-database"
       ],
       "containers": [
+        "azurite:3.35.0",
         "postgresql:17"
       ],
       "deployment": [
         "durable-jobs-schema",
+        "object-storage",
         "relational-database"
       ]
     },
@@ -155,15 +193,20 @@
         "release-evidence"
       ],
       "providerGates": [
+        "conditional-concurrency",
+        "live-parity",
         "migration",
         "operator-controls",
         "persistent-scheduling",
         "provider-translation",
         "recovery",
-        "reliability"
+        "reliability",
+        "streaming"
       ],
       "gates": [
         "architecture",
+        "conditional-concurrency",
+        "live-parity",
         "migration",
         "operator-controls",
         "persistent-scheduling",
@@ -174,6 +217,7 @@
         "reliability",
         "reliability-operations",
         "security-supply-chain",
+        "streaming",
         "template-generation"
       ],
       "evidence": [
@@ -188,6 +232,7 @@
       ],
       "providers": [
         "durable-jobs:quartz",
+        "object-storage:azure-blob",
         "relational-persistence:postgresql"
       ],
       "matrix": {
@@ -200,7 +245,8 @@
       "preset": "modular-monolith",
       "capabilities": [
         "relational-persistence",
-        "durable-jobs"
+        "durable-jobs",
+        "object-storage"
       ],
       "providers": [
         {
@@ -210,13 +256,17 @@
         {
           "capability": "durable-jobs",
           "provider": "quartz"
+        },
+        {
+          "capability": "object-storage",
+          "provider": "azure-blob"
         }
       ]
     },
     "verification": {
       "selection": "passed",
       "absence": "passed",
-      "evidenceDigest": "sha256:f808d143792ea2c0b477a16200b4480cd4a725249eb20d64dec19888070fa1d4"
+      "evidenceDigest": "sha256:bc5f22d6218140a7b2491127a096321e1e47afeb743700ce4aa58903f0e37da1"
     },
     "supportClaims": []
   },
@@ -313,6 +363,256 @@
           "ConnectionStrings:Database"
         ]
       }
+    },
+    {
+      "id": "missing-object-storage-configuration",
+      "expectedCode": "missing-configuration",
+      "selection": {
+        "preset": "modular-monolith",
+        "capabilities": [
+          "object-storage"
+        ],
+        "providers": [
+          {
+            "capability": "object-storage",
+            "id": "azure-blob"
+          }
+        ],
+        "runtime": "net10.0",
+        "operatingSystem": "linux",
+        "configuration": [
+          "Azure:BlobServiceUri"
+        ]
+      }
     }
-  ]
+  ],
+  "objectStorage": {
+    "schemaVersion": "1.0.0",
+    "provider": {
+      "capability": "object-storage",
+      "id": "azure-blob"
+    },
+    "package": {
+      "id": "Azure.Storage.Blobs",
+      "version": "12.29.1"
+    },
+    "emulator": {
+      "id": "azurite",
+      "name": "Azurite",
+      "version": "3.35.0"
+    },
+    "maturity": "experimental",
+    "supportClaims": [],
+    "contract": {
+      "capability": "object-storage",
+      "provider": "azure-blob",
+      "boundary": "provider-sdk-types-never-cross-business-module",
+      "maxObjectBytes": 104857600,
+      "maxMetadataEntries": 16,
+      "maxMetadataValueBytes": 256,
+      "operations": [
+        {
+          "id": "write",
+          "streaming": true,
+          "bounded": true,
+          "cancellable": true,
+          "contentMetadata": [
+            "content-type",
+            "content-length",
+            "content-md5"
+          ],
+          "metadata": "bounded",
+          "conditions": [
+            "if-none-match",
+            "if-match"
+          ],
+          "retry": "conditional-only"
+        },
+        {
+          "id": "read",
+          "streaming": true,
+          "bounded": true,
+          "cancellable": true,
+          "contentMetadata": [
+            "content-type",
+            "content-length",
+            "etag"
+          ],
+          "metadata": "bounded",
+          "conditions": [
+            "if-match"
+          ],
+          "retry": "idempotent"
+        },
+        {
+          "id": "head",
+          "streaming": false,
+          "bounded": true,
+          "cancellable": true,
+          "contentMetadata": [
+            "content-type",
+            "content-length",
+            "etag"
+          ],
+          "metadata": "bounded",
+          "conditions": [
+            "if-match"
+          ],
+          "retry": "idempotent"
+        },
+        {
+          "id": "delete",
+          "streaming": false,
+          "bounded": true,
+          "cancellable": true,
+          "contentMetadata": [],
+          "metadata": "none",
+          "conditions": [
+            "if-match"
+          ],
+          "retry": "idempotent"
+        }
+      ],
+      "retry": {
+        "maxAttempts": 3,
+        "maxDelayMs": 2000,
+        "retryableStatusCodes": [
+          408,
+          429,
+          500,
+          502,
+          503,
+          504
+        ],
+        "idempotentOperations": [
+          "read",
+          "head",
+          "delete"
+        ],
+        "conditionalWriteOnly": true,
+        "unsafeWrite": "never"
+      },
+      "failureMapping": {
+        "notFound": "not-found",
+        "preconditionFailed": "precondition-failed",
+        "conflict": "conflict",
+        "unauthorized": "unauthorized",
+        "invalidRequest": "invalid-request",
+        "unavailable": "unavailable",
+        "cancelled": "cancelled",
+        "unexpected": "provider-failure"
+      },
+      "authentication": {
+        "policy": "external-only",
+        "acceptedSources": [
+          "managed-identity",
+          "workload-identity",
+          "external-token",
+          "emulator-shared-key"
+        ],
+        "forbiddenSources": [
+          "account-key-in-source",
+          "sas-in-manifest",
+          "connection-string-in-manifest"
+        ]
+      },
+      "endpoint": {
+        "serviceUriConfigurationKey": "Azure:BlobServiceUri",
+        "containerConfigurationKey": "ObjectStorage:Container",
+        "productionSchemes": [
+          "https"
+        ],
+        "emulatorSchemes": [
+          "http",
+          "https"
+        ],
+        "allowsQueryAuth": false
+      },
+      "redaction": {
+        "forbiddenData": [
+          "object-name",
+          "signed-url",
+          "credential",
+          "payload",
+          "provider-response"
+        ],
+        "telemetryDimensions": [
+          "operation",
+          "outcome",
+          "status"
+        ],
+        "logPolicy": "stable-outcome-only"
+      },
+      "health": {
+        "operation": "container-properties",
+        "mode": "read-only",
+        "bounded": true,
+        "timeoutMs": 2000,
+        "writes": false,
+        "enumeration": false,
+        "readiness": "conditional"
+      },
+      "outage": {
+        "outcome": "bounded-failure",
+        "retryBudgetMs": 5000,
+        "noSilentFallback": true,
+        "cancellationWins": true,
+        "readiness": "fail-closed-when-required"
+      },
+      "liveParity": {
+        "required": true,
+        "matchingFields": [
+          "operations",
+          "retry",
+          "failureMapping",
+          "redaction",
+          "health",
+          "outage"
+        ],
+        "supportClaimRequires": "passed"
+      }
+    },
+    "profiles": [
+      {
+        "id": "azurite",
+        "service": "Azurite",
+        "version": "3.35.0",
+        "required": true,
+        "outcome": "passed",
+        "contractDigest": "sha256:e5b8c01cd9f6e6ce5ada482d5e82ed4c0e0511cc37bc0e41167476a9add176eb",
+        "checks": [
+          "streaming",
+          "cancellation",
+          "content-metadata",
+          "conditional",
+          "retry",
+          "failure",
+          "credentials",
+          "endpoint",
+          "redaction",
+          "health",
+          "outage"
+        ]
+      },
+      {
+        "id": "live-azure",
+        "service": "Azure Blob Storage",
+        "version": "required-live-service",
+        "required": true,
+        "outcome": "not-attested",
+        "contractDigest": null,
+        "checks": [],
+        "failure": {
+          "code": "live-evidence-required",
+          "message": "Live-Azure parity evidence is required before a Supported claim."
+        }
+      }
+    ],
+    "verification": {
+      "azurite": "passed",
+      "liveAzure": "not-attested",
+      "parity": "blocked",
+      "evidenceDigest": "sha256:7525ad2a41e2233ace5ae70fc80e2fcb092104feffdf5a32ed728d0f5346a7e4"
+    }
+  }
 }

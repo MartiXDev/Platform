@@ -329,7 +329,10 @@ const OPTIONAL_PROVIDER_DEFINITIONS = [
     capability: "object-storage",
     id: "azure-blob",
     presets: ["api", "modular-monolith", "full-stack"],
-    requiredConfiguration: ["Azure:BlobServiceUri"],
+    requiredConfiguration: [
+      "Azure:BlobServiceUri",
+      "ObjectStorage:Container",
+    ],
     effects: emptyEffects({
       packages: [packageEffect("Azure.Storage.Blobs", "12.29.1")],
       configuration: [
@@ -339,7 +342,7 @@ const OPTIONAL_PROVIDER_DEFINITIONS = [
       registrations: ["ObjectStorage:AzureBlob"],
       healthChecks: ["object-storage"],
       telemetry: ["object-storage"],
-      containers: ["azurite:3.35"],
+      containers: ["azurite:3.35.0"],
       deployment: ["object-storage"],
     }),
     quality: qualityProfile(

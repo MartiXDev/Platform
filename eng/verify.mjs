@@ -45,6 +45,10 @@ import {
   verifyProviderAdmission,
   verifyProviderAdmissionEvidence,
 } from "./provider-admission.mjs";
+import {
+  ObjectStorageEvidenceError,
+  verifyAzureBlobObjectStorageEvidence,
+} from "./object-storage.mjs";
 
 const CADENCES = [
   "fast",
@@ -237,6 +241,7 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/martix.platform.json`,
   `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json`,
   "eng/provider-admission.mjs",
+  "eng/object-storage.mjs",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/AGENTS.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/CONTEXT.md",
   "tests/fixtures/PlatformMigrationAlphaGeneratedSolution/PlatformMigrationRehearsal.json",
@@ -2498,6 +2503,10 @@ export async function validateProviderAdmissionFixture(
     fixture.evidence,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.evidence`,
   );
+  requireRecord(
+    fixture.objectStorage,
+    `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.objectStorage`,
+  );
   requireArray(
     fixture.invalidSelections,
     `${PROVIDER_ADMISSION_SOLUTION_ROOT}/provider-admission.json.invalidSelections`,
@@ -2505,6 +2514,16 @@ export async function validateProviderAdmissionFixture(
   requireRecord(manifest, manifestPath);
   requireArray(manifest.providers, `${manifestPath}.providers`);
   requireArray(manifest.supportClaims, `${manifestPath}.supportClaims`);
+
+  let objectStorage;
+  try {
+    objectStorage = verifyAzureBlobObjectStorageEvidence(fixture.objectStorage);
+  } catch (error) {
+    if (error instanceof ObjectStorageEvidenceError) {
+      fail(`Azure Blob object-storage evidence failed: ${error.message}`);
+    }
+    throw error;
+  }
 
   let result;
   try {
@@ -2550,6 +2569,16 @@ export async function validateProviderAdmissionFixture(
   if (manifest.supportClaims.length !== 0) {
     fail("Provider admission manifest must not make a Supported claim.");
   }
+  if (
+    !result.plan.providers.some(
+      ({ capability, id }) =>
+        capability === "object-storage" && id === "azure-blob",
+    )
+  ) {
+    fail(
+      "Provider admission fixture must select azure-blob for object-storage evidence.",
+    );
+  }
 
   for (const [index, invalid] of fixture.invalidSelections.entries()) {
     const path =
@@ -2593,6 +2622,8 @@ export async function validateProviderAdmissionFixture(
     matrixCoordinate: result.evidence.matrix.coordinate,
     evidenceDigest: result.evidence.verification.evidenceDigest,
     invalidSelectionCount: fixture.invalidSelections.length,
+    objectStorageStatus: objectStorage.supportStatus,
+    objectStorageLiveParity: objectStorage.liveParity,
   };
 }
 
