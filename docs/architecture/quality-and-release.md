@@ -11,7 +11,7 @@ The current machine-readable authorities are [`eng/quality-gates.json`](../../en
 [`eng/verify.mjs`](../../eng/verify.mjs), [`eng/verify-modular-monolith-alpha.mjs`](../../eng/verify-modular-monolith-alpha.mjs),
 [`eng/deployment-manifest.mjs`](../../eng/deployment-manifest.mjs), and
 [`martix.platform.json`](../../martix.platform.json).
-They define four cadences and ten required bootstrap gates while keeping
+They define four cadences and the required bootstrap gates while keeping
 `supportClaims` empty:
 
 - `fast`
@@ -55,6 +55,15 @@ projections from one identity. The gate verifies external-only configuration,
 startup/readiness/liveness checks, graceful shutdown, Migrator completion
 ordering, immutable promotion and rollback, and content-addressed drift
 evidence without embedding secrets or production build steps.
+
+The `bootstrap.portable-host-conformance` gate uses the named
+`PortableHostConformanceGeneratedSolution` fixture and
+[`schemas/portable-host-conformance.schema.json`](../../schemas/portable-host-conformance.schema.json).
+It binds admitted Windows/Linux process and OCI host coordinates, including
+generic Ubuntu 26.04, to the same manifest identity and checks external
+configuration, migration ordering, lifecycle, permissions, networking, and
+failure behavior. Unsupported coordinates fail closed; Active24 remains
+Planned / Not Attested and `supportClaims` stays empty.
 
 The optional FastEndpoints adapter is verified separately from the canonical
 Minimal API release loop. Its named Generated Solution proves the declared

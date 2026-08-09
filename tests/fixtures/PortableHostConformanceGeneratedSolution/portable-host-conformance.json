@@ -1,0 +1,173 @@
+{
+  "$schema": "https://github.com/MartiXDev/Platform/schemas/portable-host-conformance.schema.json",
+  "schemaVersion": "1.0.0",
+  "solution": "PortableHostConformanceGeneratedSolution",
+  "source": {
+    "manifest": "../DeploymentManifestGeneratedSolution/deployment-manifest.json"
+  },
+  "manifestDigest": "sha256:fdd6d03c80a3fbf11f2433d6e7fd78b56133a42f3c79c2bace9e39aa9ff46ec8",
+  "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+  "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d",
+  "configuration": {
+    "schemaVersion": "1.0.0",
+    "digest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d",
+    "keys": [
+      "ASPNETCORE_URLS",
+      "ConnectionStrings:Database"
+    ]
+  },
+  "migration": {
+    "resource": "migrator",
+    "order": [
+      "migrator"
+    ],
+    "beforeServing": [
+      "api"
+    ],
+    "concurrency": "exclusive"
+  },
+  "outcome": "passed",
+  "failClosed": true,
+  "combinations": [
+    {
+      "id": "linux-container",
+      "profile": "container",
+      "kind": "oci-image",
+      "operatingSystem": "linux",
+      "distribution": "oci",
+      "osVersion": "linux",
+      "runtime": "net10.0",
+      "rid": "linux-x64",
+      "adapter": "oci",
+      "artifact": {
+        "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "sourceDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+        "platformContractVersion": "0.1.0-preview.1",
+        "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+        "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d"
+      },
+      "checks": {
+        "artifactIdentity": true,
+        "runnable": true,
+        "externalConfiguration": true,
+        "migrationOrdering": true,
+        "readiness": true,
+        "liveness": true,
+        "gracefulShutdown": true,
+        "restart": true,
+        "permissions": true,
+        "networking": true,
+        "failureBehavior": true
+      }
+    },
+    {
+      "id": "linux-process",
+      "profile": "process",
+      "kind": "archive",
+      "operatingSystem": "linux",
+      "distribution": "ubuntu",
+      "osVersion": "24.04",
+      "runtime": "net10.0",
+      "rid": "linux-x64",
+      "adapter": "nginx-systemd",
+      "artifact": {
+        "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "sourceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+        "platformContractVersion": "0.1.0-preview.1",
+        "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+        "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d"
+      },
+      "checks": {
+        "artifactIdentity": true,
+        "runnable": true,
+        "externalConfiguration": true,
+        "migrationOrdering": true,
+        "readiness": true,
+        "liveness": true,
+        "gracefulShutdown": true,
+        "restart": true,
+        "permissions": true,
+        "networking": true,
+        "failureBehavior": true
+      }
+    },
+    {
+      "id": "ubuntu-26.04",
+      "profile": "process",
+      "kind": "archive",
+      "operatingSystem": "linux",
+      "distribution": "ubuntu",
+      "osVersion": "26.04",
+      "runtime": "net10.0",
+      "rid": "linux-x64",
+      "adapter": "nginx-systemd",
+      "artifact": {
+        "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "sourceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+        "platformContractVersion": "0.1.0-preview.1",
+        "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+        "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d"
+      },
+      "checks": {
+        "artifactIdentity": true,
+        "runnable": true,
+        "externalConfiguration": true,
+        "migrationOrdering": true,
+        "readiness": true,
+        "liveness": true,
+        "gracefulShutdown": true,
+        "restart": true,
+        "permissions": true,
+        "networking": true,
+        "failureBehavior": true
+      }
+    },
+    {
+      "id": "windows-process",
+      "profile": "process",
+      "kind": "archive",
+      "operatingSystem": "windows",
+      "distribution": "windows-server",
+      "osVersion": "2022",
+      "runtime": "net10.0",
+      "rid": "win-x64",
+      "adapter": "iis",
+      "artifact": {
+        "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        "sourceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+        "platformContractVersion": "0.1.0-preview.1",
+        "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+        "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d"
+      },
+      "checks": {
+        "artifactIdentity": true,
+        "runnable": true,
+        "externalConfiguration": true,
+        "migrationOrdering": true,
+        "readiness": true,
+        "liveness": true,
+        "gracefulShutdown": true,
+        "restart": true,
+        "permissions": true,
+        "networking": true,
+        "failureBehavior": true
+      }
+    }
+  ],
+  "plannedTargets": [
+    {
+      "id": "active24-ubuntu-vps",
+      "provider": "active24",
+      "maturity": "planned",
+      "attestation": "not-attested"
+    }
+  ],
+  "supportClaims": [],
+  "verification": {
+    "evidenceDigest": "sha256:48b444a75298c9558d849a6cb719f5baca365c3492c587f47faeb9ad150ecbf3"
+  }
+}

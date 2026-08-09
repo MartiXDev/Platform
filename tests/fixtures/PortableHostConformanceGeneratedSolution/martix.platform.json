@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../schemas/martix.platform.schema.json",
+  "kind": "generated-solution",
+  "manifestSchemaVersion": "1.0.0",
+  "platformVersion": "0.1.0-preview.1",
+  "platformContractVersion": "0.1.0-preview.1",
+  "repository": {
+    "organization": "MartiXDev",
+    "name": "PortableHostConformanceGeneratedSolution",
+    "product": "MartiX Portable Host Conformance Generated Solution",
+    "role": "generated-solution"
+  },
+  "origin": {
+    "canonicalRepository": "https://github.com/MartiXDev/Platform",
+    "template": "martix-app"
+  },
+  "preset": "api",
+  "capabilities": [
+    {
+      "id": "deployment.host-conformance",
+      "state": "selected"
+    }
+  ],
+  "providers": [],
+  "appliedMigrations": [],
+  "supportClaims": [],
+  "security": {
+    "secretPolicy": "external-only",
+    "containsSecrets": false
+  },
+  "verification": {
+    "entrypoint": "eng/verify.mjs",
+    "policy": "eng/quality-gates.json",
+    "cadences": [
+      "fast",
+      "pull-request",
+      "main-nightly",
+      "release-candidate"
+    ]
+  }
+}

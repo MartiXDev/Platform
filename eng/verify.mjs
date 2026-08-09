@@ -53,6 +53,10 @@ import {
   verifyDeploymentManifest,
 } from "./deployment-manifest.mjs";
 import {
+  PortableHostConformanceError,
+  verifyPortableHostConformance,
+} from "./portable-host-conformance.mjs";
+import {
   LocalOrchestrationError,
   LOCAL_ORCHESTRATION_PROFILES,
   createLocalOrchestration,
@@ -96,6 +100,10 @@ const DEPLOYMENT_MANIFEST_SOLUTION_NAME =
   "DeploymentManifestGeneratedSolution";
 const DEPLOYMENT_MANIFEST_SOLUTION_ROOT =
   `tests/fixtures/${DEPLOYMENT_MANIFEST_SOLUTION_NAME}`;
+const PORTABLE_HOST_CONFORMANCE_SOLUTION_NAME =
+  "PortableHostConformanceGeneratedSolution";
+const PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT =
+  `tests/fixtures/${PORTABLE_HOST_CONFORMANCE_SOLUTION_NAME}`;
 const LOCAL_ORCHESTRATION_SOLUTION_NAME =
   "LocalOrchestrationGeneratedSolution";
 const LOCAL_ORCHESTRATION_SOLUTION_ROOT =
@@ -177,6 +185,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
   "bootstrap.deployment-manifest",
+  "bootstrap.portable-host-conformance",
   "bootstrap.local-orchestration",
   "bootstrap.otlp-export",
   "bootstrap.feature-management",
@@ -400,6 +409,13 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
   "eng/deployment-manifest.mjs",
   "schemas/deployment-manifest.schema.json",
+  `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/README.md`,
+  `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/AGENTS.md`,
+  `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/CONTEXT.md`,
+  `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/martix.platform.json`,
+  `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/portable-host-conformance.json`,
+  "eng/portable-host-conformance.mjs",
+  "schemas/portable-host-conformance.schema.json",
   `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/README.md`,
   `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/AGENTS.md`,
   `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/CONTEXT.md`,
@@ -3012,6 +3028,96 @@ export function validateDeploymentManifestFixture(
   };
 }
 
+const PORTABLE_HOST_CONFORMANCE_EXPECTED_FILES = Object.freeze([
+  "AGENTS.md",
+  "CONTEXT.md",
+  "README.md",
+  "martix.platform.json",
+  "portable-host-conformance.json",
+]);
+
+export async function validatePortableHostConformanceFixture({
+  rootDir,
+  solutionManifest,
+  conformance,
+  conformanceSchema,
+  deploymentManifest,
+}) {
+  const solutionPath = `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/martix.platform.json`;
+  const conformancePath =
+    `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/portable-host-conformance.json`;
+  const schemaPath = "schemas/portable-host-conformance.schema.json";
+
+  requireRecord(solutionManifest, solutionPath);
+  requireRecord(conformance, conformancePath);
+  requireRecord(conformanceSchema, schemaPath);
+  assertSecretFree(conformance, conformancePath, "Portable Host Conformance fixture");
+  assertSecretFree(conformanceSchema, schemaPath, "Portable Host Conformance schema");
+  validateClosedObjectSchemas(conformanceSchema, schemaPath);
+  validateAgainstSchema(conformance, conformanceSchema, conformancePath);
+
+  if (
+    solutionManifest.preset !== "api" ||
+    solutionManifest.supportClaims.length !== 0
+  ) {
+    fail("Portable Host Conformance fixture must use the claim-free api preset.");
+  }
+  const selectedCapabilities = solutionManifest.capabilities
+    .filter((capability) => capability?.state === "selected")
+    .map((capability) => capability.id);
+  if (!selectedCapabilities.includes("deployment.host-conformance")) {
+    fail("Portable Host Conformance fixture must select deployment.host-conformance.");
+  }
+  if (
+    conformance.source?.manifest !==
+    "../DeploymentManifestGeneratedSolution/deployment-manifest.json"
+  ) {
+    fail("Portable Host Conformance fixture must identify its Deployment Manifest source.");
+  }
+
+  let result;
+  try {
+    result = verifyPortableHostConformance(deploymentManifest, conformance);
+  } catch (error) {
+    if (error instanceof PortableHostConformanceError) {
+      fail(`Portable Host Conformance fixture failed: ${error.message}`);
+    }
+    throw error;
+  }
+
+  if (
+    result.active24.maturity !== "planned" ||
+    result.active24.attestation !== "not-attested"
+  ) {
+    fail("Portable Host Conformance must keep Active24 Planned / Not Attested.");
+  }
+
+  const solutionRoot = resolve(rootDir, PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT);
+  const actualFiles = await listFiles(solutionRoot);
+  if (
+    JSON.stringify(actualFiles) !==
+    JSON.stringify(PORTABLE_HOST_CONFORMANCE_EXPECTED_FILES)
+  ) {
+    const missing = PORTABLE_HOST_CONFORMANCE_EXPECTED_FILES.filter(
+      (file) => !actualFiles.includes(file),
+    );
+    const extra = actualFiles.filter(
+      (file) => !PORTABLE_HOST_CONFORMANCE_EXPECTED_FILES.includes(file),
+    );
+    fail(
+      `Portable Host Conformance Generated Solution inventory mismatch; missing: ${
+        missing.join(", ") || "none"
+      }; extra: ${extra.join(", ") || "none"}.`,
+    );
+  }
+
+  return {
+    ...result,
+    status: "passed",
+    solution: PORTABLE_HOST_CONFORMANCE_SOLUTION_NAME,
+  };
+}
+
 const LOCAL_ORCHESTRATION_EXPECTED_FILES = Object.freeze([
   "AGENTS.md",
   "CONTEXT.md",
@@ -4221,6 +4327,15 @@ export async function verifyBootstrap({
   const deploymentEvidence = parseJson(
     `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
   );
+  const portableHostConformanceManifest = parseJson(
+    `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const portableHostConformance = parseJson(
+    `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/portable-host-conformance.json`,
+  );
+  const portableHostConformanceSchema = parseJson(
+    "schemas/portable-host-conformance.schema.json",
+  );
   const localOrchestrationManifest = parseJson(
     `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
   );
@@ -4390,6 +4505,16 @@ export async function verifyBootstrap({
     `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/martix.platform.json`,
   );
   validateManifest(
+    portableHostConformanceManifest,
+    "generated-solution",
+    `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    portableHostConformanceManifest,
+    manifestSchema,
+    `${PORTABLE_HOST_CONFORMANCE_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateManifest(
     localOrchestrationManifest,
     "generated-solution",
     `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
@@ -4422,6 +4547,14 @@ export async function verifyBootstrap({
     deploymentEvidence,
     deploymentSchema,
   );
+  const portableHostConformanceResult =
+    await validatePortableHostConformanceFixture({
+      rootDir: root,
+      solutionManifest: portableHostConformanceManifest,
+      conformance: portableHostConformance,
+      conformanceSchema: portableHostConformanceSchema,
+      deploymentManifest,
+    });
   const localOrchestrationResult = await validateLocalOrchestrationFixture({
     rootDir: root,
     solutionManifest: localOrchestrationManifest,
@@ -4480,6 +4613,8 @@ export async function verifyBootstrap({
     providerAdmission,
     deploymentManifestSolution: DEPLOYMENT_MANIFEST_SOLUTION_NAME,
     deploymentManifest: deploymentManifestResult,
+    portableHostConformanceSolution: PORTABLE_HOST_CONFORMANCE_SOLUTION_NAME,
+    portableHostConformance: portableHostConformanceResult,
     localOrchestrationSolution: LOCAL_ORCHESTRATION_SOLUTION_NAME,
     localOrchestration: localOrchestrationResult,
     otlpExportSolution: OTLP_EXPORT_SOLUTION_NAME,

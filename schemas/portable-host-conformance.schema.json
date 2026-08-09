@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/portable-host-conformance.schema.json",
+  "title": "MartiX Portable Host Conformance",
+  "description": "Claim-free host and runtime evidence bound to one validated Deployment Manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "solution",
+    "source",
+    "manifestDigest",
+    "topologyDigest",
+    "configurationSchemaDigest",
+    "configuration",
+    "migration",
+    "outcome",
+    "failClosed",
+    "combinations",
+    "plannedTargets",
+    "supportClaims",
+    "verification"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://github.com/MartiXDev/Platform/schemas/portable-host-conformance.schema.json"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "solution": {
+      "const": "PortableHostConformanceGeneratedSolution"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest"
+      ],
+      "properties": {
+        "manifest": {
+          "const": "../DeploymentManifestGeneratedSolution/deployment-manifest.json"
+        }
+      }
+    },
+    "manifestDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "topologyDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "configurationSchemaDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "configuration": {
+      "$ref": "#/$defs/configuration"
+    },
+    "migration": {
+      "$ref": "#/$defs/migration"
+    },
+    "outcome": {
+      "const": "passed"
+    },
+    "failClosed": {
+      "const": true
+    },
+    "combinations": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/combination"
+      }
+    },
+    "plannedTargets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "$ref": "#/$defs/plannedTarget"
+      }
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceDigest"
+      ],
+      "properties": {
+        "evidenceDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "digest",
+        "keys"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "order",
+        "beforeServing",
+        "concurrency"
+      ],
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/identifier"
+        },
+        "order": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "beforeServing": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "concurrency": {
+          "const": "exclusive"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "digest",
+        "sourceDigest",
+        "sourceRevision",
+        "platformContractVersion",
+        "topologyDigest",
+        "configurationSchemaDigest"
+      ],
+      "properties": {
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceRevision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "platformContractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topologyDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "configurationSchemaDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactIdentity",
+        "runnable",
+        "externalConfiguration",
+        "migrationOrdering",
+        "readiness",
+        "liveness",
+        "gracefulShutdown",
+        "restart",
+        "permissions",
+        "networking",
+        "failureBehavior"
+      ],
+      "properties": {
+        "artifactIdentity": {
+          "const": true
+        },
+        "runnable": {
+          "const": true
+        },
+        "externalConfiguration": {
+          "const": true
+        },
+        "migrationOrdering": {
+          "const": true
+        },
+        "readiness": {
+          "const": true
+        },
+        "liveness": {
+          "const": true
+        },
+        "gracefulShutdown": {
+          "const": true
+        },
+        "restart": {
+          "const": true
+        },
+        "permissions": {
+          "const": true
+        },
+        "networking": {
+          "const": true
+        },
+        "failureBehavior": {
+          "const": true
+        }
+      }
+    },
+    "combination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "profile",
+        "kind",
+        "operatingSystem",
+        "distribution",
+        "osVersion",
+        "runtime",
+        "rid",
+        "adapter",
+        "artifact",
+        "checks"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "profile": {
+          "enum": [
+            "process",
+            "container"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "archive",
+            "oci-image"
+          ]
+        },
+        "operatingSystem": {
+          "enum": [
+            "linux",
+            "windows"
+          ]
+        },
+        "distribution": {
+          "enum": [
+            "oci",
+            "ubuntu",
+            "windows-server"
+          ]
+        },
+        "osVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "const": "net10.0"
+        },
+        "rid": {
+          "enum": [
+            "linux-x64",
+            "win-x64"
+          ]
+        },
+        "adapter": {
+          "enum": [
+            "iis",
+            "nginx-systemd",
+            "oci",
+            "windows-service"
+          ]
+        },
+        "artifact": {
+          "$ref": "#/$defs/artifact"
+        },
+        "checks": {
+          "$ref": "#/$defs/checks"
+        }
+      }
+    },
+    "plannedTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "provider",
+        "maturity",
+        "attestation"
+      ],
+      "properties": {
+        "id": {
+          "const": "active24-ubuntu-vps"
+        },
+        "provider": {
+          "const": "active24"
+        },
+        "maturity": {
+          "const": "planned"
+        },
+        "attestation": {
+          "const": "not-attested"
+        }
+      }
+    }
+  }
+}

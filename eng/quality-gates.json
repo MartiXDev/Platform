@@ -147,6 +147,19 @@
       "purpose": "The named Deployment Manifest Generated Solution proves equal process and OCI identities, secret-free topology, lifecycle ordering, immutable promotion/rollback, and drift evidence."
     },
     {
+      "id": "bootstrap.portable-host-conformance",
+      "family": "release-evidence",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Portable Host Conformance Generated Solution binds admitted Windows/Linux process and OCI host coordinates to one Deployment Manifest, proves host lifecycle behavior, and keeps unsupported providers claim-free."
+    },
+    {
       "id": "bootstrap.local-orchestration",
       "family": "reliability-operations",
       "owner": "platform-maintainers",

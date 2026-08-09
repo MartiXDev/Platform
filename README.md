@@ -41,6 +41,9 @@ cadence is the required CI entry point; both invoke the same
 - `tests/fixtures/LocalOrchestrationGeneratedSolution/` is the named local
   orchestration acceptance seam for universal direct execution, optional
   file-based Aspire, and bounded single-host Compose projections.
+- `tests/fixtures/PortableHostConformanceGeneratedSolution/` is the named
+  host-conformance acceptance seam for manifest-bound Windows/Linux process and
+  OCI artifacts, generic Ubuntu 26.04, and fail-closed unsupported coordinates.
 - `npm run verify:modular-monolith-alpha` is the release-candidate-only
   Experimental evidence path for synchronized PostgreSQL and SQL Server
   variants; it requires external database inputs and does not create a
