@@ -55,6 +55,12 @@ import {
   FULL_STACK_UI_SESSION_OWNER,
   FULL_STACK_UI_THEMES,
 } from "./full-stack-ui-contract.mjs";
+import {
+  OTLP_EXPORTER_CAPABILITY,
+  OTLP_EXPORTER_ID,
+  OTLP_EXPORTER_PACKAGE,
+  hasOtlpExporter,
+} from "./otlp-export.mjs";
 
 export {
   FULL_STACK_DEFAULT_CULTURE,
@@ -174,6 +180,11 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
     provider: "relational",
   }),
   Object.freeze({
+    id: OTLP_EXPORTER_CAPABILITY,
+    classification: "optional-supported",
+    provider: OTLP_EXPORTER_ID,
+  }),
+  Object.freeze({
     id: "modular-monolith.reliable-integration-events",
     classification: "required",
     provider: null,
@@ -181,7 +192,9 @@ export const MODULAR_MONOLITH_CAPABILITY_MATRIX = Object.freeze([
 ]);
 
 export const MODULAR_MONOLITH_BASELINE_CAPABILITIES = Object.freeze(
-  MODULAR_MONOLITH_CAPABILITY_MATRIX.map((capability) => capability.id),
+  MODULAR_MONOLITH_CAPABILITY_MATRIX
+    .filter((capability) => capability.classification === "required")
+    .map((capability) => capability.id),
 );
 export const FULL_STACK_BASELINE_CAPABILITIES = Object.freeze([
   ...MODULAR_MONOLITH_BASELINE_CAPABILITIES,
@@ -391,10 +404,13 @@ const SUPPORTED_RELATIONAL_PROVIDERS = new Set(
   Object.keys(RELATIONAL_PROVIDER_DEFINITIONS),
 );
 const SUPPORTED_CAPABILITIES = new Set(
-  MODULAR_MONOLITH_BASELINE_CAPABILITIES,
+  MODULAR_MONOLITH_CAPABILITY_MATRIX.map((capability) => capability.id),
 );
 const SUPPORTED_FULL_STACK_CAPABILITIES = new Set(
-  FULL_STACK_BASELINE_CAPABILITIES,
+  [
+    ...FULL_STACK_BASELINE_CAPABILITIES,
+    OTLP_EXPORTER_CAPABILITY,
+  ],
 );
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
 const MODULAR_MONOLITH_OPTION_NAMES = new Set([
@@ -748,7 +764,9 @@ function validateSelections(options) {
   const uiProvider = resolveUiProvider(options, preset, requestedProviders);
 
   const relationalProviders = requestedProviders.filter(
-    (provider) => !FULL_STACK_UI_PROVIDER_SET.has(provider),
+    (provider) =>
+      !FULL_STACK_UI_PROVIDER_SET.has(provider)
+      && provider !== OTLP_EXPORTER_ID,
   );
   const persistence = options.persistence ?? "relational";
   if (persistence !== "relational") {
@@ -793,10 +811,20 @@ function validateSelections(options) {
       "defaultCulture must be a valid BCP 47 culture identifier such as en-US.",
     );
   }
+  const observabilityExporter = hasOtlpExporter(requestedProviders);
+  if (
+    requestedCapabilities.includes(OTLP_EXPORTER_CAPABILITY)
+    && !observabilityExporter
+  ) {
+    fail(
+      `Capability "${OTLP_EXPORTER_CAPABILITY}" requires a matching selected provider.`,
+    );
+  }
 
   return {
     persistence,
     relationalProvider,
+    observabilityExporter,
     uiProvider,
     renderingProfile,
     defaultCulture: defaultCulture.trim(),
@@ -832,6 +860,9 @@ function createPlan(
   const baselineCapabilities = isFullStack
     ? [...FULL_STACK_BASELINE_CAPABILITIES]
     : [...MODULAR_MONOLITH_BASELINE_CAPABILITIES];
+  const capabilities = selections.observabilityExporter
+    ? [...baselineCapabilities, OTLP_EXPORTER_CAPABILITY]
+    : baselineCapabilities;
   const modulePlans = projectNames.modules.map(({ name, project }) => ({
     name,
     project: `src/${project}`,
@@ -856,7 +887,7 @@ function createPlan(
       template: "martix-app",
     },
     baselineCapabilities,
-    capabilities: baselineCapabilities,
+    capabilities,
     providers: [
       {
         id: selections.relationalProvider,
@@ -870,16 +901,25 @@ function createPlan(
             state: "selected",
           }]
         : []),
+      ...(selections.observabilityExporter
+        ? [{
+            id: OTLP_EXPORTER_ID,
+            capability: OTLP_EXPORTER_CAPABILITY,
+            state: "selected",
+          }]
+        : []),
     ],
     authentication: authenticationManifest(selections.authentication),
     persistence: selections.persistence,
     relationalProvider: selections.relationalProvider,
+    observabilityExporter: selections.observabilityExporter,
     packageReferences: [
       ...PLATFORM_PACKAGE_REFERENCES,
       ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
       RELATIONAL_PROVIDER_DEFINITIONS[selections.relationalProvider]
         .packageReference,
       ...authenticationPackageReferences(selections.authentication),
+      ...(selections.observabilityExporter ? [OTLP_EXPORTER_PACKAGE] : []),
     ].map((reference) => ({ ...reference })),
     projects: [
       `src/${projectNames.api}/${projectNames.api}.csproj`,
@@ -905,6 +945,7 @@ function createPlan(
       relationalPersistence: true,
       oneShotMigrator: true,
       authenticationProfile: selections.authentication.profile,
+      observabilityExporter: selections.observabilityExporter,
     },
     ...(isFullStack
       ? {
@@ -1077,6 +1118,7 @@ ${renderPackageReferences(
     ...API_APPLICATION_PACKAGE_REFERENCES,
     ...identityPersistenceReferences,
     ...authenticationReferences,
+    ...(plan.observabilityExporter ? [OTLP_EXPORTER_PACKAGE] : []),
   ],
   [],
 )}
@@ -6092,6 +6134,7 @@ function createFiles(plan, manifest) {
       renderHostSecurityFile(
         plan.applicationName,
         plan.authentication.profile,
+        plan.observabilityExporter,
       ),
     ],
     [

@@ -1,0 +1,120 @@
+{
+  "selection": {
+    "preset": "api",
+    "capabilities": [
+      "observability-export"
+    ],
+    "providers": [
+      {
+        "capability": "observability-export",
+        "id": "otlp"
+      }
+    ],
+    "runtime": "net10.0",
+    "operatingSystem": "linux",
+    "configuration": [
+      "OTEL_EXPORTER_OTLP_ENDPOINT"
+    ]
+  },
+  "observed": {
+    "packages": [
+      {
+        "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+        "version": "1.17.0"
+      }
+    ],
+    "configuration": [
+      "OTEL_EXPORTER_OTLP_ENDPOINT"
+    ],
+    "registrations": [
+      "OpenTelemetry:OtlpExporter"
+    ],
+    "workers": [],
+    "healthChecks": [],
+    "telemetry": [
+      "otlp-export"
+    ],
+    "containers": [
+      "otel-collector:0.140.0"
+    ],
+    "deployment": [
+      "observability-export"
+    ]
+  },
+  "evidence": {
+    "schemaVersion": "1.0.0",
+    "outcome": "passed",
+    "provider": "observability-export:otlp",
+    "signals": [
+      {
+        "id": "traces",
+        "contract": "ActivitySource",
+        "redaction": "OtlpActivityRedactionProcessor"
+      },
+      {
+        "id": "metrics",
+        "contract": "Meter",
+        "redaction": "HostTelemetry exposes only non-sensitive bounded counters"
+      },
+      {
+        "id": "logs",
+        "contract": "ILogger",
+        "redaction": "OtlpLogRedactionProcessor"
+      }
+    ],
+    "privacy": {
+      "classification": "HostDataClassification.Secret",
+      "fallbackRedactor": "ErasingRedactor",
+      "processorOrder": "redaction-before-export",
+      "sensitiveKeyFragments": [
+        "authorization",
+        "client.address",
+        "client.port",
+        "cookie",
+        "exception",
+        "http.request.header",
+        "http.response.header",
+        "network.peer.address",
+        "network.peer.port",
+        "password",
+        "secret",
+        "token",
+        "url.full",
+        "url.path",
+        "url.query",
+        "user_agent.original"
+      ],
+      "endpointPolicy": "absolute-http-https-without-user-info"
+    },
+    "reliability": {
+      "maxQueueSize": 2048,
+      "maxExportBatchSize": 512,
+      "scheduledDelayMilliseconds": 5000,
+      "exporterTimeoutMilliseconds": 30000,
+      "retry": "OTLP retry is bounded by the exporter timeout deadline",
+      "cancellation": "ExporterTimeoutMilliseconds cancels each export",
+      "shutdown": "HostOptions.ShutdownTimeout bounds host shutdown",
+      "boundedQueue": true,
+      "boundedFailure": true
+    },
+    "isolation": {
+      "collectorUnavailable": "business-result-preserved",
+      "collectorSlow": "business-result-preserved",
+      "collectorRejects": "business-result-preserved",
+      "authorization": "unchanged",
+      "readiness": "unchanged",
+      "healthChecks": "unchanged",
+      "registration": "asynchronous-provider"
+    },
+    "absence": {
+      "packages": [],
+      "configuration": [],
+      "registrations": [],
+      "workers": [],
+      "healthChecks": [],
+      "telemetry": [],
+      "containers": [],
+      "deployment": []
+    }
+  }
+}

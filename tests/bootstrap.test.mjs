@@ -106,6 +106,9 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
   assert.ok(result.gates.includes("bootstrap.provider-admission"));
   assert.ok(result.gates.includes("bootstrap.deployment-manifest"));
+  assert.equal(result.otlpExportSolution, "OtlpExportGeneratedSolution");
+  assert.ok(result.gates.includes("bootstrap.otlp-export"));
+  assert.equal(result.otlpExport.signalCount, 3);
 });
 
 test("the named Full Stack fixture exercises the Blazor provider", async () => {

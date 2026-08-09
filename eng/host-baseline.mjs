@@ -12,7 +12,226 @@ export const HOST_BASELINE_SOURCE_PATH =
 export function renderHostSecurityFile(
   applicationName,
   authenticationProfile = "none",
+  includeOtlpExporter = false,
 ) {
+  const openTelemetryRegistration = includeOtlpExporter
+    ? String.raw`        services.AddOpenTelemetry()
+            .WithTracing(tracing =>
+                tracing
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddSource(HostTelemetry.ActivitySourceName)
+                    .AddProcessor(new OtlpActivityRedactionProcessor())
+                    .AddOtlpExporter(options =>
+                    {
+                        OtlpExportConfiguration.Configure(options, configuration);
+                    }))
+            .WithMetrics(metrics =>
+                metrics
+                    .AddMeter(
+                        HostTelemetry.MeterName,
+                        "Microsoft.AspNetCore.Hosting",
+                        "Microsoft.AspNetCore.Server.Kestrel",
+                        "Microsoft.Extensions.Diagnostics.HealthChecks",
+                        "System.Net.Http",
+                        "System.Net.NameResolution",
+                        "System.Runtime")
+                    .AddOtlpExporter((options, readerOptions) =>
+                    {
+                        OtlpExportConfiguration.Configure(options, configuration);
+                        readerOptions.PeriodicExportingMetricReaderOptions
+                            .ExportIntervalMilliseconds =
+                            OtlpExportConfiguration.ScheduledDelayMilliseconds;
+                        readerOptions.PeriodicExportingMetricReaderOptions
+                            .ExportTimeoutMilliseconds =
+                            OtlpExportConfiguration.ExporterTimeoutMilliseconds;
+                    }))
+            .WithLogging(logging =>
+            {
+                logging.AddProcessor(new OtlpLogRedactionProcessor());
+                logging.AddOtlpExporter((options, processorOptions) =>
+                {
+                    OtlpExportConfiguration.Configure(options, configuration);
+                    processorOptions.ExportProcessorType =
+                        ExportProcessorType.Batch;
+                    processorOptions.BatchExportProcessorOptions.MaxQueueSize =
+                        OtlpExportConfiguration.MaxQueueSize;
+                    processorOptions.BatchExportProcessorOptions.MaxExportBatchSize =
+                        OtlpExportConfiguration.MaxExportBatchSize;
+                    processorOptions.BatchExportProcessorOptions.ScheduledDelayMilliseconds =
+                        OtlpExportConfiguration.ScheduledDelayMilliseconds;
+                    processorOptions.BatchExportProcessorOptions.ExporterTimeoutMilliseconds =
+                        OtlpExportConfiguration.ExporterTimeoutMilliseconds;
+                });
+            },
+            loggingOptions =>
+            {
+                loggingOptions.IncludeFormattedMessage = false;
+                loggingOptions.IncludeScopes = false;
+                loggingOptions.ParseStateValues = true;
+            });`
+    : String.raw`        services.AddOpenTelemetry()
+            .WithTracing(tracing =>
+                tracing
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddSource(HostTelemetry.ActivitySourceName))
+            .WithMetrics(metrics =>
+                metrics
+                    .AddMeter(
+                        HostTelemetry.MeterName,
+                        "Microsoft.AspNetCore.Hosting",
+                        "Microsoft.AspNetCore.Server.Kestrel",
+                        "Microsoft.Extensions.Diagnostics.HealthChecks",
+                        "System.Net.Http",
+                        "System.Net.NameResolution",
+                        "System.Runtime"));`;
+  const otlpUsings = includeOtlpExporter
+    ? String.raw`using OpenTelemetry;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
+`
+    : "";
+  const otlpSupport = includeOtlpExporter
+    ? String.raw`
+internal static class OtlpExportConfiguration
+{
+    public const int MaxQueueSize = 2048;
+    public const int MaxExportBatchSize = 512;
+    public const int ScheduledDelayMilliseconds = 5000;
+    public const int ExporterTimeoutMilliseconds = 30000;
+
+    public static void Validate(IConfiguration configuration)
+    {
+        _ = ReadEndpoint(configuration);
+    }
+
+    public static void Configure(
+        OtlpExporterOptions options,
+        IConfiguration configuration)
+    {
+        options.Endpoint = ReadEndpoint(configuration);
+        options.Protocol = OtlpExportProtocol.Grpc;
+        options.TimeoutMilliseconds = ExporterTimeoutMilliseconds;
+        options.ExportProcessorType = ExportProcessorType.Batch;
+        options.BatchExportProcessorOptions.MaxQueueSize = MaxQueueSize;
+        options.BatchExportProcessorOptions.MaxExportBatchSize =
+            MaxExportBatchSize;
+        options.BatchExportProcessorOptions.ScheduledDelayMilliseconds =
+            ScheduledDelayMilliseconds;
+        options.BatchExportProcessorOptions.ExporterTimeoutMilliseconds =
+            ExporterTimeoutMilliseconds;
+    }
+
+    private static Uri ReadEndpoint(IConfiguration configuration)
+    {
+        var value = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        if (string.IsNullOrWhiteSpace(value)
+            || value.Any(char.IsControl)
+            || !Uri.TryCreate(value, UriKind.Absolute, out var endpoint)
+            || endpoint.Scheme is not (Uri.UriSchemeHttp or Uri.UriSchemeHttps)
+            || endpoint.Host.Length == 0
+            || endpoint.UserInfo.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "OTEL_EXPORTER_OTLP_ENDPOINT must be an absolute HTTP(S) URI without user information.");
+        }
+
+        return endpoint;
+    }
+}
+
+internal static class OtlpRedaction
+{
+    private static readonly string[] SensitiveKeyFragments =
+    [
+        "authorization",
+        "client.address",
+        "client.port",
+        "cookie",
+        "exception",
+        "http.request.header",
+        "http.response.header",
+        "http.target",
+        "http.url",
+        "network.peer.address",
+        "network.peer.port",
+        "password",
+        "secret",
+        "token",
+        "url.full",
+        "url.path",
+        "url.query",
+        "user_agent.original",
+    ];
+
+    public static bool IsSensitiveKey(string key) =>
+        SensitiveKeyFragments.Any(fragment =>
+            key.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+}
+
+internal sealed class OtlpActivityRedactionProcessor : BaseProcessor<Activity>
+{
+    public override void OnEnd(Activity activity)
+    {
+        foreach (var tag in activity.TagObjects.ToArray())
+        {
+            if (OtlpRedaction.IsSensitiveKey(tag.Key))
+            {
+                activity.SetTag(
+                    tag.Key,
+                    HostRedactor.Redact(
+                        tag.Value?.ToString() ?? string.Empty,
+                        HostDataClassification.Secret));
+            }
+        }
+    }
+}
+
+internal sealed class OtlpLogRedactionProcessor : BaseProcessor<LogRecord>
+{
+    public override void OnEnd(LogRecord logRecord)
+    {
+        var attributes = logRecord.Attributes?
+            .Select(attribute =>
+                OtlpRedaction.IsSensitiveKey(attribute.Key)
+                    ? new KeyValuePair<string, object?>(
+                        attribute.Key,
+                        HostRedactor.Redact(
+                            attribute.Value?.ToString() ?? string.Empty,
+                            HostDataClassification.Secret))
+                    : attribute)
+            .ToArray();
+        logRecord.Attributes = attributes;
+
+        if (attributes is null
+            || !attributes.Any(attribute => attribute.Key == "{OriginalFormat}"))
+        {
+            logRecord.Body = logRecord.Body is null
+                ? null
+                : HostRedactor.Redact(
+                    logRecord.Body,
+                    HostDataClassification.Secret);
+        }
+        if (logRecord.FormattedMessage is not null)
+        {
+            logRecord.FormattedMessage = HostRedactor.Redact(
+                logRecord.FormattedMessage,
+                HostDataClassification.Secret);
+        }
+        if (logRecord.Exception is { } exception)
+        {
+            logRecord.Attributes = (attributes ?? [])
+                .Append(new KeyValuePair<string, object?>(
+                    "error.type",
+                    exception.GetType().FullName ?? exception.GetType().Name))
+                .ToArray();
+            logRecord.Exception = null;
+        }
+    }
+}
+`
+    : "";
   return String.raw`using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.IO;
@@ -49,11 +268,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
-using OpenTelemetry.Metrics;
+${otlpUsings}using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 namespace ${applicationName}.Api.Infrastructure.Host;
 
+${otlpSupport}
 internal static class HostSecurity
 {
     public const string CorsPolicyName = "host-cors";
@@ -64,7 +284,7 @@ internal static class HostSecurity
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        ReadOptions(configuration).Validate(environment);
+${includeOtlpExporter ? "        OtlpExportConfiguration.Validate(configuration);\n" : ""}        ReadOptions(configuration).Validate(environment);
     }
 
     public static void ConfigureBuilder(WebApplicationBuilder builder)
@@ -231,22 +451,7 @@ internal static class HostSecurity
         services.AddMetrics();
         services.AddRedaction(redaction =>
             redaction.SetFallbackRedactor<ErasingRedactor>());
-        services.AddOpenTelemetry()
-            .WithTracing(tracing =>
-                tracing
-                    .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddSource(HostTelemetry.ActivitySourceName))
-            .WithMetrics(metrics =>
-                metrics
-                    .AddMeter(
-                        HostTelemetry.MeterName,
-                        "Microsoft.AspNetCore.Hosting",
-                        "Microsoft.AspNetCore.Server.Kestrel",
-                        "Microsoft.Extensions.Diagnostics.HealthChecks",
-                        "System.Net.Http",
-                        "System.Net.NameResolution",
-                        "System.Runtime"));
+${openTelemetryRegistration}
         services.AddHttpClient(SafeOutboundClientName, client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(
