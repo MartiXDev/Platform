@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/local-orchestration.schema.json",
+  "schemaVersion": "1.0.0",
+  "solution": "LocalOrchestrationGeneratedSolution",
+  "source": {
+    "manifest": "../DeploymentManifestGeneratedSolution/deployment-manifest.json"
+  },
+  "manifestDigest": "sha256:fdd6d03c80a3fbf11f2433d6e7fd78b56133a42f3c79c2bace9e39aa9ff46ec8",
+  "topologyDigest": "sha256:08280edcb6a5629715764b431d8284a2c434b41d8e862ff3592869f5e09aaee4",
+  "configurationSchemaDigest": "sha256:13f69633b61c39f01ba0992eda3c34b0277153b34bd34364dfa82acb5bc17e9d",
+  "profiles": [
+    "direct",
+    "aspire",
+    "compose"
+  ],
+  "direct": {
+    "profile": "direct",
+    "sourceProfile": "process",
+    "command": "dotnet run",
+    "universal": true
+  },
+  "aspire": {
+    "profile": "aspire",
+    "sourceProfile": "process",
+    "file": "apphost.cs",
+    "optional": true,
+    "projectionDigest": "sha256:8398b7e2e228e769ce2b4c563405017151eca68e5942c5e79215bb4f54b8076f"
+  },
+  "compose": {
+    "profile": "compose",
+    "sourceProfile": "container",
+    "file": "compose.yaml",
+    "mode": "bounded-single-host",
+    "build": false,
+    "highAvailability": false,
+    "projectionDigest": "sha256:ea6b1885be404822bb415d64066ba66110c61fc3ab2230b7b6b41b490a676a4e"
+  },
+  "supportClaims": []
+}

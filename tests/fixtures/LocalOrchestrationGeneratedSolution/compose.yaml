@@ -1,0 +1,56 @@
+name: martix-local
+services:
+  api:
+    image: "martix-inventory@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    command: ["MartiX.Inventory.Api"]
+    environment:
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:?set ASPNETCORE_URLS externally}"
+      ConnectionStrings__Database: "${ConnectionStrings__Database:?set ConnectionStrings__Database externally}"
+    depends_on:
+      database:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: "on-failure:3"
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider --quiet http://localhost:8080/health/readiness || exit 1"]
+      timeout: 5s
+      interval: 10s
+      retries: 3
+  database:
+    image: "${MARTIX_DATABASE_IMAGE:?set MARTIX_DATABASE_IMAGE externally}"
+    healthcheck:
+      test: ["CMD-SHELL", "${MARTIX_DATABASE_HEALTHCHECK:?set MARTIX_DATABASE_HEALTHCHECK externally}"]
+      timeout: 5s
+      interval: 10s
+      retries: 3
+    volumes:
+      - database-data:/var/lib/martix/database
+    networks:
+      - private
+  migrator:
+    image: "martix-inventory@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    command: ["MartiX.Inventory.Migrator","apply"]
+    environment:
+      ConnectionStrings__Database: "${ConnectionStrings__Database:?set ConnectionStrings__Database externally}"
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    networks:
+      - private
+volumes:
+  database-data:
+networks:
+  private:
+    internal: true
+x-martix:
+  profile: bounded-single-host
+  high-availability: false
+  migration: one-shot-before-serving

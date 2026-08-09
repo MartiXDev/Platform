@@ -48,9 +48,15 @@ import {
 } from "./provider-admission.mjs";
 import {
   DeploymentManifestError,
+  sha256,
   verifyDeploymentEvidence,
   verifyDeploymentManifest,
 } from "./deployment-manifest.mjs";
+import {
+  LocalOrchestrationError,
+  LOCAL_ORCHESTRATION_PROFILES,
+  createLocalOrchestration,
+} from "./local-orchestration.mjs";
 import { generateApiPreset } from "./api-preset.mjs";
 import {
   FEATURE_MANAGEMENT_FIXTURE_FILES,
@@ -90,6 +96,10 @@ const DEPLOYMENT_MANIFEST_SOLUTION_NAME =
   "DeploymentManifestGeneratedSolution";
 const DEPLOYMENT_MANIFEST_SOLUTION_ROOT =
   `tests/fixtures/${DEPLOYMENT_MANIFEST_SOLUTION_NAME}`;
+const LOCAL_ORCHESTRATION_SOLUTION_NAME =
+  "LocalOrchestrationGeneratedSolution";
+const LOCAL_ORCHESTRATION_SOLUTION_ROOT =
+  `tests/fixtures/${LOCAL_ORCHESTRATION_SOLUTION_NAME}`;
 const OTLP_EXPORT_SOLUTION_NAME = "OtlpExportGeneratedSolution";
 const OTLP_EXPORT_SOLUTION_ROOT =
   `tests/fixtures/${OTLP_EXPORT_SOLUTION_NAME}`;
@@ -167,6 +177,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.full-stack",
   "bootstrap.provider-admission",
   "bootstrap.deployment-manifest",
+  "bootstrap.local-orchestration",
   "bootstrap.otlp-export",
   "bootstrap.feature-management",
   "bootstrap.mailkit-smtp",
@@ -389,6 +400,15 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
   "eng/deployment-manifest.mjs",
   "schemas/deployment-manifest.schema.json",
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/README.md`,
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/AGENTS.md`,
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/CONTEXT.md`,
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/orchestration-manifest.json`,
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/apphost.cs`,
+  `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/compose.yaml`,
+  "eng/local-orchestration.mjs",
+  "schemas/local-orchestration.schema.json",
   ...FEATURE_MANAGEMENT_FIXTURE_FILES.map(
     (relativePath) => `${FEATURE_MANAGEMENT_SOLUTION_ROOT}/${relativePath}`,
   ),
@@ -2992,6 +3012,180 @@ export function validateDeploymentManifestFixture(
   };
 }
 
+const LOCAL_ORCHESTRATION_EXPECTED_FILES = Object.freeze([
+  "AGENTS.md",
+  "CONTEXT.md",
+  "README.md",
+  "apphost.cs",
+  "compose.yaml",
+  "martix.platform.json",
+  "orchestration-manifest.json",
+]);
+const LOCAL_ORCHESTRATION_RESIDUE_FILES = new Set([
+  "apphost.cs",
+  "compose.yaml",
+  "orchestration-manifest.json",
+]);
+
+export async function validateLocalOrchestrationFixture({
+  rootDir,
+  solutionManifest,
+  orchestrationManifest,
+  orchestrationSchema,
+  deploymentManifest,
+  appHost,
+  compose,
+  readme,
+}) {
+  const solutionPath = `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`;
+  const orchestrationPath =
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/orchestration-manifest.json`;
+  const schemaPath = "schemas/local-orchestration.schema.json";
+  const appHostPath = `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/apphost.cs`;
+  const composePath = `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/compose.yaml`;
+
+  requireRecord(solutionManifest, solutionPath);
+  requireRecord(orchestrationManifest, orchestrationPath);
+  requireRecord(orchestrationSchema, schemaPath);
+  assertSecretFree(orchestrationManifest, orchestrationPath, "Local orchestration manifest");
+  assertSecretFree(orchestrationSchema, schemaPath, "Local orchestration schema");
+  validateClosedObjectSchemas(orchestrationSchema, schemaPath);
+  validateAgainstSchema(orchestrationManifest, orchestrationSchema, orchestrationPath);
+
+  if (
+    solutionManifest.preset !== "api" ||
+    solutionManifest.supportClaims.length !== 0
+  ) {
+    fail(
+      "Local orchestration fixture must use the claim-free api preset.",
+    );
+  }
+  const selectedCapabilities = solutionManifest.capabilities
+    .filter((capability) => capability?.state === "selected")
+    .map((capability) => capability.id);
+  for (const capability of ["deployment.process", "local.aspire", "deployment.compose"]) {
+    if (!selectedCapabilities.includes(capability)) {
+      fail(`Local orchestration fixture must select ${capability}.`);
+    }
+  }
+  if (!readme.includes("dotnet run")) {
+    fail("Local orchestration fixture must preserve ordinary dotnet run.");
+  }
+
+  let expected;
+  try {
+    expected = createLocalOrchestration(deploymentManifest);
+  } catch (error) {
+    if (
+      error instanceof DeploymentManifestError ||
+      error instanceof LocalOrchestrationError
+    ) {
+      fail(`Local orchestration fixture failed: ${error.message}`);
+    }
+    throw error;
+  }
+
+  if (
+    orchestrationManifest.manifestDigest !== expected.manifestDigest ||
+    orchestrationManifest.topologyDigest !== expected.topologyDigest ||
+    orchestrationManifest.configurationSchemaDigest !==
+      expected.configurationSchemaDigest
+  ) {
+    fail("Local orchestration metadata does not identify the validated Deployment Manifest.");
+  }
+  if (
+    JSON.stringify(orchestrationManifest.profiles) !==
+    JSON.stringify(LOCAL_ORCHESTRATION_PROFILES)
+  ) {
+    fail("Local orchestration metadata must declare direct, Aspire, and Compose profiles.");
+  }
+  if (
+    orchestrationManifest.aspire.projectionDigest !==
+      sha256(appHost) ||
+    orchestrationManifest.compose.projectionDigest !==
+      sha256(compose)
+  ) {
+    fail("Local orchestration projection digests do not match their files.");
+  }
+  if (
+    appHost !== expected.aspire.content ||
+    compose !== expected.compose.content
+  ) {
+    fail(
+      "Local orchestration projections drifted from the validated Deployment Manifest.",
+    );
+  }
+  if (
+    /^\s*build\s*:/m.test(compose) ||
+    /^\s*deploy\s*:/m.test(compose) ||
+    /replicas:\s*[2-9]/i.test(compose) ||
+    /high-availability:\s*true/i.test(compose) ||
+    /(?:password|token|private.?key|api.?key|credential)\b/i.test(compose)
+  ) {
+    fail(
+      "Compose projection contains a build directive, secret-shaped value, or unsupported availability claim.",
+    );
+  }
+  if (!appHost.includes("AddParameter") || appHost.includes(".csproj")) {
+    fail(
+      "Aspire projection must be a file-based AppHost with external configuration.",
+    );
+  }
+
+  const solutionRoot = resolve(rootDir, LOCAL_ORCHESTRATION_SOLUTION_ROOT);
+  const actualFiles = await listFiles(solutionRoot);
+  if (JSON.stringify(actualFiles) !== JSON.stringify(LOCAL_ORCHESTRATION_EXPECTED_FILES)) {
+    const missing = LOCAL_ORCHESTRATION_EXPECTED_FILES.filter(
+      (file) => !actualFiles.includes(file),
+    );
+    const extra = actualFiles.filter(
+      (file) => !LOCAL_ORCHESTRATION_EXPECTED_FILES.includes(file),
+    );
+    fail(
+      `Local orchestration Generated Solution inventory mismatch; missing: ${
+        missing.join(", ") || "none"
+      }; extra: ${extra.join(", ") || "none"}.`,
+    );
+  }
+
+  for (const unselectedRoot of [
+    GENERATED_SOLUTION_ROOT,
+    MODULAR_MONOLITH_SOLUTION_ROOT,
+    FULL_STACK_SOLUTION_ROOT,
+  ]) {
+    const files = await listFiles(resolve(rootDir, unselectedRoot));
+    const residue = files.filter((file) =>
+      LOCAL_ORCHESTRATION_RESIDUE_FILES.has(file.split("/").at(-1)),
+    );
+    if (residue.length > 0) {
+      fail(
+        `Unselected Generated Solution ${unselectedRoot} contains local orchestration residue: ${residue.join(", ")}.`,
+      );
+    }
+  }
+
+  return {
+    status: "passed",
+    solution: LOCAL_ORCHESTRATION_SOLUTION_NAME,
+    manifestDigest: expected.manifestDigest,
+    topologyDigest: expected.topologyDigest,
+    profiles: [...LOCAL_ORCHESTRATION_PROFILES],
+    direct: expected.direct,
+    aspire: {
+      file: orchestrationManifest.aspire.file,
+      optional: orchestrationManifest.aspire.optional,
+      projectionDigest: orchestrationManifest.aspire.projectionDigest,
+    },
+    compose: {
+      file: orchestrationManifest.compose.file,
+      mode: orchestrationManifest.compose.mode,
+      build: orchestrationManifest.compose.build,
+      highAvailability: orchestrationManifest.compose.highAvailability,
+      projectionDigest: orchestrationManifest.compose.projectionDigest,
+    },
+  };
+}
+
 const OTLP_EXPORT_EFFECT_KINDS = [
   "packages",
   "configuration",
@@ -4027,6 +4221,24 @@ export async function verifyBootstrap({
   const deploymentEvidence = parseJson(
     `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/deployment-evidence.json`,
   );
+  const localOrchestrationManifest = parseJson(
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  const localOrchestrationProjection = parseJson(
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/orchestration-manifest.json`,
+  );
+  const localOrchestrationSchema = parseJson(
+    "schemas/local-orchestration.schema.json",
+  );
+  const localOrchestrationAppHost = documents.get(
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/apphost.cs`,
+  );
+  const localOrchestrationCompose = documents.get(
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/compose.yaml`,
+  );
+  const localOrchestrationReadme = documents.get(
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/README.md`,
+  );
   const otlpExportManifest = parseJson(
     `${OTLP_EXPORT_SOLUTION_ROOT}/martix.platform.json`,
   );
@@ -4177,6 +4389,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    localOrchestrationManifest,
+    "generated-solution",
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    localOrchestrationManifest,
+    manifestSchema,
+    `${LOCAL_ORCHESTRATION_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -4200,6 +4422,16 @@ export async function verifyBootstrap({
     deploymentEvidence,
     deploymentSchema,
   );
+  const localOrchestrationResult = await validateLocalOrchestrationFixture({
+    rootDir: root,
+    solutionManifest: localOrchestrationManifest,
+    orchestrationManifest: localOrchestrationProjection,
+    orchestrationSchema: localOrchestrationSchema,
+    deploymentManifest,
+    appHost: localOrchestrationAppHost,
+    compose: localOrchestrationCompose,
+    readme: localOrchestrationReadme,
+  });
   const otlpExport = await validateOtlpExportFixture(
     otlpExportFixture,
     otlpExportManifest,
@@ -4248,6 +4480,8 @@ export async function verifyBootstrap({
     providerAdmission,
     deploymentManifestSolution: DEPLOYMENT_MANIFEST_SOLUTION_NAME,
     deploymentManifest: deploymentManifestResult,
+    localOrchestrationSolution: LOCAL_ORCHESTRATION_SOLUTION_NAME,
+    localOrchestration: localOrchestrationResult,
     otlpExportSolution: OTLP_EXPORT_SOLUTION_NAME,
     otlpExport,
     featureManagement,

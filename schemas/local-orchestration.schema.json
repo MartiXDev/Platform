@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MartiXDev/Platform/schemas/local-orchestration.schema.json",
+  "title": "MartiX Local Orchestration Projection",
+  "description": "Secret-free, deterministic direct, Aspire, and bounded single-host Compose projection metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "solution",
+    "source",
+    "manifestDigest",
+    "topologyDigest",
+    "configurationSchemaDigest",
+    "profiles",
+    "direct",
+    "aspire",
+    "compose",
+    "supportClaims"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "solution": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest"
+      ],
+      "properties": {
+        "manifest": {
+          "const": "../DeploymentManifestGeneratedSolution/deployment-manifest.json"
+        }
+      }
+    },
+    "digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "manifestDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "topologyDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "configurationSchemaDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "enum": [
+          "direct",
+          "aspire",
+          "compose"
+        ]
+      }
+    },
+    "direct": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "sourceProfile",
+        "command",
+        "universal"
+      ],
+      "properties": {
+        "profile": {
+          "const": "direct"
+        },
+        "sourceProfile": {
+          "const": "process"
+        },
+        "command": {
+          "const": "dotnet run"
+        },
+        "universal": {
+          "const": true
+        }
+      }
+    },
+    "aspire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "sourceProfile",
+        "file",
+        "optional",
+        "projectionDigest"
+      ],
+      "properties": {
+        "profile": {
+          "const": "aspire"
+        },
+        "sourceProfile": {
+          "const": "process"
+        },
+        "file": {
+          "const": "apphost.cs"
+        },
+        "optional": {
+          "const": true
+        },
+        "projectionDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "compose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "sourceProfile",
+        "file",
+        "mode",
+        "build",
+        "highAvailability",
+        "projectionDigest"
+      ],
+      "properties": {
+        "profile": {
+          "const": "compose"
+        },
+        "sourceProfile": {
+          "const": "container"
+        },
+        "file": {
+          "const": "compose.yaml"
+        },
+        "mode": {
+          "const": "bounded-single-host"
+        },
+        "build": {
+          "const": false
+        },
+        "highAvailability": {
+          "const": false
+        },
+        "projectionDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "supportClaims": {
+      "type": "array",
+      "maxItems": 0
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -135,6 +135,18 @@ test("pull-request cadence verifies the named Generated Solution seam", async ()
   assert.ok(result.gates.includes("bootstrap.modular-monolith"));
   assert.ok(result.gates.includes("bootstrap.provider-admission"));
   assert.ok(result.gates.includes("bootstrap.deployment-manifest"));
+  assert.equal(
+    result.localOrchestrationSolution,
+    "LocalOrchestrationGeneratedSolution",
+  );
+  assert.ok(result.gates.includes("bootstrap.local-orchestration"));
+  assert.deepEqual(result.localOrchestration.profiles, [
+    "direct",
+    "aspire",
+    "compose",
+  ]);
+  assert.equal(result.localOrchestration.compose.mode, "bounded-single-host");
+  assert.equal(result.localOrchestration.compose.highAvailability, false);
   assert.equal(result.otlpExportSolution, "OtlpExportGeneratedSolution");
   assert.ok(result.gates.includes("bootstrap.otlp-export"));
   assert.equal(result.otlpExport.signalCount, 3);
@@ -237,6 +249,25 @@ test("Deployment Manifest bootstrap verification rejects projection drift", asyn
       /Deployment Manifest fixture failed: Deployment projection drift detected/,
     );
  });
+});
+
+test("Local Orchestration bootstrap verification rejects projection drift", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const appHostPath = join(
+      temporaryRoot,
+      "tests",
+      "fixtures",
+      "LocalOrchestrationGeneratedSolution",
+      "apphost.cs",
+    );
+    const appHost = await readFile(appHostPath, "utf8");
+    await writeFile(appHostPath, appHost.replace("WaitForCompletion", "WaitFor"));
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Local orchestration projection digests do not match their files/,
+    );
+  });
 });
 
 test("Provider Admission rejects weakened Azure Key Vault startup evidence", async () => {

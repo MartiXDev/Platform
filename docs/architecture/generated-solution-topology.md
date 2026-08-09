@@ -258,6 +258,14 @@ cloud-specific infrastructure are explicit capabilities. Secrets enter through
 deployment-specific adapters and never appear in source, manifests, logs, or
 command-line examples.
 
+The named `LocalOrchestrationGeneratedSolution` acceptance fixture projects that
+same manifest into ordinary `dotnet run`, an optional file-based `apphost.cs`,
+and a headless `compose.yaml`. Compose is verified as a digest-addressed,
+single-host projection with external configuration, bounded restart behavior,
+health/readiness and Migrator ordering, graceful shutdown, and no build or
+high-availability directive. Unselected Presets carry no AppHost or Compose
+residue.
+
 ## Decision sources
 
 - [Generated Solution topology](../wayfinder/martix-platform/tickets/106-generated-solution-topology.md)

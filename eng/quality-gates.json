@@ -147,6 +147,19 @@
       "purpose": "The named Deployment Manifest Generated Solution proves equal process and OCI identities, secret-free topology, lifecycle ordering, immutable promotion/rollback, and drift evidence."
     },
     {
+      "id": "bootstrap.local-orchestration",
+      "family": "reliability-operations",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Local Orchestration Generated Solution proves universal direct execution, optional file-based Aspire, and bounded single-host Compose projections without topology drift, build directives, secrets, or false availability claims."
+    },
+    {
       "id": "bootstrap.otlp-export",
       "family": "security-observability",
       "owner": "platform-maintainers",

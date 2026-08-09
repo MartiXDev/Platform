@@ -38,6 +38,9 @@ cadence is the required CI entry point; both invoke the same
 - `tests/fixtures/ModularMonolithGeneratedSolution/` is the named composition
   acceptance seam with one API, one Migrator, two genuine modules, and one
   consolidated test project.
+- `tests/fixtures/LocalOrchestrationGeneratedSolution/` is the named local
+  orchestration acceptance seam for universal direct execution, optional
+  file-based Aspire, and bounded single-host Compose projections.
 - `npm run verify:modular-monolith-alpha` is the release-candidate-only
   Experimental evidence path for synchronized PostgreSQL and SQL Server
   variants; it requires external database inputs and does not create a
