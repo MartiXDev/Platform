@@ -156,12 +156,7 @@ function canonicalJson(value) {
 }
 
 function hasSameSequence(left, right) {
-  return (
-    Array.isArray(left) &&
-    Array.isArray(right) &&
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export function sha256(value) {
