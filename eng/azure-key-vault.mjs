@@ -83,6 +83,22 @@ function requireExact(value, expected, label) {
   return expected;
 }
 
+function requireExactString(value, expected, label) {
+  return requireExact(requireString(value, label), expected, label);
+}
+
+function requireExactBoolean(value, expected, label) {
+  return requireExact(requireBoolean(value, label), expected, label);
+}
+
+function requireExactPositiveInteger(value, expected, label) {
+  return requireExact(requirePositiveInteger(value, label), expected, label);
+}
+
+function sortStrings(values) {
+  return [...values].sort((left, right) => left.localeCompare(right));
+}
+
 function normalizeStringList(value, label) {
   if (!Array.isArray(value)) {
     fail(`${label} must be an array.`);
@@ -95,14 +111,12 @@ function normalizeStringList(value, label) {
     fail(`${label} must contain unique values.`);
   }
 
-  return [...values].sort((left, right) => left.localeCompare(right));
+  return sortStrings(values);
 }
 
 function requireExactStringList(value, expected, label) {
   const actual = normalizeStringList(value, label);
-  const normalizedExpected = [...expected].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const normalizedExpected = sortStrings(expected);
   if (JSON.stringify(actual) !== JSON.stringify(normalizedExpected)) {
     fail(`${label} must contain exactly ${normalizedExpected.join(", ")}.`);
   }
@@ -115,13 +129,13 @@ function normalizeProvider(value) {
   requireKeys(provider, ["capability", "id"], "provider");
 
   return {
-    capability: requireExact(
-      requireString(provider.capability, "provider.capability"),
+    capability: requireExactString(
+      provider.capability,
       AZURE_KEY_VAULT_PROVIDER.capability,
       "provider.capability",
     ),
-    id: requireExact(
-      requireString(provider.id, "provider.id"),
+    id: requireExactString(
+      provider.id,
       AZURE_KEY_VAULT_PROVIDER.id,
       "provider.id",
     ),
@@ -156,36 +170,33 @@ function normalizeConfiguration(value) {
       AZURE_KEY_VAULT_REQUIRED_CONFIGURATION,
       "configuration.selectedKeys",
     ),
-    uriSource: requireExact(
-      requireString(configuration.uriSource, "configuration.uriSource"),
+    uriSource: requireExactString(
+      configuration.uriSource,
       "Azure:KeyVault:Uri",
       "configuration.uriSource",
     ),
-    uriFormat: requireExact(
-      requireString(configuration.uriFormat, "configuration.uriFormat"),
+    uriFormat: requireExactString(
+      configuration.uriFormat,
       "https",
       "configuration.uriFormat",
     ),
-    keyPrefix: requireExact(
-      requireString(configuration.keyPrefix, "configuration.keyPrefix"),
+    keyPrefix: requireExactString(
+      configuration.keyPrefix,
       "App--",
       "configuration.keyPrefix",
     ),
-    reloadIntervalSeconds: requireExact(
-      requirePositiveInteger(
-        configuration.reloadIntervalSeconds,
-        "configuration.reloadIntervalSeconds",
-      ),
+    reloadIntervalSeconds: requireExactPositiveInteger(
+      configuration.reloadIntervalSeconds,
       AZURE_KEY_VAULT_RELOAD_INTERVAL_SECONDS,
       "configuration.reloadIntervalSeconds",
     ),
-    failFast: requireExact(
-      requireBoolean(configuration.failFast, "configuration.failFast"),
+    failFast: requireExactBoolean(
+      configuration.failFast,
       true,
       "configuration.failFast",
     ),
-    fallbackPolicy: requireExact(
-      requireString(configuration.fallbackPolicy, "configuration.fallbackPolicy"),
+    fallbackPolicy: requireExactString(
+      configuration.fallbackPolicy,
       "none",
       "configuration.fallbackPolicy",
     ),
@@ -201,18 +212,18 @@ function normalizeIdentity(value) {
   );
 
   return {
-    mode: requireExact(
-      requireString(identity.mode, "identity.mode"),
+    mode: requireExactString(
+      identity.mode,
       "managed-identity",
       "identity.mode",
     ),
-    localMode: requireExact(
-      requireString(identity.localMode, "identity.localMode"),
+    localMode: requireExactString(
+      identity.localMode,
       "standard-configuration",
       "identity.localMode",
     ),
-    fallbackPolicy: requireExact(
-      requireString(identity.fallbackPolicy, "identity.fallbackPolicy"),
+    fallbackPolicy: requireExactString(
+      identity.fallbackPolicy,
       "none",
       "identity.fallbackPolicy",
     ),
@@ -244,55 +255,40 @@ function normalizeLifecycle(value, reloadIntervalSeconds) {
 
   return {
     rotation: {
-      strategy: requireExact(
-        requireString(rotation.strategy, "lifecycle.rotation.strategy"),
+      strategy: requireExactString(
+        rotation.strategy,
         "replace-and-restart",
         "lifecycle.rotation.strategy",
       ),
-      restartRequired: requireExact(
-        requireBoolean(
-          rotation.restartRequired,
-          "lifecycle.rotation.restartRequired",
-        ),
+      restartRequired: requireExactBoolean(
+        rotation.restartRequired,
         true,
         "lifecycle.rotation.restartRequired",
       ),
-      oldBindingRevokedBeforeReady: requireExact(
-        requireBoolean(
-          rotation.oldBindingRevokedBeforeReady,
-          "lifecycle.rotation.oldBindingRevokedBeforeReady",
-        ),
+      oldBindingRevokedBeforeReady: requireExactBoolean(
+        rotation.oldBindingRevokedBeforeReady,
         true,
         "lifecycle.rotation.oldBindingRevokedBeforeReady",
       ),
     },
     freshness: {
-      reloadIntervalSeconds: requireExact(
-        requirePositiveInteger(
-          freshness.reloadIntervalSeconds,
-          "lifecycle.freshness.reloadIntervalSeconds",
-        ),
+      reloadIntervalSeconds: requireExactPositiveInteger(
+        freshness.reloadIntervalSeconds,
         reloadIntervalSeconds,
         "lifecycle.freshness.reloadIntervalSeconds",
       ),
-      maxStaleSeconds: requireExact(
-        requirePositiveInteger(
-          freshness.maxStaleSeconds,
-          "lifecycle.freshness.maxStaleSeconds",
-        ),
+      maxStaleSeconds: requireExactPositiveInteger(
+        freshness.maxStaleSeconds,
         AZURE_KEY_VAULT_MAX_STALE_SECONDS,
         "lifecycle.freshness.maxStaleSeconds",
       ),
-      cachePolicy: requireExact(
-        requireString(freshness.cachePolicy, "lifecycle.freshness.cachePolicy"),
+      cachePolicy: requireExactString(
+        freshness.cachePolicy,
         "bounded-last-known",
         "lifecycle.freshness.cachePolicy",
       ),
-      staleValuePolicy: requireExact(
-        requireString(
-          freshness.staleValuePolicy,
-          "lifecycle.freshness.staleValuePolicy",
-        ),
+      staleValuePolicy: requireExactString(
+        freshness.staleValuePolicy,
         "never-empty-or-development",
         "lifecycle.freshness.staleValuePolicy",
       ),
@@ -309,26 +305,23 @@ function normalizeOutage(value) {
   );
 
   return {
-    startupPolicy: requireExact(
-      requireString(outage.startupPolicy, "outage.startupPolicy"),
+    startupPolicy: requireExactString(
+      outage.startupPolicy,
       "fail-closed",
       "outage.startupPolicy",
     ),
-    runtimePolicy: requireExact(
-      requireString(outage.runtimePolicy, "outage.runtimePolicy"),
+    runtimePolicy: requireExactString(
+      outage.runtimePolicy,
       "bounded-last-known",
       "outage.runtimePolicy",
     ),
-    maxStaleSeconds: requireExact(
-      requirePositiveInteger(
-        outage.maxStaleSeconds,
-        "outage.maxStaleSeconds",
-      ),
+    maxStaleSeconds: requireExactPositiveInteger(
+      outage.maxStaleSeconds,
       AZURE_KEY_VAULT_MAX_STALE_SECONDS,
       "outage.maxStaleSeconds",
     ),
-    readinessPolicy: requireExact(
-      requireString(outage.readinessPolicy, "outage.readinessPolicy"),
+    readinessPolicy: requireExactString(
+      outage.readinessPolicy,
       "not-ready-after-max-stale",
       "outage.readinessPolicy",
     ),
@@ -344,18 +337,18 @@ function normalizeStartup(value) {
   );
 
   return {
-    missingUri: requireExact(
-      requireString(startup.missingUri, "startup.missingUri"),
+    missingUri: requireExactString(
+      startup.missingUri,
       "fail-before-readiness",
       "startup.missingUri",
     ),
-    invalidUri: requireExact(
-      requireString(startup.invalidUri, "startup.invalidUri"),
+    invalidUri: requireExactString(
+      startup.invalidUri,
       "fail-before-readiness",
       "startup.invalidUri",
     ),
-    localFallback: requireExact(
-      requireString(startup.localFallback, "startup.localFallback"),
+    localFallback: requireExactString(
+      startup.localFallback,
       "disabled",
       "startup.localFallback",
     ),
@@ -370,8 +363,8 @@ function normalizeRedaction(value) {
   return Object.fromEntries(
     surfaces.map((surface) => [
       surface,
-      requireExact(
-        requireString(redaction[surface], `redaction.${surface}`),
+      requireExactString(
+        redaction[surface],
         "metadata-only",
         `redaction.${surface}`,
       ),
@@ -390,8 +383,8 @@ function normalizeChecks(value) {
     requireKeys(record, ["id", "outcome"], path);
     return {
       id: requireString(record.id, `${path}.id`),
-      outcome: requireExact(
-        requireString(record.outcome, `${path}.outcome`),
+      outcome: requireExactString(
+        record.outcome,
         "passed",
         `${path}.outcome`,
       ),
@@ -401,12 +394,8 @@ function normalizeChecks(value) {
     fail("checks must contain unique ids.");
   }
 
-  const ids = checks.map(({ id }) => id).sort((left, right) =>
-    left.localeCompare(right),
-  );
-  const expectedIds = [...AZURE_KEY_VAULT_CHECK_IDS].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const ids = sortStrings(checks.map(({ id }) => id));
+  const expectedIds = sortStrings(AZURE_KEY_VAULT_CHECK_IDS);
   if (JSON.stringify(ids) !== JSON.stringify(expectedIds)) {
     fail(`checks must contain exactly ${expectedIds.join(", ")}.`);
   }
@@ -443,12 +432,12 @@ function normalizeEvidence(value) {
     fail(`Unsupported Azure Key Vault evidence schema: ${schemaVersion}.`);
   }
 
-  requireExact(
-    requireString(evidence.outcome, "outcome"),
+  requireExactString(
+    evidence.outcome,
     "passed",
     "outcome",
   );
-  requireExact(requireBoolean(evidence.failClosed, "failClosed"), true, "failClosed");
+  requireExactBoolean(evidence.failClosed, true, "failClosed");
   const configuration = normalizeConfiguration(evidence.configuration);
 
   return {
