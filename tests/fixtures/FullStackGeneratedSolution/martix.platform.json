@@ -160,7 +160,7 @@
       "state": "selected"
     },
     {
-      "id": "react",
+      "id": "vue",
       "capability": "application-ui",
       "state": "selected"
     }
@@ -172,7 +172,7 @@
     "state": "selected"
   },
   "ui": {
-    "provider": "react",
+    "provider": "vue",
     "contractVersion": "1.0.0",
     "renderingProfile": "application",
     "defaultCulture": "en-US",

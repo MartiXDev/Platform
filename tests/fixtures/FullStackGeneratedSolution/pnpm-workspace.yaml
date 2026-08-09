@@ -1,2 +1,16 @@
 packages:
   - "src/*"
+
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+trustPolicy: no-downgrade
+trustLockfile: false
+blockExoticSubdeps: true
+strictPeerDependencies: true
+engineStrict: true
+verifyDepsBeforeRun: error
+strictDepBuilds: true
+savePrefix: ""
+allowBuilds:
+  "esbuild@0.25.12": true

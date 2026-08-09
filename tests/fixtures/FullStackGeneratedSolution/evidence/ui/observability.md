@@ -1,6 +1,6 @@
 # UI observability evidence
 
-Provider: `react`
+Provider: `vue`
 
 Route and feature boundaries emit safe operation identifiers, trace
 correlation, release context, and a public support identifier. Reporter

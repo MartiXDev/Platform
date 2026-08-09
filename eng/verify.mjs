@@ -16,10 +16,14 @@ import {
 import {
   FULL_STACK_UI_APPLICATION_FILES,
   FULL_STACK_UI_BROWSER_ENTRY_FILES,
+  FULL_STACK_UI_BUILD_ALLOWLIST,
+  FULL_STACK_UI_BUILD_SCRIPT,
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
   FULL_STACK_UI_MESSAGE_KEYS,
+  FULL_STACK_UI_NODE_ENGINE,
+  FULL_STACK_UI_PACKAGE_MANAGER,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -90,7 +94,7 @@ const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/deployment.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/observability.md`,
   `${FULL_STACK_SOLUTION_ROOT}/evidence/ui/security.md`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.tsx`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/App.vue`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/README.md`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/generated.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Api/openapi.ts`,
@@ -98,18 +102,20 @@ const FULL_STACK_UI_INPUTS = [
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Authorization/authorization.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/en-US.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Localization/messages.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Navigation/router.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Runtime/config.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Session/session.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/DesignContract.css`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/Platform/Ui/themes.css`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/index.html`,
-  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.tsx`,
+  `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/main.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/package.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/scripts/verify-generated-client.mjs`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tsconfig.json`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/tests/ui-capability-contract.test.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vite.config.ts`,
   `${FULL_STACK_SOLUTION_ROOT}/src/MartiX.FullStackTestApp.Web/vitest.config.ts`,
+  `${FULL_STACK_SOLUTION_ROOT}/package.json`,
   `${FULL_STACK_SOLUTION_ROOT}/.npmrc`,
   `${FULL_STACK_SOLUTION_ROOT}/pnpm-lock.yaml`,
   `${FULL_STACK_SOLUTION_ROOT}/pnpm-workspace.yaml`,
@@ -776,7 +782,11 @@ function fullStackExpectedFiles(manifest) {
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
       ".npmrc",
+      "package.json",
     );
+    if (manifest.ui.provider === "vue") {
+      files.push(`${root}/Platform/Navigation/router.ts`);
+    }
   }
 
   return files.sort();
@@ -1922,13 +1932,39 @@ async function validateFullStackSolution(rootDir, manifest) {
     const packageJson = JSON.parse(
       await readSolutionFile(`${uiRoot}/package.json`),
     );
+    const rootPackageJson = JSON.parse(
+      await readSolutionFile("package.json"),
+    );
+    const workspaceSource = await readSolutionFile("pnpm-workspace.yaml");
+    const lockfileSource = await readSolutionFile("pnpm-lock.yaml");
     if (
       packageJson.dependencies?.["openapi-fetch"] !== "0.17.0" ||
       packageJson.devDependencies?.["openapi-typescript"] !== "7.13.0" ||
-      packageJson.devDependencies?.["@testing-library/dom"] === undefined
+      packageJson.devDependencies?.["@testing-library/dom"] === undefined ||
+      packageJson.engines?.node !== FULL_STACK_UI_NODE_ENGINE ||
+      packageJson.scripts?.build !== FULL_STACK_UI_BUILD_SCRIPT[manifest.ui.provider] ||
+      rootPackageJson.packageManager !== FULL_STACK_UI_PACKAGE_MANAGER ||
+      rootPackageJson.engines?.node !== FULL_STACK_UI_NODE_ENGINE ||
+      !workspaceSource.includes("minimumReleaseAge: 4320") ||
+      !workspaceSource.includes("minimumReleaseAgeStrict: true") ||
+      !workspaceSource.includes("minimumReleaseAgeIgnoreMissingTime: false") ||
+      !workspaceSource.includes("trustPolicy: no-downgrade") ||
+      !workspaceSource.includes("trustLockfile: false") ||
+      !workspaceSource.includes("blockExoticSubdeps: true") ||
+      !workspaceSource.includes("strictPeerDependencies: true") ||
+      !workspaceSource.includes("engineStrict: true") ||
+      !workspaceSource.includes("verifyDepsBeforeRun: error") ||
+      !workspaceSource.includes("strictDepBuilds: true") ||
+      !workspaceSource.includes('savePrefix: ""') ||
+      !FULL_STACK_UI_BUILD_ALLOWLIST.every((entry) =>
+        workspaceSource.includes(`"${entry}": true`),
+      ) ||
+      workspaceSource.includes("dangerouslyAllowAllBuilds") ||
+      !lockfileSource.includes("packages:") ||
+      !lockfileSource.includes("snapshots:")
     ) {
       fail(
-        "Full Stack TypeScript UI must pin the reviewed OpenAPI and accessibility test profiles.",
+        "Full Stack TypeScript UI must pin its reviewed toolchain, OpenAPI, accessibility, and pnpm supply-chain profiles.",
       );
     }
   } else {

@@ -1,6 +1,6 @@
 # UI browser evidence
 
-Provider: `react`
+Provider: `vue`
 
 The provider-neutral browser scenarios cover anonymous, authenticated, denied,
 expired-session, validation, Problem Details, loading, empty, error, offline,

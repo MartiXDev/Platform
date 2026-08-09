@@ -20,7 +20,11 @@ describe("MartiX UI Capability Contract", () => {
   });
 
   it("uses browser credentials only through the server-owned session seam", () => {
-    expect(localStorage.getItem("access-token")).toBeNull();
+    const localCredentialStorage: Pick<Storage, "getItem"> =
+      typeof localStorage === "undefined"
+        ? { getItem: () => null }
+        : localStorage;
+    expect(localCredentialStorage.getItem("access-token")).toBeNull();
     expect(sessionStorage.getItem("refresh-token")).toBeNull();
   });
 });

@@ -1,0 +1,13 @@
+{
+  "name": "martix-fullstacktestapp",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter martix-fullstacktestapp-web build",
+    "test": "pnpm --filter martix-fullstacktestapp-web test",
+    "client:check": "pnpm --filter martix-fullstacktestapp-web client:check"
+  }
+}

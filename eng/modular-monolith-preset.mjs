@@ -3,6 +3,7 @@ import {
   readdir,
   writeFile,
 } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { toDatabaseIdentifier } from "./database-naming.mjs";
 import { findDependencyCycle } from "./module-graph.mjs";
@@ -32,12 +33,16 @@ import {
 import {
   FULL_STACK_DEFAULT_CULTURE,
   FULL_STACK_DEFAULT_RENDERING_PROFILE,
+  FULL_STACK_UI_BUILD_ALLOWLIST,
+  FULL_STACK_UI_BUILD_SCRIPT,
   FULL_STACK_UI_APPLICATION_FILES,
   FULL_STACK_UI_BROWSER_ENTRY_FILES,
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
   FULL_STACK_UI_MESSAGE_KEYS,
+  FULL_STACK_UI_NODE_ENGINE,
+  FULL_STACK_UI_PACKAGE_MANAGER,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -47,12 +52,16 @@ import {
 export {
   FULL_STACK_DEFAULT_CULTURE,
   FULL_STACK_DEFAULT_RENDERING_PROFILE,
+  FULL_STACK_UI_BUILD_ALLOWLIST,
+  FULL_STACK_UI_BUILD_SCRIPT,
   FULL_STACK_UI_APPLICATION_FILES,
   FULL_STACK_UI_BROWSER_ENTRY_FILES,
   FULL_STACK_UI_CAPABILITIES,
   FULL_STACK_UI_CONTRACT_VERSION,
   FULL_STACK_UI_CULTURE_PATTERN,
   FULL_STACK_UI_MESSAGE_KEYS,
+  FULL_STACK_UI_NODE_ENGINE,
+  FULL_STACK_UI_PACKAGE_MANAGER,
   FULL_STACK_UI_PROVIDERS,
   FULL_STACK_UI_RENDERING_PROFILES,
   FULL_STACK_UI_SESSION_OWNER,
@@ -3417,8 +3426,11 @@ function uiPackageJsonFile(plan) {
       name: `${plan.applicationName.toLowerCase().replaceAll(".", "-")}-web`,
       private: true,
       type: "module",
+      engines: {
+        node: FULL_STACK_UI_NODE_ENGINE,
+      },
       scripts: {
-        build: "tsc --noEmit && vite build",
+        build: FULL_STACK_UI_BUILD_SCRIPT[plan.ui.provider],
         test: "vitest run",
         "client:check": "node ./scripts/verify-generated-client.mjs",
       },
@@ -3435,48 +3447,65 @@ function uiPackageJsonFile(plan) {
   )}\n`;
 }
 
+function uiRootPackageJsonFile(plan) {
+  const packageName = plan.applicationName.toLowerCase().replaceAll(".", "-");
+  const uiPackageName = `${packageName}-web`;
+  return `${JSON.stringify(
+    {
+      name: packageName,
+      private: true,
+      packageManager: FULL_STACK_UI_PACKAGE_MANAGER,
+      engines: {
+        node: FULL_STACK_UI_NODE_ENGINE,
+      },
+      scripts: {
+        build: `pnpm --filter ${uiPackageName} build`,
+        test: `pnpm --filter ${uiPackageName} test`,
+        "client:check": `pnpm --filter ${uiPackageName} client:check`,
+      },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
 function uiPnpmWorkspaceFile() {
   return `packages:
   - "src/*"
+
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+trustPolicy: no-downgrade
+trustLockfile: false
+blockExoticSubdeps: true
+strictPeerDependencies: true
+engineStrict: true
+verifyDepsBeforeRun: error
+strictDepBuilds: true
+savePrefix: ""
+allowBuilds:
+  "esbuild@0.25.12": true
 `;
 }
 
 function uiNpmrcFile() {
-  return `minimum-release-age=4320
-minimum-release-age-strict=true
-trust-policy=no-downgrade
-strict-peer-dependencies=true
-engine-strict=true
-verify-deps-before-run=error
-strict-dep-builds=true
-save-prefix=
+  return `lockfile=true
+prefer-frozen-lockfile=true
 `;
 }
 
 function uiPnpmLockFile(plan) {
-  const packageJson = JSON.parse(uiPackageJsonFile(plan));
-  const renderDependencyBlock = (dependencies) =>
-    Object.entries(dependencies)
-      .map(
-        ([name, version]) =>
-          `      ${JSON.stringify(name)}:\n        specifier: ${JSON.stringify(version)}\n`,
-      )
-      .join("");
-  const dependencies = renderDependencyBlock(packageJson.dependencies);
-  const devDependencies = renderDependencyBlock(packageJson.devDependencies);
-
-  return `lockfileVersion: '9.0'
-
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-
-importers:
-  src/${plan.applicationName}.Web:
-    dependencies:
-${dependencies || "      {}\n"}    devDependencies:
-${devDependencies || "      {}\n"}
-`;
+  const templatePath = join(
+    import.meta.dirname,
+    plan.ui.provider === "vue"
+      ? "full-stack-vue-pnpm-lock.yaml"
+      : "full-stack-react-pnpm-lock.yaml",
+  );
+  return readFileSync(templatePath, "utf8").replaceAll(
+    "__UI_ROOT__",
+    `src/${plan.applicationName}.Web`,
+  );
 }
 
 function uiIndexHtmlFile(plan) {
@@ -3517,7 +3546,7 @@ function uiTypeScriptConfigFile(plan) {
         noEmit: true,
         jsx: plan.ui.provider === "react" ? "react-jsx" : "preserve",
       },
-      include: ["."],
+      include: ["**/*"],
     },
     null,
     2,
@@ -3540,6 +3569,11 @@ function uiVitestConfigFile() {
 export default defineConfig({
   test: {
     environment: "jsdom",
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost/",
+      },
+    },
   },
 });
 `;
@@ -4087,14 +4121,35 @@ createRoot(document.getElementById("root")!).render(
 `;
   }
   if (plan.ui.provider === "vue") {
-    return `import { createApp } from "vue";
-import { VueQueryPlugin } from "@tanstack/vue-query";
-import App from "./App.vue";
+    return `import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { createApp } from "vue";
+import { RouterView } from "vue-router";
+import { router } from "./Platform/Navigation/router";
 
-createApp(App).use(VueQueryPlugin).mount("#app");
+const queryClient = new QueryClient();
+
+createApp(RouterView)
+  .use(router)
+  .use(VueQueryPlugin, { queryClient })
+  .mount("#app");
 `;
   }
   return "";
+}
+
+function uiNavigationRouterFile() {
+  return `import { createRouter, createWebHistory } from "vue-router";
+
+export const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    {
+      path: "/",
+      component: () => import("../../App.vue"),
+    },
+  ],
+});
+`;
 }
 
 function uiBrowserTestSource(plan) {
@@ -4123,7 +4178,11 @@ describe("MartiX UI Capability Contract", () => {
   });
 
   it("uses browser credentials only through the server-owned session seam", () => {
-    expect(localStorage.getItem("access-token")).toBeNull();
+    const localCredentialStorage: Pick<Storage, "getItem"> =
+      typeof localStorage === "undefined"
+        ? { getItem: () => null }
+        : localStorage;
+    expect(localCredentialStorage.getItem("access-token")).toBeNull();
     expect(sessionStorage.getItem("refresh-token")).toBeNull();
   });
 });
@@ -4490,6 +4549,7 @@ This directory contains wire contracts and transport adapters only.
       uiTUnitTestSource(),
     );
   } else {
+    files.set("package.json", uiRootPackageJsonFile(plan));
     files.set(`${root}/Platform/Localization/messages.ts`, uiLocalizationSource(plan));
     files.set(`${root}/package.json`, uiPackageJsonFile(plan));
     files.set(`${root}/index.html`, uiIndexHtmlFile(plan));
@@ -4500,6 +4560,9 @@ This directory contains wire contracts and transport adapters only.
     files.set(".npmrc", uiNpmrcFile());
     files.set("pnpm-lock.yaml", uiPnpmLockFile(plan));
     files.set(`${root}/${uiBrowserEntryFileName(plan.ui.provider)}`, uiEntrySource(plan));
+    if (plan.ui.provider === "vue") {
+      files.set(`${root}/Platform/Navigation/router.ts`, uiNavigationRouterFile());
+    }
     files.set(`${root}/tests/ui-capability-contract.test.ts`, uiBrowserTestSource(plan));
     files.set(
       `${root}/scripts/verify-generated-client.mjs`,

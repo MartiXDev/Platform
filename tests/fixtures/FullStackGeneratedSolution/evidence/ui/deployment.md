@@ -1,6 +1,6 @@
 # UI deployment evidence
 
-Provider: `react`
+Provider: `vue`
 
 The UI artifact is immutable and receives public, non-secret `/ui-config.json`
 at deployment time. The public origin keeps UI, API, and authentication routes

@@ -1,4 +1,13 @@
 export const FULL_STACK_UI_CONTRACT_VERSION = "1.0.0";
+export const FULL_STACK_UI_PACKAGE_MANAGER = "pnpm@10.34.5";
+export const FULL_STACK_UI_NODE_ENGINE = "^20.19.0 || >=22.12.0";
+export const FULL_STACK_UI_BUILD_SCRIPT = Object.freeze({
+  react: "tsc --noEmit && vite build",
+  vue: "vue-tsc --noEmit && vite build",
+});
+export const FULL_STACK_UI_BUILD_ALLOWLIST = Object.freeze([
+  "esbuild@0.25.12",
+]);
 
 export const FULL_STACK_UI_PROVIDERS = Object.freeze([
   "blazor-webapp",
