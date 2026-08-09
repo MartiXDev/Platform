@@ -199,6 +199,19 @@
       "purpose": "The named Valkey Distributed Cache Generated Solution proves direct framework cache composition, behavioral conformance, failure isolation, and absence of cache-facade residue."
     },
     {
+      "id": "bootstrap.quartz-durable-jobs",
+      "family": "reliability-operations",
+      "owner": "platform-maintainers",
+      "required": true,
+      "cadences": [
+        "fast",
+        "pull-request",
+        "main-nightly",
+        "release-candidate"
+      ],
+      "purpose": "The named Quartz Generated Solution proves explicit durable invocation, bounded clustered recovery, operator controls, observable health, and Migrator-owned schema lifecycle while the default fixture remains Quartz-free."
+    },
+    {
       "id": "bootstrap.host-baseline",
       "family": "security-observability",
       "owner": "platform-maintainers",

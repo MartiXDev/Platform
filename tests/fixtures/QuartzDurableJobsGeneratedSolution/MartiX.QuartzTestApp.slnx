@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/MartiX.QuartzTestApp.Api/MartiX.QuartzTestApp.Api.csproj" />
+  <Project Path="src/MartiX.QuartzTestApp.Client/MartiX.QuartzTestApp.Client.csproj" />
+  <Project Path="src/MartiX.QuartzTestApp.Migrator/MartiX.QuartzTestApp.Migrator.csproj" />
+  <Project Path="src/MartiX.QuartzTestApp.Orders/MartiX.QuartzTestApp.Orders.csproj" />
+  <Project Path="tests/MartiX.QuartzTestApp.Tests/MartiX.QuartzTestApp.Tests.csproj" />
+</Solution>

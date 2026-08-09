@@ -145,6 +145,10 @@ const VALKEY_DISTRIBUTED_CACHE_SOLUTION_NAME =
   "ValkeyDistributedCacheGeneratedSolution";
 const VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT =
   `tests/fixtures/${VALKEY_DISTRIBUTED_CACHE_SOLUTION_NAME}`;
+const QUARTZ_DURABLE_JOBS_SOLUTION_NAME =
+  "QuartzDurableJobsGeneratedSolution";
+const QUARTZ_DURABLE_JOBS_SOLUTION_ROOT =
+  `tests/fixtures/${QUARTZ_DURABLE_JOBS_SOLUTION_NAME}`;
 const MODULAR_MONOLITH_COMPOSITION_MEMBERS = [
   "AddServices",
   "MapEndpoints",
@@ -167,6 +171,7 @@ const BOOTSTRAP_GATE_IDS = [
   "bootstrap.feature-management",
   "bootstrap.mailkit-smtp",
   "bootstrap.valkey-distributed-cache",
+  "bootstrap.quartz-durable-jobs",
   "bootstrap.host-baseline",
   "bootstrap.secret-free",
   "bootstrap.agent-readiness",
@@ -344,6 +349,37 @@ export const REQUIRED_BOOTSTRAP_INPUTS = [
   `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MartiX.MailKitSmtpTestApp.Tests.csproj`,
   `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailKitSmtpDeliveryTests.cs`,
   `${MAILKIT_SMTP_SOLUTION_ROOT}/tests/MartiX.MailKitSmtpTestApp.Tests/MailpitIntegrationTests.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/README.md`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/AGENTS.md`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/CONTEXT.md`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/MartiX.QuartzTestApp.slnx`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/martix.platform.json`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/contracts/openapi-v1.json`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/MartiX.QuartzTestApp.Api.csproj`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/Program.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/Infrastructure/DurableJobs/DurableJobsComposition.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/Infrastructure/Host/HostSecurity.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/Infrastructure/Identity/ActorAuthorization.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/Infrastructure/Identity/AuthenticationComposition.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Migrator/MartiX.QuartzTestApp.Migrator.csproj`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Migrator/Program.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Migrator/Infrastructure/DurableJobs/QuartzMigrationComposition.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Client/MartiX.QuartzTestApp.Client.csproj`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Client/MartiX.QuartzTestApp.Client.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/MartiX.QuartzTestApp.Orders.csproj`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/OrdersModule.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Contracts/ModuleContracts/IOrdersStatus.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Contracts/IntegrationEvents/OrdersIntegrationEvents.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Domain/OrdersAggregate.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Features/Status/OrdersStatus.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Infrastructure/Persistence/OrdersDbContext.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Infrastructure/Persistence/OrdersPersistenceModel.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Infrastructure/IntegrationEvents/OrdersReliableEvents.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Infrastructure/Persistence/Migrations/20260101000000_InitialOrders.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/src/MartiX.QuartzTestApp.Orders/Infrastructure/Persistence/Migrations/OrdersDbContextModelSnapshot.cs`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/tests/MartiX.QuartzTestApp.Tests/MartiX.QuartzTestApp.Tests.csproj`,
+  `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/tests/MartiX.QuartzTestApp.Tests/ModularMonolithCompositionTests.cs`,
   "eng/provider-admission.mjs",
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/README.md`,
   `${DEPLOYMENT_MANIFEST_SOLUTION_ROOT}/AGENTS.md`,
@@ -836,6 +872,17 @@ function modularMonolithExpectedFiles(manifest) {
     `tests/${applicationName}.Tests/${applicationName}.Tests.csproj`,
     `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
   ];
+  const durableJobsSelected = manifest.capabilities?.some(
+    (capability) =>
+      capability?.id === "modular-monolith.durable-jobs" &&
+      capability.state === "selected",
+  );
+  if (durableJobsSelected) {
+    files.push(
+      `src/${applicationName}.Api/Infrastructure/DurableJobs/DurableJobsComposition.cs`,
+      `src/${applicationName}.Migrator/Infrastructure/DurableJobs/QuartzMigrationComposition.cs`,
+    );
+  }
 
   if (manifest.authentication?.profile === "identity:interactive") {
     files.push(
@@ -1278,6 +1325,10 @@ async function validateModularMonolithComposition(
       "Modular Monolith manifest must select the reliable-integration-events capability.",
     );
   }
+  const durableJobsCapability = manifest.capabilities.find(
+    (capability) => capability?.id === "modular-monolith.durable-jobs",
+  );
+  const durableJobsSelected = durableJobsCapability?.state === "selected";
   const moduleProjectNames = new Map();
   for (const [index, module] of modules.entries()) {
     moduleProjectNames.set(
@@ -1314,6 +1365,9 @@ async function validateModularMonolithComposition(
   validateInternalsVisibleTo(apiProject, [], apiProjectPath);
   const apiSource = await readSolutionFile(
     `src/${applicationName}.Api/Program.cs`,
+  );
+  const testSource = await readSolutionFile(
+    `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
   );
   const apiHostSource = await readSolutionFile(
     `src/${applicationName}.Api/Infrastructure/Host/HostSecurity.cs`,
@@ -1367,6 +1421,11 @@ async function validateModularMonolithComposition(
   const apiReliableEventsSource = await readSolutionFile(
     `src/${applicationName}.Api/Infrastructure/IntegrationEvents/ReliableEventsComposition.cs`,
   );
+  const durableJobsSource = durableJobsSelected
+    ? await readSolutionFile(
+        `src/${applicationName}.Api/Infrastructure/DurableJobs/DurableJobsComposition.cs`,
+      )
+    : "";
   if (
     !apiSource.includes("AuthenticationComposition.AddServices(") ||
     !authenticationSource.includes("RequireAuthenticatedUser") ||
@@ -1516,6 +1575,20 @@ async function validateModularMonolithComposition(
 
   const migratorProjectPath = `src/${applicationName}.Migrator/${applicationName}.Migrator.csproj`;
   const migratorProject = await readSolutionFile(migratorProjectPath);
+  const apiQuartzPackageResidue =
+    /PackageReference\b[^>]*\bInclude="Quartz(?:[."]|")/.test(apiProject);
+  const migratorQuartzPackageResidue =
+    /PackageReference\b[^>]*\bInclude="Quartz(?:[."]|")/.test(migratorProject);
+  if (durableJobsSelected !== apiQuartzPackageResidue) {
+    fail(
+      durableJobsSelected
+        ? "Selected Quartz durable jobs must reference Quartz packages from the API project."
+        : "Unselected Quartz durable jobs must leave no Quartz package residue.",
+    );
+  }
+  if (migratorQuartzPackageResidue) {
+    fail("The Migrator must not reference Quartz runtime packages.");
+  }
   const migratorProjectReferences =
     manifest.authentication?.profile === "identity:interactive"
       ? [
@@ -1537,6 +1610,53 @@ async function validateModularMonolithComposition(
   const migratorSource = await readSolutionFile(
     `src/${applicationName}.Migrator/Program.cs`,
   );
+  const quartzMigrationSource = durableJobsSelected
+    ? await readSolutionFile(
+        `src/${applicationName}.Migrator/Infrastructure/DurableJobs/QuartzMigrationComposition.cs`,
+      )
+    : "";
+  if (durableJobsSelected) {
+    if (
+      !apiSource.includes("DurableJobsComposition.AddServices(services, configuration);") ||
+      !durableJobsSource.includes("AddQuartzHostedService") ||
+      !durableJobsSource.includes("UsePersistentStore") ||
+      !durableJobsSource.includes("UseClustering") ||
+      !durableJobsSource.includes("UseProperties = true") ||
+      !durableJobsSource.includes("RequestRecovery(true)") ||
+      !durableJobsSource.includes("StoreDurably(true)") ||
+      !durableJobsSource.includes("DisallowConcurrentExecution") ||
+      !durableJobsSource.includes("MaxBatchSize = 10") ||
+      !durableJobsSource.includes("MaxConcurrency = 8") ||
+      !durableJobsSource.includes("public sealed record JobInvocation") ||
+      !durableJobsSource.includes("CreateJobKey") ||
+      !durableJobsSource.includes("PauseAsync") ||
+      !durableJobsSource.includes("ResumeAsync") ||
+      !durableJobsSource.includes("InterruptAsync") ||
+      !durableJobsSource.includes("DeleteAsync") ||
+      !durableJobsSource.includes("CancellationToken") ||
+      !durableJobsSource.includes("AddCheck<DurableJobsHealthCheck>") ||
+      !durableJobsSource.includes("AddSource(DurableJobsTelemetry.ActivitySourceName)") ||
+      !durableJobsSource.includes("UseSystemTextJsonSerializer") ||
+      !testSource.includes("ConnectionStrings:Quartz") ||
+      !testSource.includes("Quartz:SchedulerName") ||
+      !quartzMigrationSource.includes(
+        "public static async Task<string> ExecuteMigrationAsync",
+      ) ||
+      !/qrtz_job_details/i.test(quartzMigrationSource) ||
+      !quartzMigrationSource.includes("RequiredTables") ||
+      !quartzMigrationSource.includes("ExecuteNonQueryAsync") ||
+      !migratorSource.includes(
+        "QuartzMigrationComposition.AddMigrationServices(builder.Services, builder.Configuration);",
+      ) ||
+      !migratorSource.includes(
+        "await QuartzMigrationComposition.ExecuteMigrationAsync(",
+      )
+    ) {
+      fail(
+        "Selected Quartz durable jobs must expose explicit bounded scheduling, recovery, operations, telemetry, and Migrator-owned schema composition.",
+      );
+    }
+  }
   if (
     !/operation\s+is\s+not\s+\("validate"\s+or\s+"script"\s+or\s+"apply"\)/.test(
       migratorSource,
@@ -1594,9 +1714,6 @@ async function validateModularMonolithComposition(
   if (!/<PackageReference\b[^>]*\bInclude="TUnit"/.test(testProject)) {
     fail(`Modular Monolith test project must reference TUnit: ${testProjectPath}.`);
   }
-  const testSource = await readSolutionFile(
-    `tests/${applicationName}.Tests/ModularMonolithCompositionTests.cs`,
-  );
   if (
     !testSource.includes("ActorContext.Create") ||
     !testSource.includes("permission-required") ||
@@ -1966,8 +2083,12 @@ async function validateModularMonolithComposition(
   }
 }
 
-async function validateModularMonolithSolution(rootDir, manifest) {
-  const solutionRoot = resolve(rootDir, MODULAR_MONOLITH_SOLUTION_ROOT);
+async function validateModularMonolithSolution(
+  rootDir,
+  manifest,
+  solutionRootRelative = MODULAR_MONOLITH_SOLUTION_ROOT,
+) {
+  const solutionRoot = resolve(rootDir, solutionRootRelative);
   const actualFiles = await listFiles(solutionRoot, {
     ignoredDirectories: ["bin", "obj"],
   });
@@ -3921,12 +4042,15 @@ export async function verifyBootstrap({
   const mailkitSmtpFixture = parseJson(
     `${MAILKIT_SMTP_SOLUTION_ROOT}/mailkit-smtp.json`,
   );
-  const valkeyDistributedCacheManifest = parseJson(
-    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
-  );
-  const valkeyDistributedCacheProfile = parseJson(
-    `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json`,
-  );
+ const valkeyDistributedCacheManifest = parseJson(
+   `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
+ );
+ const valkeyDistributedCacheProfile = parseJson(
+   `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/valkey-conformance.json`,
+ );
+ const quartzDurableJobsManifest = parseJson(
+   `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/martix.platform.json`,
+ );
 
   validateManifestSchema(manifestSchema);
   requireRecord(agentContextSchema, "schemas/agent-context.schema.json");
@@ -4043,6 +4167,16 @@ export async function verifyBootstrap({
     manifestSchema,
     `${VALKEY_DISTRIBUTED_CACHE_SOLUTION_ROOT}/martix.platform.json`,
   );
+  validateManifest(
+    quartzDurableJobsManifest,
+    "generated-solution",
+    `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/martix.platform.json`,
+  );
+  validateAgainstSchema(
+    quartzDurableJobsManifest,
+    manifestSchema,
+    `${QUARTZ_DURABLE_JOBS_SOLUTION_ROOT}/martix.platform.json`,
+  );
   validateAgainstSchema(
     qualityPolicy,
     qualityGateSchema,
@@ -4052,6 +4186,11 @@ export async function verifyBootstrap({
   validateGovernanceDocuments(documents);
   await validateModularMonolithSolution(root, modularMonolithManifest);
   await validateFullStackSolution(root, fullStackManifest);
+  await validateModularMonolithSolution(
+    root,
+    quartzDurableJobsManifest,
+    QUARTZ_DURABLE_JOBS_SOLUTION_ROOT,
+  );
   const providerAdmission = await validateProviderAdmissionFixture(
     providerAdmissionFixture,
     providerAdmissionManifest,
@@ -4105,6 +4244,7 @@ export async function verifyBootstrap({
     fullStackSolution: FULL_STACK_SOLUTION_NAME,
     providerAdmissionSolution: PROVIDER_ADMISSION_SOLUTION_NAME,
     featureManagementSolution: FEATURE_MANAGEMENT_SOLUTION_NAME,
+    quartzDurableJobsSolution: QUARTZ_DURABLE_JOBS_SOLUTION_NAME,
     providerAdmission,
     deploymentManifestSolution: DEPLOYMENT_MANIFEST_SOLUTION_NAME,
     deploymentManifest: deploymentManifestResult,

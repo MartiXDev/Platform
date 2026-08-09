@@ -196,6 +196,9 @@ export const MODULAR_MONOLITH_BASELINE_CAPABILITIES = Object.freeze(
     .filter((capability) => capability.classification === "required")
     .map((capability) => capability.id),
 );
+export const MODULAR_MONOLITH_DURABLE_JOBS_CAPABILITY =
+  "modular-monolith.durable-jobs";
+export const QUARTZ_DURABLE_JOBS_PROVIDER = "quartz";
 export const FULL_STACK_BASELINE_CAPABILITIES = Object.freeze([
   ...MODULAR_MONOLITH_BASELINE_CAPABILITIES,
   ...FULL_STACK_UI_CAPABILITIES,
@@ -260,6 +263,21 @@ const RELATIONAL_PROVIDER_DEFINITIONS = Object.freeze({
     }),
   }),
 });
+const DURABLE_JOBS_PACKAGE_REFERENCES = Object.freeze([
+  Object.freeze({ id: "Quartz", version: "3.18.2" }),
+  Object.freeze({
+    id: "Quartz.Extensions.Hosting",
+    version: "3.18.2",
+  }),
+  Object.freeze({
+    id: "Quartz.AspNetCore",
+    version: "3.18.2",
+  }),
+  Object.freeze({
+    id: "Quartz.Serialization.SystemTextJson",
+    version: "3.18.2",
+  }),
+]);
 const API_APPLICATION_PACKAGE_REFERENCES = Object.freeze([
   Object.freeze({ id: "Microsoft.AspNetCore.OpenApi", version: "10.0.10" }),
   Object.freeze({ id: "Microsoft.OpenApi", version: "2.11.0" }),
@@ -404,12 +422,17 @@ const SUPPORTED_RELATIONAL_PROVIDERS = new Set(
   Object.keys(RELATIONAL_PROVIDER_DEFINITIONS),
 );
 const SUPPORTED_CAPABILITIES = new Set(
-  MODULAR_MONOLITH_CAPABILITY_MATRIX.map((capability) => capability.id),
+  [
+    ...MODULAR_MONOLITH_BASELINE_CAPABILITIES,
+    OTLP_EXPORTER_CAPABILITY,
+    MODULAR_MONOLITH_DURABLE_JOBS_CAPABILITY,
+  ],
 );
 const SUPPORTED_FULL_STACK_CAPABILITIES = new Set(
   [
     ...FULL_STACK_BASELINE_CAPABILITIES,
     OTLP_EXPORTER_CAPABILITY,
+    MODULAR_MONOLITH_DURABLE_JOBS_CAPABILITY,
   ],
 );
 const FULL_STACK_UI_PROVIDER_SET = new Set(FULL_STACK_UI_PROVIDERS);
@@ -518,6 +541,20 @@ function normalizeSelectionList(value, label) {
   }
 
   return normalized;
+}
+
+function normalizeCapabilitySelectionList(value) {
+  const selections = normalizeSelectionList(value, "capabilities").map(
+    (capability) =>
+      capability === "durable-jobs"
+        ? MODULAR_MONOLITH_DURABLE_JOBS_CAPABILITY
+        : capability,
+  );
+  if (new Set(selections).size !== selections.length) {
+    fail("capabilities cannot contain duplicate selections.");
+  }
+
+  return selections;
 }
 
 function normalizeBusinessModules(options) {
@@ -732,9 +769,8 @@ function validateSelections(options) {
     );
   }
 
-  const requestedCapabilities = normalizeSelectionList(
+  const requestedCapabilities = normalizeCapabilitySelectionList(
     options.capabilities,
-    "capabilities",
   );
   const supportedCapabilities =
     preset === FULL_STACK_PRESET
@@ -765,9 +801,26 @@ function validateSelections(options) {
 
   const relationalProviders = requestedProviders.filter(
     (provider) =>
-      !FULL_STACK_UI_PROVIDER_SET.has(provider)
-      && provider !== OTLP_EXPORTER_ID,
+      !FULL_STACK_UI_PROVIDER_SET.has(provider) &&
+      provider !== OTLP_EXPORTER_ID &&
+      provider !== QUARTZ_DURABLE_JOBS_PROVIDER,
   );
+  const durableJobsProviders = requestedProviders.filter(
+    (provider) => provider === QUARTZ_DURABLE_JOBS_PROVIDER,
+  );
+  const durableJobsSelected = requestedCapabilities.includes(
+    MODULAR_MONOLITH_DURABLE_JOBS_CAPABILITY,
+  );
+  if (durableJobsSelected && durableJobsProviders.length !== 1) {
+    fail(
+      `The ${preset} preset requires exactly one durable-jobs provider: ${QUARTZ_DURABLE_JOBS_PROVIDER}.`,
+    );
+  }
+  if (durableJobsProviders.length > 0 && !durableJobsSelected) {
+    fail(
+      `Provider "${QUARTZ_DURABLE_JOBS_PROVIDER}" requires the durable-jobs capability.`,
+    );
+  }
   const persistence = options.persistence ?? "relational";
   if (persistence !== "relational") {
     fail(
@@ -828,6 +881,10 @@ function validateSelections(options) {
     uiProvider,
     renderingProfile,
     defaultCulture: defaultCulture.trim(),
+    durableJobs: durableJobsSelected,
+    durableJobsProvider: durableJobsSelected
+      ? QUARTZ_DURABLE_JOBS_PROVIDER
+      : null,
     authentication: resolveAuthenticationProfile(options, {
       preset,
       persistence,
@@ -860,9 +917,13 @@ function createPlan(
   const baselineCapabilities = isFullStack
     ? [...FULL_STACK_BASELINE_CAPABILITIES]
     : [...MODULAR_MONOLITH_BASELINE_CAPABILITIES];
-  const capabilities = selections.observabilityExporter
-    ? [...baselineCapabilities, OTLP_EXPORTER_CAPABILITY]
-    : baselineCapabilities;
+  const capabilities = [
+    ...baselineCapabilities,
+    ...(selections.observabilityExporter ? [OTLP_EXPORTER_CAPABILITY] : []),
+    ...(selections.durableJobs
+      ? [MODULAR_MONOLITH_DURABLE_JOBS_CAPABILITY]
+      : []),
+  ];
   const modulePlans = projectNames.modules.map(({ name, project }) => ({
     name,
     project: `src/${project}`,
@@ -894,6 +955,13 @@ function createPlan(
         capability: "relational-persistence",
         state: "selected",
       },
+      ...(selections.durableJobs
+        ? [{
+            id: selections.durableJobsProvider,
+            capability: "durable-jobs",
+            state: "selected",
+          }]
+        : []),
       ...(isFullStack
         ? [{
             id: selections.uiProvider,
@@ -913,11 +981,14 @@ function createPlan(
     persistence: selections.persistence,
     relationalProvider: selections.relationalProvider,
     observabilityExporter: selections.observabilityExporter,
+    durableJobs: selections.durableJobs,
+    durableJobsProvider: selections.durableJobsProvider,
     packageReferences: [
       ...PLATFORM_PACKAGE_REFERENCES,
       ...ENTITY_FRAMEWORK_PACKAGE_REFERENCES,
       RELATIONAL_PROVIDER_DEFINITIONS[selections.relationalProvider]
         .packageReference,
+      ...(selections.durableJobs ? DURABLE_JOBS_PACKAGE_REFERENCES : []),
       ...authenticationPackageReferences(selections.authentication),
       ...(selections.observabilityExporter ? [OTLP_EXPORTER_PACKAGE] : []),
     ].map((reference) => ({ ...reference })),
@@ -944,6 +1015,8 @@ function createPlan(
       businessModules: true,
       relationalPersistence: true,
       oneShotMigrator: true,
+      durableJobs: selections.durableJobs,
+      durableJobsProvider: selections.durableJobsProvider,
       authenticationProfile: selections.authentication.profile,
       observabilityExporter: selections.observabilityExporter,
     },
@@ -1100,6 +1173,9 @@ function apiProjectFile(plan) {
           .packageReference,
       ]
       : [];
+  const durableJobsReferences = plan.durableJobs
+    ? DURABLE_JOBS_PACKAGE_REFERENCES
+    : [];
   return `<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -1117,6 +1193,7 @@ ${renderPackageReferences(
   [
     ...API_APPLICATION_PACKAGE_REFERENCES,
     ...identityPersistenceReferences,
+    ...durableJobsReferences,
     ...authenticationReferences,
     ...(plan.observabilityExporter ? [OTLP_EXPORTER_PACKAGE] : []),
   ],
@@ -1232,17 +1309,24 @@ function apiProgramFile(plan) {
   const moduleUsings = plan.businessModules
     .map((module) => `using ${moduleNamespace(plan, module.name)};`)
     .join("\n");
+  const durableJobsUsing = plan.durableJobs
+    ? `using ${plan.applicationName}.Api.Infrastructure.DurableJobs;`
+    : "";
   const serviceComposition = plan.businessModules
     .map(
       (module) =>
         `        ${module.name}Module.AddServices(services, configuration);`,
     )
     .join("\n");
+  const durableJobsComposition = plan.durableJobs
+    ? `        DurableJobsComposition.AddServices(services, configuration);`
+    : "";
   const endpointComposition = plan.businessModules
     .map((module) => `        ${module.name}Module.MapEndpoints(versionOne);`)
     .join("\n");
 
   return `${moduleUsings}
+${durableJobsUsing}
 using ${plan.applicationName}.Api.Infrastructure.Host;
 using ${plan.applicationName}.Api.Infrastructure.Identity;
 using ${plan.applicationName}.Infrastructure.IntegrationEvents;
@@ -1294,6 +1378,7 @@ public static class ApiComposition
             configuration,
             environment);
 ${serviceComposition}
+${durableJobsComposition}
         ReliableEventsComposition.AddServices(services);
     }
 
@@ -1547,6 +1632,419 @@ ${failCases}
             _ => new ValueTask<bool>(false),
         };
     }
+}
+`;
+}
+
+function durableJobsCompositionFile(plan) {
+  const providerStore =
+    plan.relationalProvider === "postgresql"
+      ? `                store.UseGenericDatabase<Quartz.Impl.AdoJobStore.PostgreSQLDelegate>(
+                "Npgsql",
+                provider => provider.ConnectionString = connectionString);`
+      : `                store.UseGenericDatabase<Quartz.Impl.AdoJobStore.SqlServerDelegate>(
+                "SqlServer",
+                provider => provider.ConnectionString = connectionString);`;
+  return `using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.Globalization;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using Quartz;
+using Quartz.Impl.AdoJobStore;
+
+namespace ${plan.applicationName}.Api.Infrastructure.DurableJobs;
+
+public sealed record JobInvocation
+{
+    public JobInvocation(
+        string operationName,
+        int schemaVersion,
+        IReadOnlyDictionary<string, string> arguments)
+    {
+        if (!DurableJobValidation.IsValidOperationName(operationName))
+        {
+            throw new ArgumentException(
+                "A durable job operation name must be a bounded identifier.",
+                nameof(operationName));
+        }
+
+        if (!DurableJobValidation.IsValidSchemaVersion(schemaVersion))
+        {
+            throw new ArgumentOutOfRangeException(nameof(schemaVersion));
+        }
+
+        ArgumentNullException.ThrowIfNull(arguments);
+        if (arguments.Count > 16)
+        {
+            throw new ArgumentException(
+                "A durable job invocation may contain at most 16 scalar arguments.",
+                nameof(arguments));
+        }
+
+        var copiedArguments = new Dictionary<string, string>(
+            StringComparer.Ordinal);
+        foreach (var (key, value) in arguments)
+        {
+            if (string.IsNullOrWhiteSpace(key) ||
+                key.Length > 64 ||
+                string.IsNullOrWhiteSpace(value) ||
+                value.Length > 1024)
+            {
+                throw new ArgumentException(
+                    "Durable job arguments must be bounded non-empty scalars.",
+                    nameof(arguments));
+            }
+
+            copiedArguments.Add(key, value);
+        }
+
+        OperationName = operationName;
+        SchemaVersion = schemaVersion;
+        Arguments = copiedArguments.ToImmutableDictionary(
+            StringComparer.Ordinal);
+    }
+
+    public string OperationName { get; }
+
+    public int SchemaVersion { get; }
+
+    public IReadOnlyDictionary<string, string> Arguments { get; }
+}
+
+internal static class DurableJobValidation
+{
+    internal static bool IsValidOperationName(string? operationName) =>
+        !string.IsNullOrWhiteSpace(operationName) &&
+        operationName.Length <= 128 &&
+        operationName.All(character =>
+            char.IsAsciiLetterOrDigit(character) ||
+            character is '.' or '-' or '_');
+
+    internal static bool IsValidSchemaVersion(int schemaVersion) =>
+        schemaVersion > 0;
+}
+
+public interface IDurableJobDispatcher
+{
+    ValueTask ExecuteAsync(
+        JobInvocation invocation,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class UnconfiguredDurableJobDispatcher : IDurableJobDispatcher
+{
+    public ValueTask ExecuteAsync(
+        JobInvocation invocation,
+        CancellationToken cancellationToken)
+    {
+        _ = invocation;
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new InvalidOperationException(
+            "Register an application-owned IDurableJobDispatcher before scheduling durable jobs.");
+    }
+}
+
+[DisallowConcurrentExecution]
+public sealed class DurableJobAdapter : IJob
+{
+    private const string OperationKey = "operation";
+    private const string SchemaVersionKey = "schema-version";
+    private const string ArgumentsKey = "arguments";
+    private readonly IDurableJobDispatcher dispatcher;
+
+    public DurableJobAdapter(IDurableJobDispatcher dispatcher)
+    {
+        this.dispatcher = dispatcher;
+    }
+
+    public async ValueTask Execute(IJobExecutionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var operation = context.MergedJobDataMap.GetString(OperationKey);
+        var schemaVersionValue = context.MergedJobDataMap.GetString(SchemaVersionKey);
+        var argumentsJson = context.MergedJobDataMap.GetString(ArgumentsKey);
+        if (!int.TryParse(
+                schemaVersionValue,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var schemaVersion) ||
+            string.IsNullOrWhiteSpace(operation) ||
+            string.IsNullOrWhiteSpace(argumentsJson))
+        {
+            throw new JobExecutionException(
+                "The durable job payload is missing its stable invocation fields.");
+        }
+
+        var arguments =
+            JsonSerializer.Deserialize<Dictionary<string, string>>(argumentsJson)
+            ?? throw new JobExecutionException(
+                "The durable job payload arguments were invalid.");
+        var invocation = new JobInvocation(operation, schemaVersion, arguments);
+        var stopwatch = Stopwatch.StartNew();
+        using var activity =
+            DurableJobsTelemetry.ActivitySource.StartActivity(
+                "durable-job.execute",
+                ActivityKind.Internal);
+        activity?.SetTag("martix.job.operation", invocation.OperationName);
+        activity?.SetTag("martix.job.schema_version", invocation.SchemaVersion);
+        try
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            await dispatcher.ExecuteAsync(
+                invocation,
+                context.CancellationToken);
+            DurableJobsTelemetry.Executions.Add(
+                1,
+                new KeyValuePair<string, object?>("outcome", "success"));
+        }
+        catch (OperationCanceledException)
+            when (context.CancellationToken.IsCancellationRequested)
+        {
+            DurableJobsTelemetry.Executions.Add(
+                1,
+                new KeyValuePair<string, object?>("outcome", "cancelled"));
+            throw;
+        }
+        catch
+        {
+            DurableJobsTelemetry.Executions.Add(
+                1,
+                new KeyValuePair<string, object?>("outcome", "failure"));
+            throw;
+        }
+        finally
+        {
+            DurableJobsTelemetry.Duration.Record(
+                stopwatch.Elapsed.TotalMilliseconds);
+        }
+    }
+
+    internal static string OperationDataKey => OperationKey;
+
+    internal static string SchemaVersionDataKey => SchemaVersionKey;
+
+    internal static string ArgumentsDataKey => ArgumentsKey;
+}
+
+public static class DurableJobsComposition
+{
+    public const string SchedulerNameConfigurationKey = "Quartz:SchedulerName";
+    public const string JobConnectionStringName = "Quartz";
+    public const string JobGroup = "application";
+
+    public static JobKey CreateJobKey(
+        string operationName,
+        int schemaVersion)
+    {
+        if (!DurableJobValidation.IsValidOperationName(operationName))
+        {
+            throw new ArgumentException(
+                "A durable job requires a bounded operation name.",
+                nameof(operationName));
+        }
+        if (!DurableJobValidation.IsValidSchemaVersion(schemaVersion))
+        {
+            throw new ArgumentOutOfRangeException(nameof(schemaVersion));
+        }
+
+        return new JobKey(
+            operationName + ":v" +
+                schemaVersion.ToString(CultureInfo.InvariantCulture),
+            JobGroup);
+    }
+
+    public static void AddServices(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        var connectionString = configuration.GetConnectionString(
+            JobConnectionStringName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Connection string 'Quartz' is required when durable jobs are selected.");
+        }
+
+        var schedulerName = configuration[SchedulerNameConfigurationKey];
+        if (string.IsNullOrWhiteSpace(schedulerName))
+        {
+            throw new InvalidOperationException(
+                "Configuration key 'Quartz:SchedulerName' is required when durable jobs are selected.");
+        }
+
+        services.TryAddSingleton<IDurableJobDispatcher,
+            UnconfiguredDurableJobDispatcher>();
+        services.AddSingleton<DurableJobOperator>();
+        services.AddHealthChecks()
+            .AddCheck<DurableJobsHealthCheck>(
+                "durable-jobs",
+                tags: new[] { "ready" },
+                timeout: TimeSpan.FromSeconds(5));
+        services.AddOpenTelemetry()
+            .WithTracing(tracing =>
+                tracing.AddSource(DurableJobsTelemetry.ActivitySourceName))
+            .WithMetrics(metrics =>
+                metrics.AddMeter(DurableJobsTelemetry.MeterName));
+        services.AddQuartz(options =>
+        {
+            options.SchedulerName = schedulerName;
+            options.MaxBatchSize = 10;
+            options.InterruptJobsOnShutdown = true;
+            options.InterruptJobsOnShutdownWithWait = true;
+            options.UseDefaultThreadPool(
+                threadPool => threadPool.MaxConcurrency = 8);
+            options.UsePersistentStore(store =>
+            {
+                store.UseProperties = true;
+                store.RetryInterval = TimeSpan.FromSeconds(15);
+                store.MaxTransientRetries = 3;
+${providerStore}
+                store.UseClustering(cluster =>
+                {
+                    cluster.CheckinInterval =
+                        TimeSpan.FromMilliseconds(7500);
+                    cluster.CheckinMisfireThreshold =
+                        TimeSpan.FromMilliseconds(7500);
+                });
+                store.UseSystemTextJsonSerializer();
+            });
+        });
+        services.AddQuartzHostedService(options =>
+        {
+            options.WaitForJobsToComplete = true;
+        });
+    }
+
+    public static async Task<DateTimeOffset> ScheduleAsync(
+        IScheduler scheduler,
+        JobInvocation invocation,
+        DateTimeOffset runAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+        ArgumentNullException.ThrowIfNull(invocation);
+        cancellationToken.ThrowIfCancellationRequested();
+        var jobKey = CreateJobKey(
+            invocation.OperationName,
+            invocation.SchemaVersion);
+        var job = JobBuilder.Create<DurableJobAdapter>()
+            .WithIdentity(jobKey)
+            .UsingJobData(
+                DurableJobAdapter.OperationDataKey,
+                invocation.OperationName)
+            .UsingJobData(
+                DurableJobAdapter.SchemaVersionDataKey,
+                invocation.SchemaVersion.ToString(
+                    CultureInfo.InvariantCulture))
+            .UsingJobData(
+                DurableJobAdapter.ArgumentsDataKey,
+                JsonSerializer.Serialize(invocation.Arguments))
+            .StoreDurably(true)
+            .RequestRecovery(true)
+            .Build();
+        var trigger = TriggerBuilder.Create()
+            .WithIdentity(
+                jobKey.Name + ":trigger",
+                JobGroup)
+            .ForJob(jobKey)
+            .StartAt(runAtUtc)
+            .WithSimpleSchedule(schedule =>
+                schedule.WithMisfireHandlingInstructionFireNow())
+            .Build();
+        await scheduler.ScheduleJob(job, trigger, cancellationToken);
+        return runAtUtc;
+    }
+}
+
+public sealed class DurableJobOperator
+{
+    private readonly IScheduler scheduler;
+
+    public DurableJobOperator(IScheduler scheduler)
+    {
+        this.scheduler = scheduler;
+    }
+
+    public Task PauseAsync(
+        string operationName,
+        int schemaVersion,
+        CancellationToken cancellationToken = default) =>
+        scheduler.PauseJob(
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
+            cancellationToken);
+
+    public Task ResumeAsync(
+        string operationName,
+        int schemaVersion,
+        CancellationToken cancellationToken = default) =>
+        scheduler.ResumeJob(
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
+            cancellationToken);
+
+    public Task<bool> InterruptAsync(
+        string operationName,
+        int schemaVersion,
+        CancellationToken cancellationToken = default) =>
+        scheduler.Interrupt(
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
+            cancellationToken);
+
+    public Task<bool> DeleteAsync(
+        string operationName,
+        int schemaVersion,
+        CancellationToken cancellationToken = default) =>
+        scheduler.DeleteJob(
+            DurableJobsComposition.CreateJobKey(operationName, schemaVersion),
+            cancellationToken);
+}
+
+internal sealed class DurableJobsHealthCheck : IHealthCheck
+{
+    private readonly IScheduler scheduler;
+
+    public DurableJobsHealthCheck(IScheduler scheduler)
+    {
+        this.scheduler = scheduler;
+    }
+
+    public Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        _ = context;
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            scheduler.IsStarted && !scheduler.IsShutdown
+                ? HealthCheckResult.Healthy()
+                : HealthCheckResult.Unhealthy(
+                    "Quartz scheduler is not started."));
+    }
+}
+
+internal static class DurableJobsTelemetry
+{
+    public const string ActivitySourceName =
+        "${plan.applicationName}.DurableJobs";
+    public const string MeterName =
+        "${plan.applicationName}.DurableJobs";
+    public static readonly ActivitySource ActivitySource =
+        new(ActivitySourceName);
+    public static readonly Meter Meter = new(MeterName);
+    public static readonly Counter<long> Executions =
+        Meter.CreateCounter<long>("martix.durable_jobs.executions");
+    public static readonly Histogram<double> Duration =
+        Meter.CreateHistogram<double>(
+            "martix.durable_jobs.duration_ms",
+            unit: "ms");
 }
 `;
 }
@@ -2728,6 +3226,9 @@ function migratorProgramFile(plan) {
   const moduleUsings = plan.businessModules
     .map((module) => `using ${moduleNamespace(plan, module.name)};`)
     .join("\n");
+  const durableJobsUsing = plan.durableJobs
+    ? `using ${plan.applicationName}.Migrator.Infrastructure.DurableJobs;`
+    : "";
   const identityUsing = plan.authentication.profile === "identity:interactive"
     ? `using ${plan.applicationName}.Api.Infrastructure.Identity;\n`
     : "";
@@ -2741,6 +3242,9 @@ function migratorProgramFile(plan) {
     plan.authentication.profile === "identity:interactive"
       ? `IdentityMigrationComposition.AddMigrationServices(builder.Services, builder.Configuration);`
       : "";
+  const durableJobsRegistration = plan.durableJobs
+    ? `QuartzMigrationComposition.AddMigrationServices(builder.Services, builder.Configuration);`
+    : "";
   const executions = plan.businessModules
     .map(
       (module) =>
@@ -2758,7 +3262,15 @@ function migratorProgramFile(plan) {
        operation,
        CancellationToken.None));`
    : "";
+ const durableJobsExecution = plan.durableJobs
+   ? `Console.WriteLine(
+   await QuartzMigrationComposition.ExecuteMigrationAsync(
+       host.Services,
+       operation,
+       CancellationToken.None));`
+   : "";
  return `${moduleUsings}
+${durableJobsUsing}
 ${identityUsing}using MartiX.Platform.EntityFrameworkCore.ReliableEvents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -2775,12 +3287,593 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLogging();
 builder.Services.AddReliableEvents();
 ${identityRegistration}
+${durableJobsRegistration}
 ${registrations}
 using var host = builder.Build();
 
 ${identityExecution}
+${durableJobsExecution}
 ${executions}
 return 0;
+`;
+}
+
+function quartzMigrationCompositionFile(plan) {
+  const providerInvariantName =
+    plan.relationalProvider === "postgresql"
+      ? "Npgsql"
+      : "Microsoft.Data.SqlClient";
+  const providerConnectionUsing =
+    plan.relationalProvider === "postgresql"
+      ? "using Npgsql;"
+      : "using Microsoft.Data.SqlClient;";
+  const providerConnectionExpression =
+    plan.relationalProvider === "postgresql"
+      ? "new NpgsqlConnection(options.ConnectionString)"
+      : "new SqlConnection(options.ConnectionString)";
+  const schemaScript =
+    plan.relationalProvider === "postgresql"
+      ? `    private static string SchemaScript =>
+        """
+        CREATE TABLE IF NOT EXISTS qrtz_job_details
+        (
+            sched_name TEXT NOT NULL,
+            job_name TEXT NOT NULL,
+            job_group TEXT NOT NULL,
+            description TEXT NULL,
+            job_class_name TEXT NOT NULL,
+            is_durable BOOLEAN NOT NULL,
+            is_nonconcurrent BOOLEAN NOT NULL,
+            is_update_data BOOLEAN NOT NULL,
+            requests_recovery BOOLEAN NOT NULL,
+            job_data BYTEA NULL,
+            PRIMARY KEY (sched_name, job_name, job_group)
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_triggers
+        (
+            sched_name TEXT NOT NULL,
+            trigger_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            job_name TEXT NOT NULL,
+            job_group TEXT NOT NULL,
+            description TEXT NULL,
+            next_fire_time BIGINT NULL,
+            prev_fire_time BIGINT NULL,
+            priority INTEGER NULL,
+            trigger_state TEXT NOT NULL,
+            trigger_type TEXT NOT NULL,
+            start_time BIGINT NOT NULL,
+            end_time BIGINT NULL,
+            calendar_name TEXT NULL,
+            misfire_instr SMALLINT NULL,
+            misfire_orig_fire_time BIGINT NULL,
+            execution_group VARCHAR(200) NULL,
+            job_data BYTEA NULL,
+            PRIMARY KEY (sched_name, trigger_name, trigger_group),
+            FOREIGN KEY (sched_name, job_name, job_group)
+                REFERENCES qrtz_job_details (sched_name, job_name, job_group)
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_simple_triggers
+        (
+            sched_name TEXT NOT NULL,
+            trigger_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            repeat_count BIGINT NOT NULL,
+            repeat_interval BIGINT NOT NULL,
+            times_triggered BIGINT NOT NULL,
+            PRIMARY KEY (sched_name, trigger_name, trigger_group),
+            FOREIGN KEY (sched_name, trigger_name, trigger_group)
+                REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
+                ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_simprop_triggers
+        (
+            sched_name TEXT NOT NULL,
+            trigger_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            str_prop_1 TEXT NULL,
+            str_prop_2 TEXT NULL,
+            str_prop_3 TEXT NULL,
+            int_prop_1 INTEGER NULL,
+            int_prop_2 INTEGER NULL,
+            long_prop_1 BIGINT NULL,
+            long_prop_2 BIGINT NULL,
+            dec_prop_1 NUMERIC NULL,
+            dec_prop_2 NUMERIC NULL,
+            bool_prop_1 BOOLEAN NULL,
+            bool_prop_2 BOOLEAN NULL,
+            time_zone_id TEXT NULL,
+            PRIMARY KEY (sched_name, trigger_name, trigger_group),
+            FOREIGN KEY (sched_name, trigger_name, trigger_group)
+                REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
+                ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_cron_triggers
+        (
+            sched_name TEXT NOT NULL,
+            trigger_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            cron_expression TEXT NOT NULL,
+            time_zone_id TEXT NULL,
+            PRIMARY KEY (sched_name, trigger_name, trigger_group),
+            FOREIGN KEY (sched_name, trigger_name, trigger_group)
+                REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
+                ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_blob_triggers
+        (
+            sched_name TEXT NOT NULL,
+            trigger_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            blob_data BYTEA NULL,
+            PRIMARY KEY (sched_name, trigger_name, trigger_group),
+            FOREIGN KEY (sched_name, trigger_name, trigger_group)
+                REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
+                ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_calendars
+        (
+            sched_name TEXT NOT NULL,
+            calendar_name TEXT NOT NULL,
+            calendar BYTEA NOT NULL,
+            PRIMARY KEY (sched_name, calendar_name)
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_paused_trigger_grps
+        (
+            sched_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            PRIMARY KEY (sched_name, trigger_group)
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_fired_triggers
+        (
+            sched_name TEXT NOT NULL,
+            entry_id TEXT NOT NULL,
+            trigger_name TEXT NOT NULL,
+            trigger_group TEXT NOT NULL,
+            instance_name TEXT NOT NULL,
+            fired_time BIGINT NOT NULL,
+            sched_time BIGINT NOT NULL,
+            priority INTEGER NOT NULL,
+            state TEXT NOT NULL,
+            job_name TEXT NULL,
+            job_group TEXT NULL,
+            is_nonconcurrent BOOLEAN NOT NULL,
+            requests_recovery BOOLEAN NULL,
+            execution_group VARCHAR(200) NULL,
+            PRIMARY KEY (sched_name, entry_id)
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_scheduler_state
+        (
+            sched_name TEXT NOT NULL,
+            instance_name TEXT NOT NULL,
+            last_checkin_time BIGINT NOT NULL,
+            checkin_interval BIGINT NOT NULL,
+            PRIMARY KEY (sched_name, instance_name)
+        );
+        CREATE TABLE IF NOT EXISTS qrtz_locks
+        (
+            sched_name TEXT NOT NULL,
+            lock_name TEXT NOT NULL,
+            PRIMARY KEY (sched_name, lock_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_qrtz_j_req_recovery
+            ON qrtz_job_details (requests_recovery);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_t_next_fire_time
+            ON qrtz_triggers (next_fire_time);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_t_state
+            ON qrtz_triggers (trigger_state);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_t_nft_st
+            ON qrtz_triggers (next_fire_time, trigger_state);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_trig_name
+            ON qrtz_fired_triggers (trigger_name);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_trig_group
+            ON qrtz_fired_triggers (trigger_group);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_trig_nm_gp
+            ON qrtz_fired_triggers (sched_name, trigger_name, trigger_group);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_trig_inst_name
+            ON qrtz_fired_triggers (instance_name);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_job_name
+            ON qrtz_fired_triggers (job_name);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_job_group
+            ON qrtz_fired_triggers (job_group);
+        CREATE INDEX IF NOT EXISTS idx_qrtz_ft_job_req_recovery
+            ON qrtz_fired_triggers (requests_recovery);
+        """;`
+      : `    private static string SchemaScript =>
+        """
+        IF OBJECT_ID(N'[dbo].[QRTZ_JOB_DETAILS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_JOB_DETAILS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [JOB_NAME] nvarchar(150) NOT NULL,
+            [JOB_GROUP] nvarchar(150) NOT NULL,
+            [DESCRIPTION] nvarchar(250) NULL,
+            [JOB_CLASS_NAME] nvarchar(250) NOT NULL,
+            [IS_DURABLE] bit NOT NULL,
+            [IS_NONCONCURRENT] bit NOT NULL,
+            [IS_UPDATE_DATA] bit NOT NULL,
+            [REQUESTS_RECOVERY] bit NOT NULL,
+            [JOB_DATA] varbinary(max) NULL,
+            CONSTRAINT [PK_QRTZ_JOB_DETAILS]
+                PRIMARY KEY ([SCHED_NAME], [JOB_NAME], [JOB_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_TRIGGERS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [TRIGGER_NAME] nvarchar(150) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            [JOB_NAME] nvarchar(150) NOT NULL,
+            [JOB_GROUP] nvarchar(150) NOT NULL,
+            [DESCRIPTION] nvarchar(250) NULL,
+            [NEXT_FIRE_TIME] bigint NULL,
+            [PREV_FIRE_TIME] bigint NULL,
+            [PRIORITY] int NULL,
+            [TRIGGER_STATE] nvarchar(16) NOT NULL,
+            [TRIGGER_TYPE] nvarchar(8) NOT NULL,
+            [START_TIME] bigint NOT NULL,
+            [END_TIME] bigint NULL,
+            [CALENDAR_NAME] nvarchar(200) NULL,
+            [MISFIRE_INSTR] int NULL,
+            [MISFIRE_ORIG_FIRE_TIME] bigint NULL,
+            [EXECUTION_GROUP] nvarchar(200) NULL,
+            [JOB_DATA] varbinary(max) NULL,
+            CONSTRAINT [PK_QRTZ_TRIGGERS]
+                PRIMARY KEY ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_SIMPLE_TRIGGERS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_SIMPLE_TRIGGERS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [TRIGGER_NAME] nvarchar(150) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            [REPEAT_COUNT] int NOT NULL,
+            [REPEAT_INTERVAL] bigint NOT NULL,
+            [TIMES_TRIGGERED] int NOT NULL,
+            CONSTRAINT [PK_QRTZ_SIMPLE_TRIGGERS]
+                PRIMARY KEY ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_SIMPROP_TRIGGERS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_SIMPROP_TRIGGERS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [TRIGGER_NAME] nvarchar(150) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            [STR_PROP_1] nvarchar(512) NULL,
+            [STR_PROP_2] nvarchar(512) NULL,
+            [STR_PROP_3] nvarchar(512) NULL,
+            [INT_PROP_1] int NULL,
+            [INT_PROP_2] int NULL,
+            [LONG_PROP_1] bigint NULL,
+            [LONG_PROP_2] bigint NULL,
+            [DEC_PROP_1] numeric(13,4) NULL,
+            [DEC_PROP_2] numeric(13,4) NULL,
+            [BOOL_PROP_1] bit NULL,
+            [BOOL_PROP_2] bit NULL,
+            [TIME_ZONE_ID] nvarchar(80) NULL,
+            CONSTRAINT [PK_QRTZ_SIMPROP_TRIGGERS]
+                PRIMARY KEY ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_CRON_TRIGGERS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_CRON_TRIGGERS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [TRIGGER_NAME] nvarchar(150) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            [CRON_EXPRESSION] nvarchar(120) NOT NULL,
+            [TIME_ZONE_ID] nvarchar(80) NULL,
+            CONSTRAINT [PK_QRTZ_CRON_TRIGGERS]
+                PRIMARY KEY ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_BLOB_TRIGGERS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_BLOB_TRIGGERS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [TRIGGER_NAME] nvarchar(150) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            [BLOB_DATA] varbinary(max) NULL,
+            CONSTRAINT [PK_QRTZ_BLOB_TRIGGERS]
+                PRIMARY KEY ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_CALENDARS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_CALENDARS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [CALENDAR_NAME] nvarchar(200) NOT NULL,
+            [CALENDAR] varbinary(max) NOT NULL,
+            CONSTRAINT [PK_QRTZ_CALENDARS]
+                PRIMARY KEY ([SCHED_NAME], [CALENDAR_NAME])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_PAUSED_TRIGGER_GRPS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_PAUSED_TRIGGER_GRPS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            CONSTRAINT [PK_QRTZ_PAUSED_TRIGGER_GRPS]
+                PRIMARY KEY ([SCHED_NAME], [TRIGGER_GROUP])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_FIRED_TRIGGERS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_FIRED_TRIGGERS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [ENTRY_ID] nvarchar(140) NOT NULL,
+            [TRIGGER_NAME] nvarchar(150) NOT NULL,
+            [TRIGGER_GROUP] nvarchar(150) NOT NULL,
+            [INSTANCE_NAME] nvarchar(200) NOT NULL,
+            [FIRED_TIME] bigint NOT NULL,
+            [SCHED_TIME] bigint NOT NULL,
+            [PRIORITY] int NOT NULL,
+            [STATE] nvarchar(16) NOT NULL,
+            [JOB_NAME] nvarchar(150) NULL,
+            [JOB_GROUP] nvarchar(150) NULL,
+            [IS_NONCONCURRENT] bit NULL,
+            [REQUESTS_RECOVERY] bit NULL,
+            [EXECUTION_GROUP] nvarchar(200) NULL,
+            CONSTRAINT [PK_QRTZ_FIRED_TRIGGERS]
+                PRIMARY KEY ([SCHED_NAME], [ENTRY_ID])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_SCHEDULER_STATE]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_SCHEDULER_STATE]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [INSTANCE_NAME] nvarchar(200) NOT NULL,
+            [LAST_CHECKIN_TIME] bigint NOT NULL,
+            [CHECKIN_INTERVAL] bigint NOT NULL,
+            CONSTRAINT [PK_QRTZ_SCHEDULER_STATE]
+                PRIMARY KEY ([SCHED_NAME], [INSTANCE_NAME])
+        );
+        IF OBJECT_ID(N'[dbo].[QRTZ_LOCKS]', N'U') IS NULL
+        CREATE TABLE [dbo].[QRTZ_LOCKS]
+        (
+            [SCHED_NAME] nvarchar(120) NOT NULL,
+            [LOCK_NAME] nvarchar(40) NOT NULL,
+            CONSTRAINT [PK_QRTZ_LOCKS]
+                PRIMARY KEY ([SCHED_NAME], [LOCK_NAME])
+        );
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.foreign_keys
+            WHERE name = N'FK_QRTZ_TRIGGERS_QRTZ_JOB_DETAILS')
+        ALTER TABLE [dbo].[QRTZ_TRIGGERS] ADD
+            CONSTRAINT [FK_QRTZ_TRIGGERS_QRTZ_JOB_DETAILS] FOREIGN KEY
+            ([SCHED_NAME], [JOB_NAME], [JOB_GROUP])
+            REFERENCES [dbo].[QRTZ_JOB_DETAILS]
+                ([SCHED_NAME], [JOB_NAME], [JOB_GROUP]);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.foreign_keys
+            WHERE name = N'FK_QRTZ_SIMPLE_TRIGGERS_QRTZ_TRIGGERS')
+        ALTER TABLE [dbo].[QRTZ_SIMPLE_TRIGGERS] ADD
+            CONSTRAINT [FK_QRTZ_SIMPLE_TRIGGERS_QRTZ_TRIGGERS] FOREIGN KEY
+            ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            REFERENCES [dbo].[QRTZ_TRIGGERS]
+                ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            ON DELETE CASCADE;
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.foreign_keys
+            WHERE name = N'FK_QRTZ_SIMPROP_TRIGGERS_QRTZ_TRIGGERS')
+        ALTER TABLE [dbo].[QRTZ_SIMPROP_TRIGGERS] ADD
+            CONSTRAINT [FK_QRTZ_SIMPROP_TRIGGERS_QRTZ_TRIGGERS] FOREIGN KEY
+            ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            REFERENCES [dbo].[QRTZ_TRIGGERS]
+                ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            ON DELETE CASCADE;
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.foreign_keys
+            WHERE name = N'FK_QRTZ_CRON_TRIGGERS_QRTZ_TRIGGERS')
+        ALTER TABLE [dbo].[QRTZ_CRON_TRIGGERS] ADD
+            CONSTRAINT [FK_QRTZ_CRON_TRIGGERS_QRTZ_TRIGGERS] FOREIGN KEY
+            ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            REFERENCES [dbo].[QRTZ_TRIGGERS]
+                ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            ON DELETE CASCADE;
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.foreign_keys
+            WHERE name = N'FK_QRTZ_BLOB_TRIGGERS_QRTZ_TRIGGERS')
+        ALTER TABLE [dbo].[QRTZ_BLOB_TRIGGERS] ADD
+            CONSTRAINT [FK_QRTZ_BLOB_TRIGGERS_QRTZ_TRIGGERS] FOREIGN KEY
+            ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            REFERENCES [dbo].[QRTZ_TRIGGERS]
+                ([SCHED_NAME], [TRIGGER_NAME], [TRIGGER_GROUP])
+            ON DELETE CASCADE;
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_G_J'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_G_J]
+            ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, JOB_GROUP, JOB_NAME);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_C'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_C]
+            ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, CALENDAR_NAME);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_N_G_STATE'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_N_G_STATE]
+            ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, TRIGGER_GROUP, TRIGGER_STATE);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_STATE'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_STATE]
+            ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, TRIGGER_STATE);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_N_STATE'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_N_STATE]
+            ON [dbo].[QRTZ_TRIGGERS](
+                SCHED_NAME, TRIGGER_NAME, TRIGGER_GROUP, TRIGGER_STATE);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_NEXT_FIRE_TIME'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_NEXT_FIRE_TIME]
+            ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, NEXT_FIRE_TIME);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_NFT_ST'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_NFT_ST]
+            ON [dbo].[QRTZ_TRIGGERS](
+                SCHED_NAME, TRIGGER_STATE, NEXT_FIRE_TIME);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_NFT_ST_MISFIRE'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_NFT_ST_MISFIRE]
+            ON [dbo].[QRTZ_TRIGGERS](
+                SCHED_NAME, MISFIRE_INSTR, NEXT_FIRE_TIME, TRIGGER_STATE);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_T_NFT_ST_MISFIRE_GRP'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_T_NFT_ST_MISFIRE_GRP]
+            ON [dbo].[QRTZ_TRIGGERS](
+                SCHED_NAME, MISFIRE_INSTR, NEXT_FIRE_TIME,
+                TRIGGER_GROUP, TRIGGER_STATE);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_FT_INST_JOB_REQ_RCVRY'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_FIRED_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_FT_INST_JOB_REQ_RCVRY]
+            ON [dbo].[QRTZ_FIRED_TRIGGERS](
+                SCHED_NAME, INSTANCE_NAME, REQUESTS_RECOVERY);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_FT_G_J'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_FIRED_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_FT_G_J]
+            ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, JOB_GROUP, JOB_NAME);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = N'IDX_QRTZ_FT_G_T'
+              AND object_id = OBJECT_ID(N'[dbo].[QRTZ_FIRED_TRIGGERS]'))
+        CREATE INDEX [IDX_QRTZ_FT_G_T]
+            ON [dbo].[QRTZ_FIRED_TRIGGERS](
+                SCHED_NAME, TRIGGER_GROUP, TRIGGER_NAME);
+        """;`;
+  return `using System.Data.Common;
+${providerConnectionUsing}
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace ${plan.applicationName}.Migrator.Infrastructure.DurableJobs;
+
+internal sealed record QuartzMigrationOptions(
+    string ProviderInvariantName,
+    string ConnectionString);
+
+public static class QuartzMigrationComposition
+{
+    private const string QuartzConnectionName = "Quartz";
+    private static readonly string[] RequiredTables =
+    [
+        "QRTZ_JOB_DETAILS",
+        "QRTZ_TRIGGERS",
+        "QRTZ_SIMPLE_TRIGGERS",
+        "QRTZ_SIMPROP_TRIGGERS",
+        "QRTZ_CRON_TRIGGERS",
+        "QRTZ_BLOB_TRIGGERS",
+        "QRTZ_CALENDARS",
+        "QRTZ_PAUSED_TRIGGER_GRPS",
+        "QRTZ_FIRED_TRIGGERS",
+        "QRTZ_SCHEDULER_STATE",
+        "QRTZ_LOCKS"
+    ];
+
+    public static void AddMigrationServices(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        var connectionString = configuration.GetConnectionString(
+            QuartzConnectionName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Connection string 'Quartz' is required for Quartz migration.");
+        }
+
+        services.AddSingleton(
+            new QuartzMigrationOptions(
+                "${providerInvariantName}",
+                connectionString));
+    }
+
+    public static async Task<string> ExecuteMigrationAsync(
+        IServiceProvider services,
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        var options = services.GetRequiredService<QuartzMigrationOptions>();
+        if (operation == "script")
+        {
+            return SchemaScript;
+        }
+
+        await using var connection = CreateConnection(options);
+        await connection.OpenAsync(cancellationToken);
+        return operation switch
+        {
+            "validate" => await ValidateAsync(
+                connection,
+                options.ProviderInvariantName,
+                cancellationToken),
+            "apply" => await ApplyAndValidateAsync(
+                connection,
+                options.ProviderInvariantName,
+                cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+    }
+
+    private static DbConnection CreateConnection(
+        QuartzMigrationOptions options) =>
+        ${providerConnectionExpression};
+
+    private static async Task<string> ValidateAsync(
+        DbConnection connection,
+        string providerInvariantName,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        foreach (var tableName in RequiredTables)
+        {
+            var qualifiedTableName =
+                providerInvariantName == "Microsoft.Data.SqlClient"
+                    ? $"[dbo].[{tableName}]"
+                    : tableName;
+            command.CommandText =
+                $"SELECT 1 FROM {qualifiedTableName} WHERE 1 = 0";
+            await command.ExecuteScalarAsync(cancellationToken);
+        }
+        return "validated: Quartz durable-jobs schema";
+    }
+
+    private static async Task<string> ApplyAndValidateAsync(
+        DbConnection connection,
+        string providerInvariantName,
+        CancellationToken cancellationToken)
+    {
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = SchemaScript;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await ValidateAsync(
+            connection,
+            providerInvariantName,
+            cancellationToken);
+        return "applied: Quartz durable-jobs schema";
+    }
+
+${schemaScript}
+}
 `;
 }
 
@@ -3008,6 +4101,13 @@ using ${moduleNamespace(plan, consumerModule.name)}.Infrastructure.Persistence;
     }
 `;
 
+  const durableJobsConfiguration = plan.durableJobs
+    ? `            builder.Configuration["ConnectionStrings:Quartz"] =
+                connectionString;
+            builder.Configuration["Quartz:SchedulerName"] =
+                "${plan.applicationName}.DurableJobs";`
+    : "";
+
   return `using System.Net;
 using System.Text.Json;
 using ${plan.applicationName}.Client;
@@ -3192,10 +4292,13 @@ ${crashRedeliveryScenario}
                     EnvironmentName = Environments.Development,
                 });
             builder.WebHost.UseTestServer();
-            builder.Configuration["ConnectionStrings:Database"] =
+            var connectionString =
                 Environment.GetEnvironmentVariable(
                     "MARTIX_MODULAR_MONOLITH_DATABASE")
                 ?? "Host=localhost;Database=martix_test";
+            builder.Configuration["ConnectionStrings:Database"] =
+                connectionString;
+${durableJobsConfiguration}
             ApiComposition.ConfigureBuilder(builder);
             ApiComposition.ConfigureServices(
                 builder.Services,
@@ -3311,6 +4414,9 @@ function readmeFile(plan) {
     )
     .join("\n");
   const renderingNote = fullStackRenderingNote(plan);
+  const durableJobsNote = plan.durableJobs
+    ? "Quartz durable jobs are selected explicitly. Configure `ConnectionStrings:Quartz` and `Quartz:SchedulerName`; the Migrator owns the QRTZ schema and the API schedules only bounded `JobInvocation` values through the application-owned `IDurableJobDispatcher` seam."
+    : "";
   return `# ${plan.applicationName}
 
 This solution was generated by the \`martix-app\` Template System.
@@ -3327,6 +4433,8 @@ Business Modules are single projects with public Contracts and composition entry
 points; Domain, feature slices, and infrastructure remain internal to the module.
 
 ${modules}
+
+${durableJobsNote}
 
 Run the one-shot migration boundary before serving traffic:
 
@@ -6181,6 +7289,17 @@ function createFiles(plan, manifest) {
       testSourceFile(plan),
     ],
   ]);
+
+  if (plan.durableJobs) {
+    files.set(
+      `src/${plan.applicationName}.Api/Infrastructure/DurableJobs/DurableJobsComposition.cs`,
+      durableJobsCompositionFile(plan),
+    );
+    files.set(
+      `src/${plan.applicationName}.Migrator/Infrastructure/DurableJobs/QuartzMigrationComposition.cs`,
+      quartzMigrationCompositionFile(plan),
+    );
+  }
 
   if (plan.preset === FULL_STACK_PRESET) {
     for (const [path, contents] of createUiFiles(plan, contract)) {
