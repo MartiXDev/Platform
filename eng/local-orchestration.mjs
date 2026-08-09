@@ -16,6 +16,8 @@ export const LOCAL_ORCHESTRATION_SCHEMA_URI =
 const EXECUTABLE_ROLES = new Set(["migrator", "serving", "worker"]);
 const SECRET_KEY_PATTERN =
   /(?:secret|password|token|private.?key|access.?key|api.?key|credential|value)/i;
+const SECRET_ARGUMENT_PATTERN =
+  /(?:^|[\s_-])(?:secret|password|token|private.?key|access.?key|api.?key|credential)(?:[\s=:/])/i;
 const ALLOWED_SECRET_METADATA_KEYS = new Set([
   "secretPolicy",
   "containsSecrets",
@@ -38,8 +40,15 @@ function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function clone(value) {
+function deepClone(value) {
   return structuredClone(value);
+}
+
+function containsSecretShapedArgument(value) {
+  if (Array.isArray(value)) {
+    return containsSecretShapedArgument(value.join(" "));
+  }
+  return typeof value === "string" && SECRET_ARGUMENT_PATTERN.test(value);
 }
 
 function assertSecretFree(value, path = "orchestration") {
@@ -53,6 +62,15 @@ function assertSecretFree(value, path = "orchestration") {
   for (const [key, child] of Object.entries(value)) {
     if (SECRET_KEY_PATTERN.test(key) && !ALLOWED_SECRET_METADATA_KEYS.has(key)) {
       fail(`${path}.${key} is not allowed in a local orchestration projection.`, "secret-input");
+    }
+    if (
+      (key === "command" || key === "arguments") &&
+      containsSecretShapedArgument(child)
+    ) {
+      fail(
+        `${path}.${key} contains a secret-shaped argument and is not allowed in a local orchestration projection.`,
+        "secret-input",
+      );
     }
     assertSecretFree(child, `${path}.${key}`);
   }
@@ -114,7 +132,8 @@ function executableOrder(resources) {
 }
 
 function resourceImage(applicationName, digest) {
-  return `${applicationName.toLowerCase().replaceAll(".", "-")}@${digest}`;
+  const imageName = applicationName.toLowerCase().replaceAll(".", "-");
+  return `${imageName}@${digest}`;
 }
 
 function renderAspireAppHost(manifest) {
@@ -151,15 +170,10 @@ function renderAspireAppHost(manifest) {
 
   for (const resource of executableOrder(resources)) {
     const variable = resourceVariable(resource);
-    const command = resource.command;
-    const args = resource.arguments;
+    const commandArguments = [resource.command, ...resource.arguments];
+    const renderedArguments = commandArguments.map(csharpString).join(", ");
     lines.push(
-      `var ${variable} = builder.AddExecutable(${csharpString(resource.id)}, ${csharpString("dotnet")}, ".", ${[
-        command,
-        ...args,
-      ]
-        .map(csharpString)
-        .join(", ")});`,
+      `var ${variable} = builder.AddExecutable(${csharpString(resource.id)}, ${csharpString("dotnet")}, ".", ${renderedArguments});`,
     );
 
     for (const dependency of resource.dependsOn) {
@@ -203,7 +217,7 @@ function renderAspireAppHost(manifest) {
   return lines.join("\n");
 }
 
-function renderEnvironment(resources, resource) {
+function renderEnvironment(resource) {
   const keys = resource.configuration;
   if (keys.length === 0) {
     return [];
@@ -217,19 +231,40 @@ function renderEnvironment(resources, resource) {
   ];
 }
 
+function composeDependencyCondition(dependency) {
+  if (dependency.condition === "completed") {
+    return "service_completed_successfully";
+  }
+  return "service_healthy";
+}
+
 function renderDependsOn(resource) {
   if (resource.dependsOn.length === 0) {
     return [];
   }
   const lines = ["    depends_on:"];
   for (const dependency of resource.dependsOn) {
-    const condition =
-      dependency.condition === "completed"
-        ? "service_completed_successfully"
-        : "service_healthy";
+    const condition = composeDependencyCondition(dependency);
     lines.push(`      ${dependency.resource}:`, `        condition: ${condition}`);
   }
   return lines;
+}
+
+function composeRestartPolicy(resource) {
+  if (resource.role === "migrator") {
+    return '"no"';
+  }
+  return '"on-failure:3"';
+}
+
+function healthcheckCommand(resource, readiness) {
+  const portNumber = resource.ports.find(
+    (port) => port.name === readiness.port,
+  ).number;
+  if (readiness.kind === "http") {
+    return `wget --spider --quiet http://localhost:${portNumber}${readiness.path}`;
+  }
+  return `nc -z ${portNumber}`;
 }
 
 function renderHealthcheck(resource) {
@@ -237,14 +272,7 @@ function renderHealthcheck(resource) {
   if (readiness === undefined) {
     return [];
   }
-  const target =
-    readiness.kind === "http"
-      ? `http://localhost:${resource.ports.find((port) => port.name === readiness.port).number}${readiness.path}`
-      : `localhost:${resource.ports.find((port) => port.name === readiness.port).number}`;
-  const command =
-    readiness.kind === "http"
-      ? `wget --spider --quiet ${target}`
-      : `nc -z ${target.replace("localhost:", "")}`;
+  const command = healthcheckCommand(resource, readiness);
   return [
     "    healthcheck:",
     `      test: ["CMD-SHELL", ${JSON.stringify(`${command} || exit 1`)}]`,
@@ -281,16 +309,12 @@ function renderCompose(manifest) {
       );
     } else {
       lines.push(`    image: ${JSON.stringify(appImage)}`);
-      if (resource.arguments.length > 0) {
-        lines.push(
-          `    command: ${JSON.stringify([resource.command, ...resource.arguments])}`,
-        );
-      } else {
-        lines.push(`    command: ${JSON.stringify([resource.command])}`);
-      }
-      lines.push(...renderEnvironment(resources, resource));
+      lines.push(
+        `    command: ${JSON.stringify([resource.command, ...resource.arguments])}`,
+      );
+      lines.push(...renderEnvironment(resource));
       lines.push(...renderDependsOn(resource));
-      lines.push(`    restart: ${resource.role === "migrator" ? '"no"' : '"on-failure:3"'}`);
+      lines.push(`    restart: ${composeRestartPolicy(resource)}`);
       lines.push(`    stop_signal: ${resource.shutdown.signal}`);
       lines.push(`    stop_grace_period: ${resource.shutdown.gracePeriodSeconds}s`);
     }
@@ -337,12 +361,12 @@ function renderCompose(manifest) {
   return lines.join("\n");
 }
 
-function projectionResources(projection) {
-  return clone(projection.resources);
-}
-
-function projectionConfiguration(projection) {
-  return clone(projection.configuration);
+function projectionDetails(projection) {
+  return {
+    resources: deepClone(projection.resources),
+    migration: deepClone(projection.migration),
+    configuration: deepClone(projection.configuration),
+  };
 }
 
 export function createLocalOrchestration(manifest) {
@@ -356,8 +380,8 @@ export function createLocalOrchestration(manifest) {
     manifestDigest: normalized.identity.manifestDigest,
     topologyDigest: normalized.identity.topologyDigest,
     configurationSchemaDigest: normalized.identity.configurationSchemaDigest,
-    configuration: projectionConfiguration(processProjection),
-    migration: clone(processProjection.migration),
+    configuration: deepClone(processProjection.configuration),
+    migration: deepClone(processProjection.migration),
     supportClaims: [],
   };
   const orchestration = {
@@ -368,9 +392,7 @@ export function createLocalOrchestration(manifest) {
       command: "dotnet run",
       universal: true,
       artifactDigest: processProjection.identity.artifactDigest,
-      resources: projectionResources(processProjection),
-      migration: clone(processProjection.migration),
-      configuration: projectionConfiguration(processProjection),
+      ...projectionDetails(processProjection),
     },
     aspire: {
       profile: "aspire",
@@ -379,9 +401,7 @@ export function createLocalOrchestration(manifest) {
       file: "apphost.cs",
       optional: true,
       manifestDigest: normalized.identity.manifestDigest,
-      resources: projectionResources(processProjection),
-      migration: clone(processProjection.migration),
-      configuration: projectionConfiguration(processProjection),
+      ...projectionDetails(processProjection),
       content: renderAspireAppHost(normalized),
     },
     compose: {
@@ -394,9 +414,7 @@ export function createLocalOrchestration(manifest) {
       highAvailability: false,
       manifestDigest: normalized.identity.manifestDigest,
       artifactDigest: containerProjection.identity.artifactDigest,
-      resources: projectionResources(containerProjection),
-      migration: clone(containerProjection.migration),
-      configuration: projectionConfiguration(containerProjection),
+      ...projectionDetails(containerProjection),
       content: renderCompose(normalized),
     },
   };

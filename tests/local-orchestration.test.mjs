@@ -6,6 +6,7 @@ import {
   createLocalOrchestration,
   verifyLocalOrchestration,
 } from "../eng/local-orchestration.mjs";
+import { createDeploymentManifest } from "../eng/deployment-manifest.mjs";
 
 const fixtureRoot = join(
   import.meta.dirname,
@@ -74,5 +75,26 @@ test("Aspire and Compose preserve lifecycle semantics without production orchest
   assert.throws(
     () => verifyLocalOrchestration(manifest, drifted),
     /drifted from the validated Deployment Manifest/,
+  );
+});
+
+test("local projections reject secret-shaped executable arguments", async () => {
+  const sourceManifest = JSON.parse(
+    await readFile(join(fixtureRoot, "deployment-manifest.json"), "utf8"),
+  );
+  const input = structuredClone(sourceManifest);
+  input.resources.find(({ id }) => id === "api").arguments = ["--token=embedded"];
+  delete input.identity;
+  input.artifacts = input.artifacts.map(({ profile, kind, digest }) => ({
+    profile,
+    kind,
+    digest,
+  }));
+
+  const manifest = createDeploymentManifest(input);
+
+  assert.throws(
+    () => createLocalOrchestration(manifest),
+    /secret-shaped argument/,
   );
 });
