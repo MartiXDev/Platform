@@ -134,12 +134,33 @@ test("the named Provider Admission fixture proves selection, absence, and invali
   const result = await validateProviderAdmissionFixture(fixture, manifest);
 
   assert.equal(result.status, "passed");
-  assert.equal(result.providerCount, 2);
+  assert.equal(result.providerCount, 3);
   assert.equal(result.invalidSelectionCount, 4);
+  assert.match(result.providerEvidenceDigest, /^sha256:[0-9a-f]{64}$/);
   assert.equal(
     result.matrixCoordinate,
     "operatingSystem=linux|preset=modular-monolith|runtime=net10.0",
   );
+});
+
+test("Provider Admission rejects weakened Azure Key Vault startup evidence", async () => {
+  await withTemporaryBootstrapRoot(async (temporaryRoot) => {
+    const fixturePath = join(
+      temporaryRoot,
+      "tests",
+      "fixtures",
+      "ProviderAdmissionGeneratedSolution",
+      "provider-admission.json",
+    );
+    const fixture = JSON.parse(await readFile(fixturePath, "utf8"));
+    fixture.providerEvidence.configuration.failFast = false;
+    await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`);
+
+    await assert.rejects(
+      () => verifyBootstrap({ cadence: "fast", rootDir: temporaryRoot }),
+      /Azure Key Vault provider evidence failed: configuration\.failFast must be true/,
+    );
+  });
 });
 
 test("Full Stack verification rejects UI contract version drift", async () => {
